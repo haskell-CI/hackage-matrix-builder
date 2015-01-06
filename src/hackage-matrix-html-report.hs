@@ -34,7 +34,18 @@ parsePkgId s = (T.init n0, v)
     (n0,v0) = T.breakOnEnd "-" s
 
 thv :: (Text,Version) -> Node
-thv (_,v) = Element "th" [] [TextNode (T.pack . showVersion $ (v :: Version))]
+thv (n,v) = Element "th" [] [ Element "a" [("href", hackUrl)] [TextNode vtxt]
+                            , TextNode " "
+                            , Element "a" [("href", hdiffUrl)] [TextNode "Δ"] ]
+  where
+    vtxt = T.pack (showVersion v)
+    hdiffUrl = "http://hdiff.luite.com/cgit/" <> n <> "/commit?id=" <> vtxt
+    hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
+
+thgv :: (Text,Version) -> Node
+thgv (_,v) = Element "th" [] [ TextNode vtxt ]
+  where
+    vtxt = T.pack (showVersion v)
 
 main :: IO ()
 main = do
@@ -50,14 +61,19 @@ main = do
     let gs = nub $ sort $ map (snd . fst) entries
 
     let doc = HtmlDocument UTF8 Nothing nodes
-        nodes = [Element "html" [] [ Element "head" [] [Element "title" [] [TextNode $ "Report for " <> pkgname ]]
+        nodes = [Element "html" [] [ Element "head" []
+                                        [ Element "title" [] [TextNode $ "Report for " <> pkgname ]
+                                        , Element "meta" [("charset","UTF-8")] []
+                                        ]
                                    , Element "body" [] body ]]
         body = [tab]
 
         tab = Element "table" [("border","1")] rows
 
+        hackurl = "https://hackage.haskell.org/package/" <> pkgname
+
         rows :: [Node]
-        rows = Element "tr" [] (Element "th" [] [TextNode pkgname] : map thv gs)
+        rows = Element "tr" [] (Element "th" [] [Element "a" [("href",hackurl)] [TextNode pkgname]] : map thgv gs)
                : [ Element "tr" [] (row v) | v <- vs ]
 
         row v = thv v : [ lup v g | g <- gs ]
