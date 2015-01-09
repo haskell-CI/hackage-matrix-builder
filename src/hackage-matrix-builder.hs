@@ -125,6 +125,7 @@ installDeps ghcbin pkgid = do
     ghcbin' <- toTextWarn ghcbin
     out <- errExit False $ silently $
            cabal [ "--require-sandbox", "install"
+                 , "--max-backjumps=-1"
                  , "--with-ghc", ghcbin'
                  , "--dependencies-only"
                  , pkgid
@@ -140,6 +141,7 @@ install ghcbin pkgid = do
     ghcbin' <- toTextWarn ghcbin
     out <- errExit False $ silently $
            cabal [ "--require-sandbox", "install"
+                 , "--max-backjumps=-1"
                  , "--with-ghc", ghcbin'
                  , pkgid
                  ]
