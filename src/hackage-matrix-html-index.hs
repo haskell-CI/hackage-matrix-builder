@@ -51,37 +51,47 @@ main = do
     return ()
 
 summariesToHtml :: [(Text, [(Version, [(Status',Int)])])] -> Document
-summariesToHtml summaries = HtmlDocument UTF8 Nothing doc
+summariesToHtml summaries = html5Doc doc
   where
     ghcVers = nub $ sort $ map fst $ concatMap snd summaries
 
     doc = [Element "html" [] [ Element "head" []
                                  [ Element "title" [] [TextNode $ "Build-reports index" ]
                                  , Element "meta" [("charset","UTF-8")] []
+                                 , Element "link" [("rel","stylesheet"),("href","style.2.css")] []
                                  ]
                                , Element "body" [] body ]]
 
     body = [tab]
 
-    tab = Element "table" [("border","1")] rows
+    tab = Element "table" [] rows
 
-    rows = hrow : concatMap mkRow summaries
+    rows = (header : map mkRow summaries) ++ [footer]
 
-    hrow = Element "tr" [] (Element "th" [] [] : map thgv ghcVers)
+    header = Element "thead" [] [Element "tr" [] (Element "th" [] [] : map thgv ghcVers)]
+    footer = Element "tfoot" [] [Element "tr" [] (Element "th" [] [] : map thgv ghcVers)]
 
-    mkRow (pkgn, ss) =
-        Element "tr" [] (Element "th" [("rowspan","4")] [Element "a" [("href",pkgn <> ".html")] [TextNode pkgn]]
-                         : [ lup PassBuild' v ss | v <- ghcVers ])
-        : [ Element "tr" [] ([ lup s' v ss | v <- ghcVers ]) | s' <- [PassNoIp', FailDepBuild', FailBuild'] ]
+    mkRow (pkgn, ss) = Element "tbody" [] $
+                       [ mkTrTh PassBuild'
+                       , mkTr   PassNoIp'
+                       , mkTr   FailDepBuild'
+                       , mkTr   FailBuild'
+                       ]
+      where
+        th = Element "th" [("rowspan","4")] [Element "a" [("href",pkgn <> ".html")] [TextNode pkgn]]
+        mkTrTh s' = Element "tr" [] (th : [ lup s' v ss | v <- ghcVers ])
+        mkTr   s' = Element "tr" [] ([ lup s' v ss | v <- ghcVers ])
 
     lup s v ss
-      | cnt == 0  = Element "td" [] []
+      | cnt == 0  = Element "td" [("class","sucell")] []
       | otherwise = case s of
-        PassBuild'    -> Element "td" [("bgcolor","#0F0"),("title","OK")]          [TextNode tcnt]
-        PassNoIp'     -> Element "td" [("bgcolor","#070"),("title","OK (no-ip)")]  [TextNode tcnt]
-        FailBuild'    -> Element "td" [("bgcolor","#F00"),("title","FAIL (pkg)")]  [TextNode tcnt]
-        FailDepBuild' -> Element "td" [("bgcolor","#700"),("title","FAIL (deps)")] [TextNode tcnt]
+        PassBuild'    -> mkTd "pass-build"     "OK"
+        PassNoIp'     -> mkTd "pass-no-ip"     "OK (no-ip)"
+        FailBuild'    -> mkTd "fail-build"     "FAIL (pkg)"
+        FailDepBuild' -> mkTd "fail-dep-build" "FAIL (deps)"
       where
+        mkTd cls title = Element "td" [("class",cls <> " sucell"),("title",title)] [TextNode tcnt]
+
         tcnt = T.pack $ show cnt
         cnt = maybe 0 id $ lookup s $ maybe [] id (lookup v ss)
 

@@ -23,6 +23,7 @@ import           Data.Version
 import           Text.ParserCombinators.ReadP          (readP_to_S, ReadP)
 import           Text.XmlHtml
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 
 import           Common
 
@@ -35,67 +36,93 @@ main = do
     return ()
 
 parseToHtmlReport :: Text -> Document
-parseToHtmlReport t = doc
+parseToHtmlReport t = html5Doc doc
   where
     (pkgname, vs, mapping) = parseLogMap t
 
     -- GHC versions found in matrix
     gvs = Map.keys mapping
 
-    doc = HtmlDocument UTF8 Nothing nodes
-    nodes = [Element "html" [] [ Element "head" []
+    lastMajVs = Set.fromList $ map (last . snd) (grouper majorVer vs)
+    lastMinVs = Set.fromList $ map (last . snd) (grouper minorVer vs)
+
+    doc = [Element "html" [] [ Element "head" []
                                     [ Element "title" [] [TextNode $ "Report for " <> pkgname ]
                                     , Element "meta" [("charset","UTF-8")] []
+                                    , Element "link" [("rel","stylesheet"),("href","style.2.css")] []
                                     ]
                                , Element "body" [] body ]]
     body = [ Element "p" [] [ Element "a" [("href","0INDEX.html")] [Element "small" [] [TextNode "back to index"]] ]
            , tab
            , Element "h4" [] [ TextNode "Legend" ]
            , legendTab
+           , Element "pre" [] [ TextNode $ T.pack $ show lastMajVs ]
            ]
 
-    tab = Element "table" [("border","1")] rows
+    tab = Element "table" [] rows
 
     hackurl = "https://hackage.haskell.org/package/" <> pkgname
 
     rows :: [Node]
-    rows = Element "tr" [] (Element "th" [] [Element "a" [("href",hackurl)] [TextNode pkgname]] : map thgv gvs)
-           : [ Element "tr" [] (row v) | v <- vs ]
+    rows = [ Element "thead" [] [Element "tr" []
+                                 (Element "th" [] [Element "a" [("href",hackurl)] [TextNode pkgname]]
+                                  : map thgv gvs)]
+           , Element "tbody" [] [ Element "tr" [] (row v) | v <- vs ]
+           , Element "tfoot" [] [Element "tr" [] (Element "th" [("class","empty-lb")] [] : map thgv gvs)]
+           ]
 
     row v = thv v : [ lup v g | g <- gvs ]
 
     lup v g = case Map.lookup v $ Map.findWithDefault Map.empty g mapping of
-        Nothing               -> Element "td" [("bgcolor","#000")] []
-        Just (PassBuild c)    -> Element "td" [("bgcolor","#0F0"),("title",c)] [TextNode "OK"]
-        Just PassNoIp         -> Element "td" [("bgcolor","#070")]             [TextNode "OK (no-ip)"]
-        Just (FailBuild c)    -> Element "td" [("bgcolor","#F00"),("title",c)] [TextNode "FAIL (pkg)"]
-        Just (FailDepBuild c) -> Element "td" [("bgcolor","#700"),("title",c)] [TextNode "FAIL (deps)"]
+        Nothing               -> mkTd "fail-unknown"   "" ""
+        Just (PassBuild c)    -> mkTd "pass-build"     c  "OK"
+        Just PassNoIp         -> mkTd "pass-no-ip"     "" "OK (no-ip)"
+        Just (FailBuild c)    -> mkTd "fail-build"     c  "FAIL (pkg)"
+        Just (FailDepBuild c) -> mkTd "fail-dep-build" c  "FAIL (deps)"
+      where
+        xcls | v `Set.member` lastMajVs = " stcell lastmaj"
+             | v `Set.member` lastMinVs = " stcell lastmin"
+             | otherwise                = " stcell"
 
+        mkTd cls title lab = Element "td"
+                                     (("class",cls <> xcls)
+                                       : [("title",title) | title /= ""])
+                                     [TextNode lab | lab /= "" ]
 
-    legendTab = Element "table" [("border","1")]
-      [ Element "tr" [] [ Element "td" [("bgcolor","#000")] []
-                        , Element "td" [] [TextNode "test-result missing"]
-                        ]
-      , Element "tr" [] [ Element "td" [("bgcolor","#0F0")] [TextNode "OK"]
-                        , Element "td" [] [TextNode "package build succesful"]
-                        ]
-      , Element "tr" [] [ Element "td" [("bgcolor","#070")] [TextNode "OK (no-ip)"]
-                        , Element "td" [] [TextNode "no install-plan found"]
-                        ]
-      , Element "tr" [] [ Element "td" [("bgcolor","#F00")] [TextNode "FAIL (pkg)"]
-                        , Element "td" [] [TextNode "package failed to build"]
-                        ]
-      , Element "tr" [] [ Element "td" [("bgcolor","#700")] [TextNode "FAIL (deps)"]
-                        , Element "td" [] [TextNode "package dependencies failed to build"]
-                        ]
+    legendTab = Element "table" [] $
+      [ Element "tr" [] [ Element "td" [("class",cls <> " stcell")] [ TextNode l | l /= "" ]
+                        , Element "td" [("style","text-align:left; padding-left: 5px")] [TextNode cmt] ]
+      | (cls,l,cmt) <- [ ("pass-build",     "OK",          "package build succesful")
+                       , ("pass-no-ip",     "OK (no-ip)",  "no install-plan found")
+                       , ("fail-build",     "FAIL (pkg)",  "package failed to build")
+                       , ("fail-dep-build", "FAIL (deps)", "package dependencies failed to build")
+                       ,  ("fail-unknown",   "",            "test-result missing")
+                       ]
       ]
 
     thv :: Version -> Node
-    thv v = Element "th" [] [ Element "a" [("href", hackUrl)] [TextNode vtxt]
+    thv v = Element "th" [("class","pkgv" <> xcls)]
+                         [ Element "a" [("href", hackUrl)] [TextNode vtxt]
                                 , TextNode " "
                                 , Element "a" [("href", hdiffUrl)] [TextNode "Δ"] ]
       where
+        xcls | v `Set.member` lastMajVs = " lastmaj"
+             | v `Set.member` lastMinVs = " lastmin"
+             | otherwise                = ""
+
         n = pkgname
         vtxt = T.pack (showVersion v)
         hdiffUrl = "http://hdiff.luite.com/cgit/" <> n <> "/commit?id=" <> vtxt
         hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
+
+
+
+minorVer :: Version -> (Int,Int,Int)
+minorVer v = case versionBranch v of
+    []        -> (0,0,0)
+    [a]       -> (a,0,0)
+    [a,b]     -> (a,b,0)
+    (a:b:c:_) -> (a,b,c)
+
+majorVer :: Version -> (Int,Int)
+majorVer v = let (a,b,_) = minorVer v in (a,b)

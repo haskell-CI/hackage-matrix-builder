@@ -42,6 +42,9 @@ parsePkgId s = (T.init n0, v)
     Just v = runReadP parseVersion (T.unpack v0)
     (n0,v0) = T.breakOnEnd "-" s
 
+html5Doc :: [Node] -> Document
+html5Doc = HtmlDocument UTF8 (Just $ DocType "html" NoExternalID NoInternalSubset)
+
 -- | Format GHC version as TH cell
 thgv :: Version -> Node
 thgv v = Element "th" [] [ TextNode vtxt ]
