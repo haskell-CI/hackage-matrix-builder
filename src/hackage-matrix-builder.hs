@@ -49,6 +49,12 @@ mainScript :: Text -> Sh ()
 mainScript pkgn = do
     pkgvs <- getPkgVersions pkgn
     echo $ "# " <> T.pack (show $ length pkgvs) <> " versions found: " <> T.intercalate " " (dispVer <$> pkgvs)
+    forM_ pkgvs $ \pkgv -> do
+        getCabalFile (pkgn,pkgv) >>= \case
+            Nothing -> echo $ "STATUS:NO-RLS:" <> dispPkgId (pkgn,pkgv)
+            Just t  -> case extractXRev t of
+                0 -> return () -- uninteresting
+                xrev -> echo $ "STATUS:XREV:" <> dispPkgId (pkgn,pkgv) <> "\t" <> (T.pack $ show xrev)
     forM_ (reverse ghcExecutables) $ doGhcVer pkgn pkgvs
 
 doGhcVer :: PkgName -> [Version] -> FilePath -> Sh ()

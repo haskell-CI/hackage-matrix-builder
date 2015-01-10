@@ -26,6 +26,7 @@ import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord
+import qualified Data.Set as Set
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -75,10 +76,10 @@ thgv v = Element "th" [] [ TextNode vtxt ]
 
 
 -- (pkgname, [pkgver], ghcver ~> pkgver ~> status)
-parseLogMap :: Text -> (Text, [Version], Map Version (Map Version Status))
-parseLogMap raw = force (pkgname, vs, mapping)
+parseLogMap :: Text -> (Text, [Version], Map Version (Map Version Status), Set.Set Version, Map Version Int)
+parseLogMap raw = force (pkgname, vs, mapping, Set.fromList norls, Map.fromList xrevs)
   where
-    (pkgname, entries) = parseLog raw
+    (pkgname, entries,norls,xrevs) = parseLog raw
     vs = nub $ sort $ map (fst . fst) entries
 
     mapping = Map.fromList [ (k,Map.fromList [ (k',s) | ((k',_),s) <- es ])
@@ -88,8 +89,8 @@ grouper :: Ord a => (b -> a) -> [b] -> [(a,[b])]
 grouper sel ys = [ (sel $ head xs, xs)
                  | xs <- groupBy ((==) `on` sel) . sortBy (comparing sel) $ ys ]
 
-parseLog :: Text -> (Text, [((Version, Version), Status)]) -- (pkgname, [((pkgver, ghcver), stat)])
-parseLog raw = force $ (pkgname, sort $ entries)
+parseLog :: Text -> (Text, [((Version, Version), Status)], [Version], [(Version,Int)]) -- (pkgname, [((pkgver, ghcver), stat)])
+parseLog raw = force $ (pkgname, sort $ entries, sort noRls, sort xrevs)
   where
     pkgname    = fst . parsePkgId' . fst . fst . head $ entries0
     entries    = [ ((snd $ parsePkgId' x, parseGhcPkgId y), z) | ((x,y), z) <- entries0 ]
@@ -98,10 +99,11 @@ parseLog raw = force $ (pkgname, sort $ entries)
     entries00  = split (dropFinalBlank $ keepDelimsR $ whenElt isStatus) entries000
     entries000 = filter (not . isOther) . map toLine . T.lines $ raw
 
-    parseGhcPkgId s = let ("GHC",v) = parsePkgId' s in v
+    noRls = [ snd (parsePkgId' l) | LineStat "NO-RLS" l <- entries000 ]
 
-    -- vs = nub $ sort $ map (fst . fst) entries
-    -- gs = nub $ sort $ map (snd . fst) entries
+    xrevs = [ (snd (parsePkgId' p), read (T.unpack x)) | LineStat "XREV" l <- entries000, let (p:x:_) = T.words l ]
+
+    parseGhcPkgId s = let ("GHC",v) = parsePkgId' s in v
 
     decodeBlock blk = case last blk of
         LineStat "PASS-BUILD" l     -> Just (p l, PassBuild (c l))

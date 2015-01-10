@@ -38,7 +38,7 @@ main = do
 parseToHtmlReport :: Text -> Document
 parseToHtmlReport t = html5Doc doc
   where
-    (pkgname, vs, mapping) = parseLogMap t
+    (pkgname, vs, mapping, norls, xrevs) = parseLogMap t
 
     -- GHC versions found in matrix
     gvs = Map.keys mapping
@@ -56,7 +56,7 @@ parseToHtmlReport t = html5Doc doc
            , tab
            , Element "h4" [] [ TextNode "Legend" ]
            , legendTab
-           , Element "pre" [] [ TextNode $ T.pack $ show lastMajVs ]
+           -- , Element "pre" [] [ TextNode $ T.pack $ show lastMajVs ]
            ]
 
     tab = Element "table" [] rows
@@ -76,7 +76,9 @@ parseToHtmlReport t = html5Doc doc
     lup v g = case Map.lookup v $ Map.findWithDefault Map.empty g mapping of
         Nothing               -> mkTd "fail-unknown"   "" ""
         Just (PassBuild c)    -> mkTd "pass-build"     c  "OK"
-        Just PassNoIp         -> mkTd "pass-no-ip"     "" "OK (no-ip)"
+        Just PassNoIp
+          | v `Set.member` norls -> mkTd "fail-unknown"   "unreleased" ""
+          | otherwise            -> mkTd "pass-no-ip"     "" "OK (no-ip)"
         Just PassNoOp         -> mkTd "pass-no-op"     "" "OK (boot)"
         Just (FailBuild c)    -> mkTd "fail-build"     c  "FAIL (pkg)"
         Just (FailDepBuild c) -> mkTd "fail-dep-build" c  "FAIL (deps)"
@@ -98,25 +100,34 @@ parseToHtmlReport t = html5Doc doc
                        , ("pass-no-ip",     "OK (no-ip)",  "no install-plan found")
                        , ("fail-build",     "FAIL (pkg)",  "package failed to build")
                        , ("fail-dep-build", "FAIL (deps)", "package dependencies failed to build")
-                       ,  ("fail-unknown",   "",            "test-result missing")
+                       , ("fail-unknown",   "",            "test-result missing")
                        ]
       ]
 
     thv :: Version -> Node
     thv v = Element "th" [("class","pkgv" <> xcls)]
-                         [ Element "a" [("href", hackUrl)] [TextNode vtxt]
-                                , TextNode " "
-                                , Element "a" [("href", hdiffUrl)] [TextNode "Δ"] ]
+                   ([ Element "a" [("href", hdiffUrl),("title","diff to previous version")] [TextNode "Δ"]
+                    , TextNode " "
+                    , Element "a" [("href", hackUrl),("title","edit cabal file")] [TextNode vtxt] ]
+                    ++ xrevnode
+                   )
       where
         xcls | v `Set.member` lastMajVs = " lastmaj"
              | v `Set.member` lastMinVs = " lastmin"
              | otherwise                = ""
 
+        xrev = Map.findWithDefault 0 v xrevs
+        xrevt = "(" <> (T.pack $ show xrev) <> ")"
+
+        xrevnode = [ Element "sup" [] [Element "a" [("class","xrev"),("href",revLogUrl),("title","revision log")]
+                                       [TextNode xrevt]]
+                   | xrev /= 0 ]
+
         n = pkgname
         vtxt = T.pack (showVersion v)
         hdiffUrl = "http://hdiff.luite.com/cgit/" <> n <> "/commit?id=" <> vtxt
         hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
-
+        revLogUrl = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/revisions"
 
 
 minorVer :: Version -> (Int,Int,Int)

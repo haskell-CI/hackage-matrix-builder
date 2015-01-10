@@ -102,4 +102,4 @@ parseLogSummarise raw = (pkgn, entries)
     entries = [ (ghcver, map (fmap length) . grouper truncStatus . Map.elems $ pkgvers)
               | (ghcver, pkgvers) <- Map.toAscList pkgmap ]
 
-    (pkgn, _pkgvs, pkgmap) = parseLogMap raw
+    (pkgn, _pkgvs, pkgmap, _, _) = parseLogMap raw
