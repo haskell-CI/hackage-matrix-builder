@@ -77,6 +77,7 @@ parseToHtmlReport t = html5Doc doc
         Nothing               -> mkTd "fail-unknown"   "" ""
         Just (PassBuild c)    -> mkTd "pass-build"     c  "OK"
         Just PassNoIp         -> mkTd "pass-no-ip"     "" "OK (no-ip)"
+        Just PassNoOp         -> mkTd "pass-no-op"     "" "OK (boot)"
         Just (FailBuild c)    -> mkTd "fail-build"     c  "FAIL (pkg)"
         Just (FailDepBuild c) -> mkTd "fail-dep-build" c  "FAIL (deps)"
       where
@@ -93,6 +94,7 @@ parseToHtmlReport t = html5Doc doc
       [ Element "tr" [] [ Element "td" [("class",cls <> " stcell")] [ TextNode l | l /= "" ]
                         , Element "td" [("style","text-align:left; padding-left: 5px")] [TextNode cmt] ]
       | (cls,l,cmt) <- [ ("pass-build",     "OK",          "package build succesful")
+                       , ("pass-no-op",     "OK (boot)",   "pre-installed version")
                        , ("pass-no-ip",     "OK (no-ip)",  "no install-plan found")
                        , ("fail-build",     "FAIL (pkg)",  "package failed to build")
                        , ("fail-dep-build", "FAIL (deps)", "package dependencies failed to build")

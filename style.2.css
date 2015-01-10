@@ -65,7 +65,7 @@ td.lastmaj {
 
 td.pass-build { background-color: #00ff00; }
 td.pass-no-ip { background-color: #007700; }
-td.pass-no-op { background-color: #007700; }
+td.pass-no-op { background-color: #00cc00; }
 td.fail-build { background-color: #ff0000; }
 td.fail-dep-build { background-color: #770000; }
 td.fail-unknown { background-color: #000000; }

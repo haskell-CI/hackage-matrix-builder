@@ -1,7 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Common where
+module Common
+    ( module Common
+    , Version(..)
+    ) where
 
 -- Copyright (C) 2015  Herbert Valerio Riedel
 --
@@ -10,7 +13,6 @@ module Common where
 -- the Free Software Foundation, either version 3 of the License, or
 -- (at your option) any later version.
 
-import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.DeepSeq
 import           Control.Exception
@@ -31,16 +33,36 @@ import           Data.Version
 import           Text.ParserCombinators.ReadP          (readP_to_S, ReadP)
 import           Text.XmlHtml
 
-type PkgId = (Text,Version) -- (pkg-name, pkg-version)
+type PkgName = Text
+
+type PkgId = (PkgName,Version) -- (pkg-name, pkg-version)
 
 runReadP :: ReadP a -> String -> Maybe a
 runReadP p s = listToMaybe [ x | (x,"") <- readP_to_S p s ]
 
-parsePkgId :: Text -> PkgId
-parsePkgId s = (T.init n0, v)
+parsePkgId' :: Text -> PkgId
+parsePkgId' s = fromMaybe (error $ "parsePkgId " ++ show s) . parsePkgId $ s
+
+parsePkgId :: Text -> Maybe PkgId
+parsePkgId s = do
+    v <- parseVer v0
+    guard (T.length n0 > 1)
+
+    return (T.init n0, v)
   where
-    Just v = runReadP parseVersion (T.unpack v0)
     (n0,v0) = T.breakOnEnd "-" s
+
+parseVer :: Text -> Maybe Version
+parseVer = runReadP parseVersion . T.unpack
+
+parseVer' :: Text -> Version
+parseVer' s = fromMaybe (error $ "parseVer " ++ show s) . parseVer $ s
+
+dispVer :: Version -> Text
+dispVer = T.pack . showVersion
+
+dispPkgId :: PkgId -> Text
+dispPkgId (n,v) = n <> "-" <> dispVer v
 
 html5Doc :: [Node] -> Document
 html5Doc = HtmlDocument UTF8 (Just $ DocType "html" NoExternalID NoInternalSubset)
@@ -69,14 +91,14 @@ grouper sel ys = [ (sel $ head xs, xs)
 parseLog :: Text -> (Text, [((Version, Version), Status)]) -- (pkgname, [((pkgver, ghcver), stat)])
 parseLog raw = force $ (pkgname, sort $ entries)
   where
-    pkgname    = fst . parsePkgId . fst . fst . head $ entries0
-    entries    = [ ((snd $ parsePkgId x, parseGhcPkgId y), z) | ((x,y), z) <- entries0 ]
+    pkgname    = fst . parsePkgId' . fst . fst . head $ entries0
+    entries    = [ ((snd $ parsePkgId' x, parseGhcPkgId y), z) | ((x,y), z) <- entries0 ]
 
     entries0   = mapMaybe decodeBlock entries00
     entries00  = split (dropFinalBlank $ keepDelimsR $ whenElt isStatus) entries000
     entries000 = filter (not . isOther) . map toLine . T.lines $ raw
 
-    parseGhcPkgId s = let ("GHC",v) = parsePkgId s in v
+    parseGhcPkgId s = let ("GHC",v) = parsePkgId' s in v
 
     -- vs = nub $ sort $ map (fst . fst) entries
     -- gs = nub $ sort $ map (snd . fst) entries
@@ -84,6 +106,7 @@ parseLog raw = force $ (pkgname, sort $ entries)
     decodeBlock blk = case last blk of
         LineStat "PASS-BUILD" l     -> Just (p l, PassBuild (c l))
         LineStat "PASS-NO-IP" l     -> Just (p l, PassNoIp)
+        LineStat "PASS-NO-OP" l     -> Just (p l, PassNoOp)
         LineStat "FAIL-BUILD" l     -> Just (p l, FailBuild (c l))
         LineStat "FAIL-DEP-BUILD" l -> Just (p l, FailDepBuild (c l))
         LineStat _ _                -> Nothing
@@ -106,17 +129,19 @@ parseLog raw = force $ (pkgname, sort $ entries)
 data Status
     = PassBuild !Text
     | PassNoIp
+    | PassNoOp
     | FailBuild !Text
     | FailDepBuild !Text
     deriving (Show,Eq,Ord)
 
-data Status' = PassBuild' | PassNoIp' | FailBuild' | FailDepBuild'
+data Status' = PassBuild' | PassNoIp' | PassNoOp' | FailBuild' | FailDepBuild'
              deriving (Show,Eq,Ord)
 
 truncStatus :: Status -> Status'
 truncStatus s = case s of
     PassBuild _    -> PassBuild'
     PassNoIp       -> PassNoIp'
+    PassNoOp       -> PassNoOp'
     FailBuild _    -> FailBuild'
     FailDepBuild _ -> FailDepBuild'
 

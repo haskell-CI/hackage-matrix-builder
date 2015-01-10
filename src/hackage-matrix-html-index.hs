@@ -87,6 +87,7 @@ summariesToHtml summaries = html5Doc doc
       | otherwise = case s of
         PassBuild'    -> mkTd "pass-build"     "OK"
         PassNoIp'     -> mkTd "pass-no-ip"     "OK (no-ip)"
+        PassNoOp'     -> mkTd "pass-no-op"     "OK (boot)"
         FailBuild'    -> mkTd "fail-build"     "FAIL (pkg)"
         FailDepBuild' -> mkTd "fail-dep-build" "FAIL (deps)"
       where
