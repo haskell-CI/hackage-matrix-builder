@@ -129,13 +129,3 @@ parseToHtmlReport t = html5Doc doc
         hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
         revLogUrl = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/revisions"
 
-
-minorVer :: Version -> (Int,Int,Int)
-minorVer v = case versionBranch v of
-    []        -> (0,0,0)
-    [a]       -> (a,0,0)
-    [a,b]     -> (a,b,0)
-    (a:b:c:_) -> (a,b,c)
-
-majorVer :: Version -> (Int,Int)
-majorVer v = let (a,b,_) = minorVer v in (a,b)

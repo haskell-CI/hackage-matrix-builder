@@ -61,6 +61,27 @@ doGhcVer :: PkgName -> [Version] -> FilePath -> Sh ()
 doGhcVer pkgn pkgvs ghcbin = do
     [ghcver] <- liftM T.lines $ silently $ run ghcbin ["--numeric-version"]
 
+    withTmpDir $ \tmpdir -> chdir tmpdir $ do
+        resetSandbox ghcbin
+
+        dryInstall ghcbin pkgn >>= \case
+            Left   _ -> echo $ "STATUS:SOLVE-FAIL:*:GHC-" <> ghcver
+            Right (AlreadyInstalled p)
+                     -> echo $ "STATUS:SOLVE-NOOP:*:GHC-" <> ghcver <> ":" <> p
+            Right (InstallPlan p _)
+                     -> echo $ "STATUS:SOLVE-OK:*:GHC-"   <> ghcver <> ":" <> p
+
+        forM_ (nub $ map majorVer pkgvs) $ \(v1,v2) -> do
+            let q = mconcat [ pkgn, " == ", q0 ]
+                q0 = mconcat [ tshow v1, ".", tshow v2, ".*" ]
+
+            dryInstall ghcbin q >>= \case
+                Left   _ -> echo $ "STATUS:SOLVE-FAIL:" <> q0 <> ":GHC-" <> ghcver
+                Right (AlreadyInstalled p)
+                     -> echo $ "STATUS:SOLVE-NOOP:"     <> q0 <> ":GHC-" <> ghcver <> ":" <> p
+                Right (InstallPlan p _)
+                     -> echo $ "STATUS:SOLVE-OK:"       <> q0 <> ":GHC-" <> ghcver <> ":" <> p
+
     -- group package-versions by their extra install-deps;
     -- that way we can re-use the sandbox multiple times
     gips <- withTmpDir $ \tmpdir -> chdir tmpdir $ do
@@ -72,8 +93,8 @@ doGhcVer pkgn pkgvs ghcbin = do
 
             dryInstall ghcbin pkgid >>= \case
                 Left _         -> return (pkgv, Left False) -- no install-plan
-                Right []       -> return (pkgv, Left True)  -- nothing to do; already installed
-                Right (_:deps) -> return (pkgv, Right deps)
+                Right (AlreadyInstalled _) -> return (pkgv, Left True)  -- nothing to do; already installed
+                Right (InstallPlan _ deps) -> return (pkgv, Right deps)
 
         return [ (map fst xs, common)
                | xs@((_,common):_) <- groupBy ((==) `on` snd) $ sortBy (comparing snd) ips ]
@@ -190,7 +211,12 @@ install ghcbin pkgid = do
         0 -> return $ Right out
         _ -> return $ Left (out,outErr)
 
-dryInstall :: FilePath -> Text -> Sh (Either (Text,Text) [Text])
+
+data DryResult
+    = AlreadyInstalled !Text
+    | InstallPlan      !Text [Text]
+
+dryInstall :: FilePath -> Text -> Sh (Either (Text,Text) DryResult)
 dryInstall ghcbin pkgid = do
     ghcbin' <- toTextWarn ghcbin
     out <- errExit False $ silently $
@@ -206,14 +232,20 @@ dryInstall ghcbin pkgid = do
         _ -> return $ Left (out,outErr)
   where
     go out
-      | T.isInfixOf "All the requested packages are already installed:" out = []
-      | last out' /= pkgid = error "dryInstall: internal inconsistency"
-      | otherwise          = reverse out'
+      | T.isInfixOf "All the requested packages are already installed:" out = AlreadyInstalled (head out2)
+      -- | last out' /= pkgid = error $ "dryInstall: internal inconsistency" ++ show (out', pkgid)
+      | otherwise          = InstallPlan (last out') (init out')
       where
         out' = map (T.takeWhile (/= ' ')) $
                tail $
                dropWhile (not . T.isPrefixOf "In order, the following would be installed") $
                T.lines out
+
+        out2 = map (T.takeWhile (/= ' ')) $
+               tail $
+               dropWhile (not . T.isPrefixOf "All the requested packages are already installed:") $
+               T.lines out
+
 
 cabal :: [Text] -> Sh Text
 cabal = run "cabal"

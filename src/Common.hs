@@ -41,6 +41,9 @@ type PkgId = (PkgName,Version) -- (pkg-name, pkg-version)
 runReadP :: ReadP a -> String -> Maybe a
 runReadP p s = listToMaybe [ x | (x,"") <- readP_to_S p s ]
 
+tshow :: Show a => a -> Text
+tshow = T.pack . show
+
 parsePkgId' :: Text -> PkgId
 parsePkgId' s = fromMaybe (error $ "parsePkgId " ++ show s) . parsePkgId $ s
 
@@ -64,6 +67,16 @@ dispVer = T.pack . showVersion
 
 dispPkgId :: PkgId -> Text
 dispPkgId (n,v) = n <> "-" <> dispVer v
+
+minorVer :: Version -> (Int,Int,Int)
+minorVer v = case versionBranch v of
+    []        -> (0,0,0)
+    [a]       -> (a,0,0)
+    [a,b]     -> (a,b,0)
+    (a:b:c:_) -> (a,b,c)
+
+majorVer :: Version -> (Int,Int)
+majorVer v = let (a,b,_) = minorVer v in (a,b)
 
 html5Doc :: [Node] -> Document
 html5Doc = HtmlDocument UTF8 (Just $ DocType "html" NoExternalID NoInternalSubset)
