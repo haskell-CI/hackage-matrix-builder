@@ -53,19 +53,60 @@ parseToHtmlReport t = html5Doc doc
                                     ]
                                , Element "body" [] body ]]
     body = [ Element "p" [] [ Element "a" [("href","0INDEX.html")] [Element "small" [] [TextNode "back to index"]] ]
+
+           , Element "h4" [("id","default")] [ TextNode "Solver Matrix (constraint-less)" ]
+           , solverTab1
+
+           , Element "h4" [("id","by-major-ver")] [ TextNode "Solver Matrix (constrained by major-version)" ]
+           , solverTab
+
+           , Element "h4" [("id","detailed")] [ TextNode "Solver Matrix (constrained by single version)" ]
            , tab
-           , Element "h4" [] [ TextNode "Legend" ]
+
+           , Element "h4" [("id","legend")] [ TextNode "Legend" ]
            , legendTab
-           -- , Element "pre" [] [ TextNode $ T.pack $ show lastMajVs ]
            ]
+
+    solverTab1 = Element "table" [] solverRows1
+    solverTab = Element "table" [] solverRows
+
+    majVsPfxs = [ Version [a,b] [] | (a,b) <- nub . sort . map majorVer $ vs ]
+
+    solverMap = Map.fromList [ ((gv,mjv),res) | (gv,mjv,res) <- parseSolveLog t ]
+
+    solverRows1 =
+        [ Element "thead" [] [ Element "tr" [] (thPkgName : map thgv gvs)]
+        , Element "tbody" []
+          [ Element "tr" [("class","solver-row")]
+            (Element "th" [("class","pkgv lastmaj")] [TextNode $ "*" ] :
+             [ lup' gv (Version [] []) | gv <- gvs ])
+          ]
+        ]
+
+    solverRows =
+        [ Element "thead" [] [ Element "tr" [] (thPkgName : map thgv gvs)]
+        , Element "tbody" []
+          [ Element "tr" [("class","solver-row")]
+            (Element "th" [("class","pkgv lastmaj")] [TextNode $ dispVer mjv <> ".*" ] :
+             [ lup' gv mjv | gv <- gvs ])
+          | mjv <- majVsPfxs ]
+        ]
+
+    lup' gv mjv = case Map.lookup (gv,mjv) solverMap of
+        Nothing -> Element "td" [("class","lastmaj stcell")] [TextNode "???"]
+        Just Nothing -> Element "td" [("class","lastmaj stcell pass-no-ip")] [TextNode "∅"]
+        Just (Just (_,v)) -> case lup v gv of
+            Element "td" attrs l -> Element "td" attrs [TextNode $ dispVer v]
 
     tab = Element "table" [] rows
 
     hackurl = "https://hackage.haskell.org/package/" <> pkgname
 
+    thPkgName = Element "th" [] [Element "a" [("href",hackurl)] [TextNode pkgname]]
+
     rows :: [Node]
     rows = [ Element "thead" [] [Element "tr" []
-                                 (Element "th" [] [Element "a" [("href",hackurl)] [TextNode pkgname]]
+                                 (thPkgName
                                   : map thgv gvs)]
            , Element "tbody" [] [ Element "tr" [] (row v) | v <- vs ]
            , Element "tfoot" [] [Element "tr" [] (Element "th" [("class","empty-lb")] [] : map thgv gvs)]

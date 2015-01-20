@@ -102,6 +102,23 @@ grouper :: Ord a => (b -> a) -> [b] -> [(a,[b])]
 grouper sel ys = [ (sel $ head xs, xs)
                  | xs <- groupBy ((==) `on` sel) . sortBy (comparing sel) $ ys ]
 
+parseSolveLog :: Text -> [(Version,Version,Maybe PkgId)]
+parseSolveLog = force . mapMaybe decodeLine . map toLine . T.lines
+  where
+    decodeLine (LineStat "SOLVE-OK" l)   = Just (parseGhcPkgId ghcver, parsePat pat, Just $ parsePkgId' pkgver)
+      where
+        [pat, ghcver, pkgver] = T.splitOn ":" l
+    decodeLine (LineStat "SOLVE-FAIL" l) = Just (parseGhcPkgId ghcver, parsePat pat, Nothing)
+      where
+        [pat, ghcver] = T.splitOn ":" l
+    decodeLine (LineStat "SOLVE-NOOP" l) = decodeLine (LineStat "SOLVE-OK" l)
+    decodeLine _                         = Nothing
+
+    parseGhcPkgId s = let ("GHC",v) = parsePkgId' s in v
+
+    parsePat "*" = Version [] []
+    parsePat t | T.isSuffixOf ".*" t = parseVer' (T.take (T.length t - 2) t)
+
 parseLog :: Text -> (Text, [((Version, Version), Status)], [Version], [(Version,Int)]) -- (pkgname, [((pkgver, ghcver), stat)])
 parseLog raw = force $ (pkgname, sort $ entries, sort noRls, sort xrevs)
   where
@@ -149,7 +166,8 @@ data Status
     | FailDepBuild !Text
     deriving (Show,Eq,Ord)
 
-data Status' = PassBuild' | PassNoIp' | PassNoOp' | FailBuild' | FailDepBuild'
+-- Sorted by severity
+data Status' = PassBuild' | PassNoOp' | PassNoIp' | FailDepBuild' | FailBuild'
              deriving (Show,Eq,Ord)
 
 truncStatus :: Status -> Status'

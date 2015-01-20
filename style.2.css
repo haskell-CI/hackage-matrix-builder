@@ -63,6 +63,20 @@ td.lastmaj {
     border-bottom: 3px solid black;
 }
 
+tbody.pkg-row tr:last-child td {
+    border-bottom: 3px solid black;
+}
+
+tbody.pkg-row tr th {
+    border-bottom: 3px solid black;
+    border-right: 2px solid black;
+}
+
+tr.solver-row td {
+    border-bottom: 3px solid black;
+    border-right: 2px solid black;
+}
+
 td.pass-build { background-color: #00ff00; }
 td.pass-no-ip { background-color: #007700; }
 td.pass-no-op { background-color: #00cc00; }

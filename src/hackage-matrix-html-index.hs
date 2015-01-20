@@ -16,6 +16,7 @@ import           Control.DeepSeq
 import           Control.Exception
 import           Control.Monad
 import qualified Data.ByteString.Char8 as BS
+import           Data.Char
 import           Data.Function
 import           Data.List
 import           Data.List.Split
@@ -36,7 +37,7 @@ import           Common
 
 main :: IO ()
 main = do
-    logfns <- fmap sort $ getArgs
+    logfns <- fmap (sortOn (map toLower)) $ getArgs
 
     unless (all (isSuffixOf ".log") logfns) $
         fail "logfiles must have .log suffix"
@@ -71,16 +72,21 @@ summariesToHtml summaries = html5Doc doc
     header = Element "thead" [] [Element "tr" [] (Element "th" [] [] : map thgv ghcVers)]
     footer = Element "tfoot" [] [Element "tr" [] (Element "th" [] [] : map thgv ghcVers)]
 
-    mkRow (pkgn, ss) = Element "tbody" [] $
-                       [ mkTrTh PassBuild'
-                       , mkTr   PassNoIp'
-                       , mkTr   FailDepBuild'
-                       , mkTr   FailBuild'
-                       ]
+    mkRow (pkgn, ss) = Element "tbody" [("class","pkg-row")] $ mapHead (prependChild th) trs
       where
-        th = Element "th" [("rowspan","4")] [Element "a" [("href",pkgn <> ".html")] [TextNode pkgn]]
+        trs = map mkTr svals
+
+        th = Element "th" [("rowspan",tshow $ length trs),("style","text-align:left")] [Element "a" [("href",pkgn <> ".html")] [TextNode pkgn]]
         mkTrTh s' = Element "tr" [] (th : [ lup s' v ss | v <- ghcVers ])
         mkTr   s' = Element "tr" [] ([ lup s' v ss | v <- ghcVers ])
+
+        svals :: [Status']
+        svals = nub $ sort $ map fst $ concatMap snd ss
+
+        mapHead f (x:xs) = f x : xs
+        mapHead f []     = []
+
+        prependChild c0 (e@Element { elementChildren = cs }) = e { elementChildren = c0:cs }
 
     lup s v ss
       | cnt == 0  = Element "td" [("class","sucell")] []
