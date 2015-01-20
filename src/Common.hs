@@ -83,10 +83,18 @@ html5Doc = HtmlDocument UTF8 (Just $ DocType "html" NoExternalID NoInternalSubse
 
 -- | Format GHC version as TH cell
 thgv :: Version -> Node
-thgv v = Element "th" [] [ TextNode vtxt ]
+thgv (Version v _) = Element "th" [] $ case v of
+        [mj1]            -> [ TextNode (dispVer' v) ]
+        [mj1,mj2]        -> [ TextNode (dispVer' v) ]
+        [mj1,mj2,mi]     -> [ TextNode (dispVer' [mj1,mj2])
+                            , Element "small" [] [TextNode ("." <> dispVer' [mi])]
+                            ]
+        (mj1:mj2:mi:ps)  -> [ TextNode (dispVer' [mj1,mj2])
+                            , Element "small" [] [TextNode ("." <> dispVer' [mi])]
+                            , Element "small" [] [Element "small" [] [TextNode ("." <> dispVer' ps)]]
+                            ]
   where
-    vtxt = T.pack (showVersion v)
-
+    dispVer' v' = dispVer (Version v' [])
 
 -- (pkgname, [pkgver], ghcver ~> pkgver ~> status)
 parseLogMap :: Text -> (Text, [Version], Map Version (Map Version Status), Set.Set Version, Map Version Int)

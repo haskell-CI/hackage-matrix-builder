@@ -10,6 +10,7 @@ td {
     border-left:   1px solid black;
 
     text-align: right;
+    padding-left: 5px;
     padding-right: 5px;
 }
 
@@ -25,18 +26,21 @@ th {
     border: 1px solid black;
     padding-left: 5px;
     padding-right: 5px;
+    font-family: Helvetica, sans-serif;
 }
 
 thead th {
     border: 2px solid black;
     border-bottom: 3px solid black;
     background-color: #eeeeee;
+    font-family: Helvetica, sans-serif;
 }
 
 tfoot th {
     border: 2px solid black;
     border-bottom: 3px solid black;
     background-color: #eeeeee;
+    font-family: Helvetica, sans-serif;
 }
 
 th.pkgv {
@@ -45,6 +49,7 @@ th.pkgv {
     border-right:  2px solid black;
     text-align: left;
     background-color: #eeeeee;
+    font-family: Helvetica, sans-serif;
 }
 
 th.lastmin {
