@@ -110,8 +110,11 @@ doGhcVer pkgn pkgvs ghcbin = do
                                      <> (if cmt /= "" then " # " <> cmt else "")
             echoStatus (if noop then "PASS-NO-OP" else "PASS-NO-IP") [] ""
 
-        (vs, Right deps) -> withTmpDir $ \tmpdir -> chdir tmpdir $ do
+        (vs@(v0:_), Right deps) -> withTmpDir $ \tmpdir -> chdir tmpdir $ do
+            echo "# reset sandbox"
             resetSandbox ghcbin
+
+            depBuildRes <- installDeps ghcbin (dispPkgId (pkgn,v0))
 
             forM_ vs $ \pkgv -> do
                 let pkgid = dispPkgId (pkgn,pkgv)
@@ -120,13 +123,11 @@ doGhcVer pkgn pkgvs ghcbin = do
                                          <> T.intercalate " " deps
                                          <> (if cmt /= "" then " # " <> cmt else "")
 
-                echoStatus "INIT-DEP-BUILD" ""
 
-                installDeps ghcbin pkgid >>= \case
+                case depBuildRes of
                     Left e -> do
                         dumpOutput e
                         echoStatus "FAIL-DEP-BUILD" ""
-                        -- TODO: assume FAIL-DEP-BUILD for other package-versions in same install-dep group
 
                     Right _ -> do
                         echoStatus "PASS-DEP-BUILD" ""
@@ -248,7 +249,7 @@ dryInstall ghcbin pkgid = do
 
 
 cabal :: [Text] -> Sh Text
-cabal = run "cabal"
+cabal args = run "timeout" ("10m":"cabal":args)
 
 cabal_ :: [Text] -> Sh ()
-cabal_ = run_ "cabal"
+cabal_ args = run_ "timeout" ("10m":"cabal":args)
