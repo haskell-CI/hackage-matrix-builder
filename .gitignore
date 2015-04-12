@@ -1,0 +1,13 @@
+*.hi
+*.o
+*~
+
+/report.html
+/cabal.sandbox.config
+/.cabal-sandbox/
+/cabal.config
+/dist/
+/deps/
+/report/
+/.shake/
+/sandboxes
