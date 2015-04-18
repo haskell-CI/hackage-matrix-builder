@@ -541,7 +541,17 @@ brToStat = \case
     BuildOk -> PassBuild ""
     BuildNop -> PassNoOp
     BuildNoIp -> PassNoIp
-    BuildFail t -> FailBuild t
+    BuildFail t ->
+        let tls = T.lines t
+            tls' = drop (length tls - 10) tls -- last 10 lines
+            t' = T.unlines
+                 [ "--- Last 10 lines of build output ---"
+                 , "..."
+                 , T.unlines tls'
+                 , "--- Full build output ---"
+                 , t
+                 ]
+        in FailBuild t'
     BuildFailDeps xs ->
         let t = mconcat [ "failed deps: ", T.pack $ unwords (map (showPkgId . fst) xs), "\n"
                         , "\n---\n", T.intercalate "\n---\n" (map snd xs)
