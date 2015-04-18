@@ -6,18 +6,52 @@ license:             GPL-3
 license-file:        LICENSE
 author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
+homepage:            https://github.com/hvr/hackage-matrix-builder
+bug-reports:         https://github.com/hvr/hackage-matrix-builder/issues
 -- copyright:
 category:            Development
 build-type:          Simple
--- extra-source-files:
 cabal-version:       >=1.10
 
-executable hackage-matrix-builder
-  main-is:             Main.hs
-  hs-source-dirs:      src
-  other-modules:
-  other-extensions:    BangPatterns, DeriveAnyClass, DeriveDataTypeable, DeriveGeneric, OverloadedStrings, RecordWildCards, PartialTypeSignatures, LambdaCase, StandaloneDeriving
+Source-Repository head
+  Type:     git
+  Location: https://github.com/hvr/hackage-matrix-builder.git
 
-  build-depends:       base >=4.8 && <4.9, containers >=0.5 && <0.6, text >=1.2 && <1.3, blaze-builder >=0.3 && <0.4, lens >=4.9 && <4.10, xmlhtml >=0.2 && <0.3, shake >=0.15 && <0.16, deepseq >=1.4 && <1.5, bytestring >=0.10 && <0.11, directory >=1.2 && <1.3, binary >=0.7 && <0.8, hashable >=1.2 && <1.3, cryptohash >=0.11 && <0.12, base16-bytestring >=0.1 && <0.2
+executable hackage-matrix-builder
   default-language:    Haskell2010
+  hs-source-dirs:      src
+
+  other-extensions:
+    BangPatterns
+    DeriveAnyClass
+    DeriveDataTypeable
+    DeriveGeneric
+    OverloadedStrings
+    RecordWildCards
+    PartialTypeSignatures
+    LambdaCase
+    StandaloneDeriving
+
+  build-depends:
+    aeson              >=0.8  && <0.9,
+    base               >=4.8  && <4.9,
+    base16-bytestring  >=0.1  && <0.2,
+    binary             >=0.7  && <0.8,
+    blaze-builder      >=0.3  && <0.4,
+    bytestring         >=0.10 && <0.11,
+    containers         >=0.5  && <0.6,
+    cryptohash         >=0.11 && <0.12,
+    deepseq            >=1.4  && <1.5,
+    directory          >=1.2  && <1.3,
+    hashable           >=1.2  && <1.3,
+    lens               >=4.9  && <4.10,
+    shake              >=0.15 && <0.16,
+    text               >=1.2  && <1.3,
+    xmlhtml            >=0.2  && <0.3
+
+  main-is: Main.hs
+  other-modules:
+    BuildReport
+    BuildTypes
+
   ghc-options: -threaded
