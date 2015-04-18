@@ -2,10 +2,12 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ViewPatterns #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -21,19 +23,24 @@ module BuildTypes
     , Set.Set
     , Map.Map
     , Text
+    , FromJSON
+    , ToJSON
     ) where
 
-import           Data.Text (Text)
 import           Control.Monad
+import           Data.Aeson (FromJSON,ToJSON)
+import qualified Data.Aeson as J
 import           Data.Bifunctor
+import           Data.Bitraversable
 import           Data.Binary
 import           Data.Bits
 import           Data.Hashable
 import           Data.List
+import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set as Set
-import qualified Data.Map as Map
+import           Data.Text (Text)
 import           Data.Version
 import           GHC.Generics
 import           Numeric.Natural
@@ -57,7 +64,7 @@ data GhcVer = GHC_7_00
             | GHC_7_06
             | GHC_7_08
             | GHC_7_10
-            deriving (Eq,Ord,Bounded,Enum,Read,Show,Hashable,Binary,NFData,Generic)
+            deriving (Eq,Ord,Bounded,Enum,Read,Show,Hashable,Binary,NFData,Generic,FromJSON,ToJSON)
 
 ghcVers :: [GhcVer]
 ghcVers = [minBound..maxBound]
@@ -74,14 +81,14 @@ parseGhcVer' s = fromMaybe (error $ "parseGhcVer " ++ show s) . parseGhcVer $ s
 ----------------------------------------------------------------------------
 
 newtype PkgName = PkgName String
-                deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary)
+                deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary,FromJSON,ToJSON)
 
 unPkgName :: PkgName -> String
 unPkgName (PkgName s) = s
 
 -- | Our variant of 'Data.Version.Version'
 newtype PkgVer = PkgVer [Word]
-               deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary)
+               deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary,FromJSON,ToJSON)
 
 showPkgVer :: PkgVer -> String
 showPkgVer (PkgVer v) = concat . intersperse "." . map show $ v
@@ -164,12 +171,12 @@ data SolveResult
     = SolveNoOp !PkgVer
     | SolveInstall !PkgVer
     | SolveNoInstall
-    deriving (Show,Read,Generic,NFData)
+    deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
 solveResultToPkgVer :: SolveResult -> Maybe PkgVer
 solveResultToPkgVer (SolveNoOp v)    = Just v
 solveResultToPkgVer (SolveInstall v) = Just v
-solveResultToPkgVer SolveNoInstall       = Nothing
+solveResultToPkgVer SolveNoInstall   = Nothing
 
 dryToSolveResult :: DryResult -> SolveResult
 dryToSolveResult = \case
@@ -182,24 +189,16 @@ data SbExitCode
     | SbExitFail [SbId] -- list contains indirect failures, i.e. the
                         -- ids of direct and indirect build-deps whose
                         -- indirect-failure list was empty
-    deriving (Show,Read,Generic,NFData)
+    deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
+-- | Represents build outcome status with associated meta-info
 data BuildResult
     = BuildOk
     | BuildNop
     | BuildNoIp
     | BuildFail !Text -- build-output
     | BuildFailDeps [(PkgId,Text)] -- failed deps & associated build-outputs
-    deriving (Show,Read,Generic,NFData)
-
--- | Represents build outcome status with associated meta-info
-data Status
-    = PassBuild !Text
-    | PassNoIp
-    | PassNoOp
-    | FailBuild !Text
-    | FailDepBuild !Text
-    deriving (Read,Show,Eq,Ord,Generic,NFData)
+    deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
 hashDeps :: [PkgId] -> String
 hashDeps = BC.unpack .B16.encode . SHA256.hash . BC.pack . show
@@ -209,7 +208,7 @@ type PkgVerPfx = [Word]
 data PkgCstr = PkgCstrEq  !PkgVer
              | PkgCstrPfx PkgVerPfx  -- ^ @PkgCstrPfx []@ means no constraint at all
              | PkgCstrInstalled
-             deriving (Show,Read,Generic,NFData,Eq,Ord)
+             deriving (Show,Read,Generic,NFData,Eq,Ord,FromJSON,ToJSON)
 
 cstrFromPkgId :: PkgId -> (PkgName,PkgCstr)
 cstrFromPkgId = fmap PkgCstrEq
@@ -218,3 +217,37 @@ showPkgCstr :: (PkgName,PkgCstr) -> String
 showPkgCstr (PkgName n,PkgCstrEq v)      = n <> " ==" <> showPkgVer v
 showPkgCstr (PkgName n,PkgCstrPfx v)     = n <> " ==" <> (concat $ intersperse "." (map show v ++ ["*"]))
 showPkgCstr (PkgName n,PkgCstrInstalled) = n <> " installed"
+
+----------------------------------------------------------------------------
+-- Some semi-orphans (they can only become full orphans, if aeson
+-- decides to define instances paremtric in the key-type of the Map,
+-- which it doesn't right now) to support encoding 'ReportData'
+
+instance ToJSON v => ToJSON (Map.Map PkgVer v) where
+    toJSON = J.toJSON . Map.toList
+
+instance FromJSON v => FromJSON (Map.Map PkgVer v) where
+    parseJSON v = Map.fromList <$> J.parseJSON v
+
+----
+
+-- | Since GhcVer gets encoded to a string anyway, we can use JSON
+-- objects for GhcVer-indexed maps
+instance ToJSON v => ToJSON (Map.Map GhcVer v) where
+    toJSON = J.toJSON . Map.fromList . map f . Map.toList
+      where
+        f (J.toJSON -> J.String l,v) = (l,v)
+        f _                          = error "ToJSON(Map GhcVer _)"
+
+instance FromJSON v => FromJSON (Map.Map GhcVer v) where
+    parseJSON v = do
+        entries <- Map.toList <$> J.parseJSON v
+        Map.fromList <$> mapM (bitraverse (J.parseJSON . J.String) pure) entries
+
+----
+
+instance ToJSON v => ToJSON (Map.Map PkgVerPfx v) where
+    toJSON = J.toJSON . Map.toList
+
+instance FromJSON v => FromJSON (Map.Map PkgVerPfx v) where
+    parseJSON v = Map.fromList <$> J.parseJSON v

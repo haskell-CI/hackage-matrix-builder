@@ -36,6 +36,7 @@ executable hackage-matrix-builder
     aeson              >=0.8  && <0.9,
     base               >=4.8  && <4.9,
     base16-bytestring  >=0.1  && <0.2,
+    bifunctors         >=4.2  && <4.3,
     binary             >=0.7  && <0.8,
     blaze-builder      >=0.3  && <0.4,
     bytestring         >=0.10 && <0.11,
@@ -54,4 +55,4 @@ executable hackage-matrix-builder
     BuildReport
     BuildTypes
 
-  ghc-options: -threaded
+  ghc-options: -threaded -Wall

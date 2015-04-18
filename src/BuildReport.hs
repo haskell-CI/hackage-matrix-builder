@@ -2,23 +2,24 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module BuildReport (ReportData(..), genHtmlReport, docToBS) where
 
+import           Blaze.ByteString.Builder
+import           Control.Lens
+import           Data.Bits
 import           Data.Function
 import           Data.List
--- import           Data.List.Split
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import           Blaze.ByteString.Builder
-import           Control.Lens
 import           Text.XmlHtml
 
 import           BuildTypes
@@ -27,11 +28,19 @@ data ReportData = ReportData
     { rdPkgName     :: PkgName
     , rdVersions    :: Map PkgVer ( PkgRev, Bool )
     , rdGVersions   :: Map GhcVer ( PkgVer
-                                  , Map PkgVer Status
+                                  , Map PkgVer BuildResult
                                   , Map PkgVerPfx (Maybe PkgVer)
                                   )
-    } deriving (Show,Read,Generic,NFData)
+    } deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
+-- TODO: Unify this with 'Status' somehow
+data Status
+    = PassBuild !Text
+    | PassNoIp
+    | PassNoOp
+    | FailBuild !Text
+    | FailDepBuild !Text
+    deriving (Read,Show,Eq,Ord,Generic,NFData,FromJSON,ToJSON)
 
 {-
 -- Sorted by severity
@@ -59,8 +68,8 @@ html5Doc = HtmlDocument UTF8 (Just $ DocType "html" NoExternalID NoInternalSubse
 -- | Format GHC version as TH cell
 thgv :: PkgVer -> Node
 thgv (PkgVer v) = Element "th" [] $ case v of
-        [mj1]            -> [ TextNode (dispVer' v) ]
-        [mj1,mj2]        -> [ TextNode (dispVer' v) ]
+        [_]              -> [ TextNode (dispVer' v) ]
+        [_,_]            -> [ TextNode (dispVer' v) ]
         [mj1,mj2,mi]     -> [ TextNode (dispVer' [mj1,mj2])
                             , Element "small" [] [TextNode ("." <> dispVer' [mi])]
                             ]
@@ -97,11 +106,11 @@ genHtmlReport css ReportData {..} = html5Doc doc
                                     [ Element "title" [] [TextNode $ "Report for " <> pkgname ]
                                     , Element "meta" [("charset","UTF-8")] []
                                     , case css of
-                                           Left fp -> Element "link" [("rel","stylesheet"),("href","../style.css")] []
+                                           Left fp -> Element "link" [("rel","stylesheet"),("href",T.pack fp)] []
                                            Right cssdat -> Element "style" [] [TextNode cssdat]
                                     ]
                                , Element "body" [] body ]]
-    body = [ Element "p" [] [ Element "a" [("href","0INDEX.html")] [Element "small" [] [TextNode "back to index"]] ]
+    body = [ Element "p" [] [ Element "a" [("href",".")] [Element "small" [] [TextNode "back to index"]] ]
 
            , Element "h4" [("id","default")] [ TextNode "Solver Matrix (constraint-less)" ]
            , solverTabAny
@@ -157,17 +166,17 @@ genHtmlReport css ReportData {..} = html5Doc doc
     majVsPfxs = [ [a,b] | (a,b) <- nub . sort . map majorVer $ vs ]
 
     dispVPfx [] = "*"
-    dispVPfx vs = dispPkgVer $ PkgVer vs
+    dispVPfx vs' = dispPkgVer $ PkgVer vs'
 
     lup' gv mjv = case rdGVersions ^? ix gv._3.ix mjv of
-        Nothing -> Element "td" [("class","lastmaj stcell")] [TextNode "???"]
+        Nothing      -> Element "td" [("class","lastmaj stcell")]            [TextNode "???"]
         Just Nothing -> Element "td" [("class","lastmaj stcell pass-no-ip")] [TextNode "∅"]
         Just (Just v) -> case lup v gv of
-            Element "td" attrs l -> Element "td" (dropTitle attrs) [TextNode $ dispPkgVer v]
+            Element "td" attrs _ -> Element "td" (dropTitle attrs) [TextNode $ dispPkgVer v]
       where
         dropTitle = filter ((/= "title") . fst)
 
-    lup v g = case rdGVersions ^? ix g._2.ix v of
+    lup v g = case brToStat <$> rdGVersions ^? ix g._2.ix v of
         Nothing               -> mkTd "fail-unknown"   "" ""
         Just (PassBuild c)    -> mkTd "pass-build"     c  "OK"
         Just PassNoIp
@@ -222,3 +231,34 @@ genHtmlReport css ReportData {..} = html5Doc doc
         hdiffUrl = "http://hdiff.luite.com/cgit/" <> n <> "/commit?id=" <> vtxt
         hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
         revLogUrl = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/revisions"
+
+----------------------------------------------------------------------------
+
+brToStat :: BuildResult -> Status
+brToStat = \case
+    BuildOk -> PassBuild ""
+    BuildNop -> PassNoOp
+    BuildNoIp -> PassNoIp
+    BuildFail t ->
+        let tls = T.lines t
+            tls' = map (truncLine 100) $ drop (length tls - 10) tls -- last 10 lines
+            t' = T.unlines
+                 [ "--- Last 10 lines of build output ---"
+                 , "..."
+                 , T.unlines tls'
+                 , "--- Full build output ---"
+                 , t
+                 ]
+        in FailBuild t'
+    BuildFailDeps xs ->
+        let t = mconcat [ "failed deps: ", T.pack $ unwords (map (showPkgId . fst) xs), "\n"
+                        , "\n---\n", T.intercalate "\n---\n" (map snd xs)
+                        ]
+        in FailDepBuild t
+
+truncLine :: Word -> Text -> Text
+truncLine n' s
+  | T.length s > n = T.take n s <> "…"
+  | otherwise      = s
+  where
+    Just n = toIntegralSized n'

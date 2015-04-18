@@ -14,22 +14,22 @@ import           BuildTypes
 
 import           Development.Shake
 import           Development.Shake.Classes
-import           Development.Shake.Command
+-- import           Development.Shake.Command
 import           Development.Shake.FilePath
-import           Development.Shake.Util
+-- import           Development.Shake.Util
 
 import           Control.DeepSeq
 import           Control.Exception (evaluate)
 import           Control.Monad
-import           Data.Bifunctor
+import qualified Data.Aeson as J
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
--- import qualified Data.HashMap.Strict as HM
+import qualified Data.ByteString.Lazy as BL
 import           Data.List
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Monoid
-import qualified Data.Text as T
+-- import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8)
 import           System.Directory (getAppUserDataDirectory, createDirectory, createDirectoryIfMissing, getCurrentDirectory)
 import qualified System.Directory as D
@@ -122,14 +122,11 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         bwriteFileChanged out lstdata
 
     "report/*.html" %> \out -> do
-        let datafn = out -<.> ".data"
-        rd <- sreadFile datafn
-
+        rd <- jreadFile (out -<.> ".json")
         cssData <- decodeUtf8 <$> breadFile "style.css"
-
         bwriteFileChanged out $ docToBS $ genHtmlReport (Right cssData) rd
 
-    "report/*.data" %> \out -> do
+    "report/*.json" %> \out -> do
         let idxfn = out -<.> ".idx"
             pkgn  = PkgName (takeBaseName out)
 
@@ -156,12 +153,10 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                 (,) pv <$> sreadFile ("report" </> unPkgName pkgn </> showPkgVer pv </>
                                       ghcVerStr gv <.> "result") :: Action (PkgVer,BuildResult)
 
-            let pvdata' = map (fmap brToStat) pvdata
-
-            return (gv, (gfullver, Map.fromList pvdata', Map.fromList sdata'))
+            return (gv, (gfullver, Map.fromList pvdata, Map.fromList sdata'))
 
         -- TODO
-        swriteFileChanged out $ ReportData
+        jwriteFileChanged out $ ReportData
             { rdPkgName   = pkgn
             , rdVersions  = Map.fromList [ (v,(r,u)) | (n, v, r, u) <- vs, n == pkgn ]
             , rdGVersions = Map.fromList matrix
@@ -459,11 +454,11 @@ runInstallXdeps sbdir gv pkgid xdeps = do
 ----------------------------------------------------------------------------
 -- misc helpers
 
-bshow :: Show a => a -> ByteString
-bshow = BC.pack . show
+-- bshow :: Show a => a -> ByteString
+-- bshow = BC.pack . show
 
-bread :: Read a => ByteString -> a
-bread bs = fromMaybe (error $ "bread " <> show bs) . readMaybe . BC.unpack $ bs
+-- bread :: Read a => ByteString -> a
+-- bread bs = fromMaybe (error $ "bread " <> show bs) . readMaybe . BC.unpack $ bs
 
 -- | Write a file, but only if the contents would change.
 bwriteFileChanged :: FilePath -> B.ByteString -> Action ()
@@ -485,16 +480,30 @@ sreadFile fn = do
         Just v -> return v
         Nothing -> fail $ "failed to sreadFile " ++ show fn
 
+{-
 sreadFileIO :: Read a => FilePath -> IO a
 sreadFileIO fn = do
     raw <- readFile fn
     case readMaybe raw of
         Just v -> return v
         Nothing -> fail $ "failed to sreadFileIO " ++ show fn
+-}
 
 -- | Read a file, after calling 'need'. The argument file will be tracked as a dependency.
 breadFile :: FilePath -> Action B.ByteString
 breadFile x = need [x] >> liftIO (B.readFile x)
+
+-- | Read JSON data
+jreadFile :: FromJSON a => FilePath -> Action a
+jreadFile fn = do
+    raw <- breadFile fn
+    case J.decodeStrict' raw of
+        Just v -> return v
+        Nothing -> fail $ "failed to jreadFile " ++ show fn
+
+-- | Write JSON data
+jwriteFileChanged :: ToJSON a => FilePath -> a -> Action ()
+jwriteFileChanged fn = bwriteFileChanged fn . BL.toStrict . J.encode
 
 -- | ...
 readXListFile :: FilePath -> Action [(PkgName, PkgVer, PkgRev, Bool)]
@@ -536,24 +545,3 @@ fixupPkgDump :: ByteString -> ByteString
 fixupPkgDump = (`BC.append` "\n") . fst . BC.breakSubstring "\n---"
 
 
-brToStat :: BuildResult -> Status
-brToStat = \case
-    BuildOk -> PassBuild ""
-    BuildNop -> PassNoOp
-    BuildNoIp -> PassNoIp
-    BuildFail t ->
-        let tls = T.lines t
-            tls' = drop (length tls - 10) tls -- last 10 lines
-            t' = T.unlines
-                 [ "--- Last 10 lines of build output ---"
-                 , "..."
-                 , T.unlines tls'
-                 , "--- Full build output ---"
-                 , t
-                 ]
-        in FailBuild t'
-    BuildFailDeps xs ->
-        let t = mconcat [ "failed deps: ", T.pack $ unwords (map (showPkgId . fst) xs), "\n"
-                        , "\n---\n", T.intercalate "\n---\n" (map snd xs)
-                        ]
-        in FailDepBuild t
