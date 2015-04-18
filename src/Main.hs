@@ -7,9 +7,6 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-{-# OPTIONS_GHC -fno-warn-unused-imports #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Main (main) where
 
 import           BuildReport
@@ -29,23 +26,32 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 -- import qualified Data.HashMap.Strict as HM
 import           Data.List
+import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Monoid
+import qualified Data.Text as T
+import           Data.Text.Encoding (decodeUtf8)
 import           System.Directory (getAppUserDataDirectory, createDirectory, createDirectoryIfMissing, getCurrentDirectory)
 import qualified System.Directory as D
 import           System.IO
 import           System.IO.Unsafe
 import           Text.Read (readMaybe)
-import qualified Data.Map.Strict as Map
 
 ----------------------------------------------------------------------------
+-- Filesystem configuration
 
+-- | Path to @cabal-install@'s @00-index.tar@ package index
 indexTar :: FilePath
 indexTar = unsafePerformIO (getAppUserDataDirectory "cabal") </> "packages/hackage.haskell.org/00-index.tar"
 {-# NOINLINE indexTar #-}
 
+-- | Path to @cabal@ frontend (tested only with 1.22)
 cabalExe :: FilePath
 cabalExe = "/opt/cabal/1.22/bin/cabal"
+
+-- | @xcabal@ frontend (get it from https://github.com/hvr/xcabal)
+xcabalExe :: FilePath
+xcabalExe = "xcabal"
 
 -- | Path where to find @ghc@ and @ghc-pkg@.
 ghcBinPath :: GhcVer -> FilePath
@@ -62,14 +68,10 @@ ghcBinPath v = "/opt/ghc/" ++ v' ++ "/bin/"
 addGhcPath :: GhcVer -> Action CmdOption
 addGhcPath gv = addPath [ghcBinPath gv] []
 
-
 ----------------------------------------------------------------------------
 -- oracle wrappers
 
-newtype XRevQ = XRevQ PkgId
-              deriving (Eq,Show,NFData,Generic,Hashable,Binary)
-
-newtype XRevA = XRevA (Maybe PkgRev)
+newtype PkgRevQ = PkgRevQ PkgId
               deriving (Eq,Show,NFData,Generic,Hashable,Binary)
 
 data HackageEtagQ = HackageEtagQ
@@ -92,12 +94,12 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         Stdout out <- command [] (ghcBinPath gv <> "ghc") ["--numeric-version"]
         maybe (fail "getGhcVer") return $ parsePkgVer (dropWhileEnd (`elem` [' ','\n','\r']) out)
 
-    getXRev <- addOracle $ \(XRevQ (PkgName pkgn,pkgv)) -> do
+    getXRev <- addOracle $ \(PkgRevQ (PkgName pkgn,pkgv)) -> do
         vs <- readXListFile ("report" </> pkgn <.> "idx")
         let vs' = [ r | (PkgName n, v, r, _) <- vs, n == pkgn, v == pkgv ]
         case vs' of
-            []  -> return $ XRevA Nothing
-            [r] -> return $ XRevA (Just r)
+            []  -> return Nothing
+            [r] -> return (Just r)
             _   -> fail "getXRev: internal inconsistency"
 
     getHackageEtag <- addOracle $ \HackageEtagQ ->
@@ -107,7 +109,7 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
     "00-index.lst" %> \out -> do
         need [indexTar]
         putNormal "generating 00-index.lst..."
-        Stdout lstdata <- command [] "xcabal" ["xlist"]
+        Stdout lstdata <- command [] xcabalExe ["xlist"]
         bwriteFileChanged out lstdata
 
     "report/*.idx" %> \out -> do
@@ -115,7 +117,7 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         when (null pkgn) $ fail "bad package name"
 
         need [indexTar]
-        Stdout lstdata <- command [] "xcabal" ["xlist",pkgn]
+        Stdout lstdata <- command [] xcabalExe ["xlist",pkgn]
         when (B.null lstdata) $ fail ("unknown package " ++ show pkgn)
         bwriteFileChanged out lstdata
 
@@ -123,7 +125,9 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         let datafn = out -<.> ".data"
         rd <- sreadFile datafn
 
-        bwriteFileChanged out $ docToBS $ genHtmlReport rd
+        cssData <- decodeUtf8 <$> breadFile "style.css"
+
+        bwriteFileChanged out $ docToBS $ genHtmlReport (Right cssData) rd
 
     "report/*.data" %> \out -> do
         let idxfn = out -<.> ".idx"
@@ -149,7 +153,8 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                          ([], fst sdata) : [ ([v1,v2], sr) | ((v1,v2), sr) <- snd sdata ]
 
             pvdata <- forM vs' $ \pv ->
-                (,) pv <$> sreadFile ("report" </> unPkgName pkgn </> showPkgVer pv </> ghcVerStr gv <.> "result") :: Action (PkgVer,BuildResult)
+                (,) pv <$> sreadFile ("report" </> unPkgName pkgn </> showPkgVer pv </>
+                                      ghcVerStr gv <.> "result") :: Action (PkgVer,BuildResult)
 
             let pvdata' = map (fmap brToStat) pvdata
 
@@ -157,8 +162,8 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
         -- TODO
         swriteFileChanged out $ ReportData
-            { rdPkgName  = pkgn
-            , rdVersions = Map.fromList [ (v,(r,u)) | (n, v, r, u) <- vs, n == pkgn ]
+            { rdPkgName   = pkgn
+            , rdVersions  = Map.fromList [ (v,(r,u)) | (n, v, r, u) <- vs, n == pkgn ]
             , rdGVersions = Map.fromList matrix
             }
 
@@ -169,7 +174,7 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
         etag <- BC.unpack <$> getHackageEtag HackageEtagQ
 
-        XRevA (Just xrev) <- getXRev (XRevQ pkgid)
+        Just xrev <- getXRev (PkgRevQ pkgid)
 
         putLoud $ "(Re)generating iplan for " <> showPkgId pkgid <> "~" <> show xrev
                   <> " (Hackage-Etag = " <> etag <> ")"
@@ -219,10 +224,15 @@ main = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                 bwriteFileChanged (out -<.> "build_stdout") sout
                 bwriteFileChanged (out -<.> "build_log") blog
 
-                return $ case rc of
-                    SbExitOk         -> BuildOk
-                    SbExitFail []    -> BuildFail
-                    SbExitFail (_:_) -> BuildFailDeps
+                case rc of
+                    SbExitOk         -> return BuildOk
+                    SbExitFail []    -> return $ BuildFail (decodeUtf8 sout)
+                    SbExitFail fsbids@(_:_) -> do
+                        rcs <- forM fsbids $ \fsbid -> do
+                            let sbdir = "sandboxes" </> fsbid </> ghcVerStr gv <.> "d"
+                            sout' <- breadFile (sbdir </> "build.stdouterr")
+                            return (fst (unSbId fsbid), decodeUtf8 sout')
+                        return $ BuildFailDeps rcs
 
         -- need ["00-index.lst"]
         swriteFileChanged out res
@@ -263,7 +273,7 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
     -- command_ [Cwd tmpdir, ghcOpt, EchoStdout False, Traced "cabal-sandbox-init"] cabalExe [ "sandbox", "init" ]
     (Exit rc, Stdout sout, Stderr serr) <-
         command [ghcOpt, Traced "cabal-install-dry"] cabalExe $
-        [ "install" -- "--require-sandbox"
+        [ "--ignore-sandbox", "install"
         , "--global"
         , "--with-ghc", ghcbin
         , "--max-backjumps=-1"
@@ -312,8 +322,9 @@ type XDeps = [(PkgId, [PkgId])]
 
 updateXDeps :: PkgId -> XDeps -> Action ()
 updateXDeps pkgid xdeps
-    = unless (null xdeps) $
-      swriteFileChanged ("deps" </> mkSbId pkgid deps <.> "xdeplist") xdeps
+    = unless (null xdeps) $ do
+        liftIO $ createDirectoryIfMissing False "deps"
+        swriteFileChanged ("deps" </> mkSbId pkgid deps <.> "xdeplist") xdeps
   where
     deps = map fst xdeps
 
@@ -342,22 +353,26 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                        , unwords (map (showPkgId . fst) xdeps), ") at ", show sbdir
                        ]
 
-    ghcOpt <- addGhcPath gv
-    oldcwd <- liftIO getCurrentDirectory
-
-    command_ [Cwd sbdir, ghcOpt, EchoStdout False, Traced "cabal-sandbox-init"] cabalExe [ "sandbox", "init" ]
-
-    -- populate sandbox w/ deps
-
-    let mkSbPath p1 p1deps = "sandboxes" </> mkSbId p1 p1deps </> ghcVerStr gv <.> "d"
-
     -- maybe abort early and report only the first failed dep?
     need [ mkSbPath p1 p1deps </> "exit.code" | (p1,p1deps) <- xdeps ]
 
+    oldcwd <- liftIO getCurrentDirectory
+
+    -- find out if additional constraints are needed
+    xtraCstrs <- computeAllXtraCstrs
+
+    -- initialise sandbox
+    ghcOpt <- addGhcPath gv
+    command_ [Cwd sbdir, ghcOpt, EchoStdout False, Traced "cabal-sandbox-init"] cabalExe [ "sandbox", "init" ]
+
+    -- populate sandbox w/ deps
     exitCodes <- forM xdeps $ \(p1,p1deps) ->
         (,) (mkSbId p1 p1deps) <$> sreadFile (mkSbPath p1 p1deps </> "exit.code")
 
-    let failedSbs = [ sbid1 | (sbid1, SbExitFail _) <- exitCodes ]
+    let failedSbs = nub . sort . concat $
+                    [ if null fsbids then [fsbid1] else fsbids
+                    | (fsbid1, SbExitFail fsbids) <- exitCodes
+                    ]
 
     case failedSbs of
         sbs@(_:_) -> do
@@ -377,16 +392,14 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                 [ "--require-sandbox", "install"
                 , "--with-ghc", ghcbin
                 , "--jobs=1"
+                , "--reorder-goals"
                 , "--max-backjumps=-1"
                 , "--force-reinstalls"
                 , "--report-planning-failure"
                 , "--remote-build-reporting=detailed"
                 , showPkgId pkgid
                 ]
-                ++ concat [ [ "--constraint", showPkgCstr (n,PkgCstrInstalled)
-                            , "--constraint", showPkgCstr (n,PkgCstrEq v)
-                            ]
-                          | ((n,v),_) <- xdeps ]
+                ++ concat [ [ "--constraint", showPkgCstr c ] | c <- (xdepcstrs++xtraCstrs) ]
 
             bwriteFileChanged (sbdir </> "build.stdouterr") sout
 
@@ -394,21 +407,54 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                 -- TODO: parse build.log
 
             when (rc == ExitSuccess) $ do
-                (Stdout pkgdump) <- command [Cwd sbdir, ghcOpt, Traced "cabal-sandbox-describe"]
-                                    cabalExe [ "sandbox", "hc-pkg", "--", "describe", showPkgId pkgid ]
-                bwriteFileChanged (sbdir </> "pkg.cfg") (fixupPkgDump pkgdump)
+                (Exit rc', Stdout pkgdump) <- command [ Cwd sbdir, ghcOpt, EchoStderr False
+                                                      , Traced "cabal-sandbox-describe"]
+                                              cabalExe [ "sandbox", "hc-pkg", "--", "describe", showPkgId pkgid ]
+                case rc' of
+                    ExitSuccess -> bwriteFileChanged (sbdir </> "pkg.cfg") (fixupPkgDump pkgdump)
+                    ExitFailure _ -> do
+                        -- TODO: analyse 'sout' to verify non-library package
+                        putNormal $ unwords ["WARNING: no package", showPkgId pkgid, "registered; assuming non-library package"]
 
             -- TODO: validate resulting sandbox matches sandbox-specification
 
             let src = case rc of
-                    ExitSuccess -> SbExitOk
+                    ExitSuccess   -> SbExitOk
                     ExitFailure _ -> SbExitFail []
 
             swriteFileChanged (sbdir </> "exit.code") src
 
             return $!! (sout,blog,src)
   where
+    mkSbPath p1 p1deps = "sandboxes" </> mkSbId p1 p1deps </> ghcVerStr gv <.> "d"
+
+    xdeppkgns = map (fst . fst) xdeps
+    xdepcstrsv = [ (n,PkgCstrEq v) | ((n,v),_) <- xdeps ]
+    xdepcstrs  = xdepcstrsv <> [ (n,PkgCstrInstalled) | (n,_) <- xdepcstrsv ]
+
     ghcbin = ghcBinPath gv <> "ghc"
+
+    -- | 'xdepcstrsv' may leave some DOF, here we compute extra cstrs
+    -- needed to keep additional packages from sneaking into the
+    -- build-plan
+    computeAllXtraCstrs = go []
+      where
+        go xcstrs0 = do
+            xcstrs <- computeXtraCstrsStep xcstrs0
+            case xcstrs of
+                []    -> return xcstrs0
+                (_:_) -> do
+                    putNormal $ "WARNING: extra dependencies sneaked in: " ++ show (map fst xcstrs)
+                    go (xcstrs0++xcstrs)
+
+    computeXtraCstrsStep xcstrs0 = do
+        -- find out if additional constraints are needed
+        (_,_,InstallPlan _pkg0 x _) <- dryInstall' gv pkgid (xdepcstrsv++xcstrs0)
+        let x' = map fst x
+        unless (null $ xdeppkgns \\ x') $
+            fail "runInstallXdeps: integrity check failed"
+        return [ (n,PkgCstrInstalled) | n <- (x' \\ xdeppkgns) ]
+
 
 ----------------------------------------------------------------------------
 -- misc helpers
@@ -488,3 +534,16 @@ splitSbPath fp = force (sbid,gv)
 
 fixupPkgDump :: ByteString -> ByteString
 fixupPkgDump = (`BC.append` "\n") . fst . BC.breakSubstring "\n---"
+
+
+brToStat :: BuildResult -> Status
+brToStat = \case
+    BuildOk -> PassBuild ""
+    BuildNop -> PassNoOp
+    BuildNoIp -> PassNoIp
+    BuildFail t -> FailBuild t
+    BuildFailDeps xs ->
+        let t = mconcat [ "failed deps: ", T.pack $ unwords (map (showPkgId . fst) xs), "\n"
+                        , "\n---\n", T.intercalate "\n---\n" (map snd xs)
+                        ]
+        in FailDepBuild t

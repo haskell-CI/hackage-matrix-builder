@@ -179,15 +179,17 @@ dryToSolveResult = \case
 
 data SbExitCode
     = SbExitOk
-    | SbExitFail [SbId] -- list contains indirect failures (if any)
+    | SbExitFail [SbId] -- list contains indirect failures, i.e. the
+                        -- ids of direct and indirect build-deps whose
+                        -- indirect-failure list was empty
     deriving (Show,Read,Generic,NFData)
 
 data BuildResult
     = BuildOk
     | BuildNop
     | BuildNoIp
-    | BuildFail
-    | BuildFailDeps
+    | BuildFail !Text -- build-output
+    | BuildFailDeps [(PkgId,Text)] -- failed deps & associated build-outputs
     deriving (Show,Read,Generic,NFData)
 
 -- | Represents build outcome status with associated meta-info
@@ -198,14 +200,6 @@ data Status
     | FailBuild !Text
     | FailDepBuild !Text
     deriving (Read,Show,Eq,Ord,Generic,NFData)
-
-brToStat :: BuildResult -> Status
-brToStat = \case
-    BuildOk -> PassBuild ""
-    BuildNop -> PassNoOp
-    BuildNoIp -> PassNoIp
-    BuildFail -> FailBuild ""
-    BuildFailDeps -> FailDepBuild ""
 
 hashDeps :: [PkgId] -> String
 hashDeps = BC.unpack .B16.encode . SHA256.hash . BC.pack . show

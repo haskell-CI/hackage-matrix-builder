@@ -6,9 +6,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-{-# OPTIONS_GHC -fno-max-relevant-binds #-}
-
-
 module BuildReport (ReportData(..), genHtmlReport, docToBS) where
 
 import           Data.Function
@@ -20,8 +17,6 @@ import           Data.Monoid
 import           Data.Ord
 import qualified Data.Set as Set
 import qualified Data.Text as T
--- import qualified Data.Text.IO as T
--- import           Text.ParserCombinators.ReadP (readP_to_S, ReadP)
 import           Blaze.ByteString.Builder
 import           Control.Lens
 import           Text.XmlHtml
@@ -36,7 +31,6 @@ data ReportData = ReportData
                                   , Map PkgVerPfx (Maybe PkgVer)
                                   )
     } deriving (Show,Read,Generic,NFData)
-
 
 
 {-
@@ -84,8 +78,8 @@ grouper sel ys = [ (sel $ head xs, xs)
 docToBS :: Document -> ByteString
 docToBS = toByteString . render
 
-genHtmlReport :: ReportData -> Document
-genHtmlReport ReportData {..} = html5Doc doc
+genHtmlReport :: Either FilePath Text -> ReportData -> Document
+genHtmlReport css ReportData {..} = html5Doc doc
   where
     pkgname = T.pack (unPkgName rdPkgName)
     vs      = Map.keys rdVersions
@@ -102,7 +96,9 @@ genHtmlReport ReportData {..} = html5Doc doc
     doc = [Element "html" [] [ Element "head" []
                                     [ Element "title" [] [TextNode $ "Report for " <> pkgname ]
                                     , Element "meta" [("charset","UTF-8")] []
-                                    , Element "link" [("rel","stylesheet"),("href","../style.css")] []
+                                    , case css of
+                                           Left fp -> Element "link" [("rel","stylesheet"),("href","../style.css")] []
+                                           Right cssdat -> Element "style" [] [TextNode cssdat]
                                     ]
                                , Element "body" [] body ]]
     body = [ Element "p" [] [ Element "a" [("href","0INDEX.html")] [Element "small" [] [TextNode "back to index"]] ]
@@ -223,5 +219,3 @@ genHtmlReport ReportData {..} = html5Doc doc
         hdiffUrl = "http://hdiff.luite.com/cgit/" <> n <> "/commit?id=" <> vtxt
         hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
         revLogUrl = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/revisions"
-
-
