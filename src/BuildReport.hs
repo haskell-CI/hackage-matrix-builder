@@ -104,27 +104,21 @@ genHtmlReport css ReportData {..} = html5Doc doc
     body = [ Element "p" [] [ Element "a" [("href","0INDEX.html")] [Element "small" [] [TextNode "back to index"]] ]
 
            , Element "h4" [("id","default")] [ TextNode "Solver Matrix (constraint-less)" ]
-           , solverTab1
+           , solverTabAny
 
            , Element "h4" [("id","by-major-ver")] [ TextNode "Solver Matrix (constrained by major-version)" ]
-           , solverTab
+           , solverTabByMaj
 
            , Element "h4" [("id","detailed")] [ TextNode "Solver Matrix (constrained by single version)" ]
-           , tab
+           , solverTabFull
 
            , Element "h4" [("id","legend")] [ TextNode "Legend" ]
            , legendTab
            ]
 
-    solverTab1 = Element "table" [] solverRows1
-    solverTab = Element "table" [] solverRows
-
-    majVsPfxs = [ [a,b] | (a,b) <- nub . sort . map majorVer $ vs ]
-
-    dispVPfx [] = "*"
-    dispVPfx vs = dispPkgVer $ PkgVer vs
-
-    solverRows1 =
+    -- by '*'
+    solverTabAny =
+        Element "table" []
         [ Element "thead" [] [ Element "tr" [] (thPkgName : map thgv' gvs)]
         , Element "tbody" []
           [ Element "tr" [("class","solver-row")]
@@ -133,7 +127,9 @@ genHtmlReport css ReportData {..} = html5Doc doc
           ]
         ]
 
-    solverRows =
+    -- by major-version
+    solverTabByMaj =
+        Element "table" []
         [ Element "thead" [] [ Element "tr" [] (thPkgName : map thgv' gvs)]
         , Element "tbody" []
           [ Element "tr" [("class","solver-row")]
@@ -142,27 +138,34 @@ genHtmlReport css ReportData {..} = html5Doc doc
           | mjv <- majVsPfxs ]
         ]
 
-    lup' gv mjv = case rdGVersions ^? ix gv._3.ix mjv of
-        Nothing -> Element "td" [("class","lastmaj stcell")] [TextNode "???"]
-        Just Nothing -> Element "td" [("class","lastmaj stcell pass-no-ip")] [TextNode "∅"]
-        Just (Just v) -> case lup v gv of
-            Element "td" attrs l -> Element "td" attrs [TextNode $ dispPkgVer v]
-
-    tab = Element "table" [] rows
+    -- full matrix
+    solverTabFull =
+        Element "table" []
+        [ Element "thead" [] [Element "tr" []
+                              (thPkgName
+                               : map thgv' gvs)]
+        , Element "tbody" [] [ Element "tr" [] (row v) | v <- vs ]
+        , Element "tfoot" [] [Element "tr" [] (Element "th" [("class","empty-lb")] [] : map thgv' gvs)]
+        ]
+      where
+        row v = thv v : [ lup v g | g <- gvs ]
 
     hackurl = "https://hackage.haskell.org/package/" <> pkgname
 
     thPkgName = Element "th" [] [Element "a" [("href",hackurl)] [TextNode pkgname]]
 
-    rows :: [Node]
-    rows = [ Element "thead" [] [Element "tr" []
-                                 (thPkgName
-                                  : map thgv' gvs)]
-           , Element "tbody" [] [ Element "tr" [] (row v) | v <- vs ]
-           , Element "tfoot" [] [Element "tr" [] (Element "th" [("class","empty-lb")] [] : map thgv' gvs)]
-           ]
+    majVsPfxs = [ [a,b] | (a,b) <- nub . sort . map majorVer $ vs ]
 
-    row v = thv v : [ lup v g | g <- gvs ]
+    dispVPfx [] = "*"
+    dispVPfx vs = dispPkgVer $ PkgVer vs
+
+    lup' gv mjv = case rdGVersions ^? ix gv._3.ix mjv of
+        Nothing -> Element "td" [("class","lastmaj stcell")] [TextNode "???"]
+        Just Nothing -> Element "td" [("class","lastmaj stcell pass-no-ip")] [TextNode "∅"]
+        Just (Just v) -> case lup v gv of
+            Element "td" attrs l -> Element "td" (dropTitle attrs) [TextNode $ dispPkgVer v]
+      where
+        dropTitle = filter ((/= "title") . fst)
 
     lup v g = case rdGVersions ^? ix g._2.ix v of
         Nothing               -> mkTd "fail-unknown"   "" ""
