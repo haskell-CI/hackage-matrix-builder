@@ -34,6 +34,9 @@ library
     ViewPatterns
 
   exposed-modules:
+    Api
+    Api.Package
+    Api.Types
     BuildReport
     BuildTypes
     Builder
@@ -50,12 +53,21 @@ library
     cryptohash        >=0.11 && <0.12,
     deepseq           >=1.4  && <1.5,
     directory         >=1.2  && <1.3,
+    generic-aeson     >=0.2  && <0.3,
+    happstack-server  >=7.4  && <7.5,
     hashable          >=1.2  && <1.3,
+    json-schema       >=0.7  && <0.8,
     lens              >=4.9  && <4.10,
     shake             >=0.15 && <0.16,
+    monad-control     >=0.3  && <0.4,
+    mtl               >=2.2  && <2.3,
+    rest-core         >=0.35 && <0.36,
+    rest-happstack    >=0.2  && <0.3,
+    rest-stringmap    >=0.2  && <0.3,
     text              >=1.2  && <1.3,
     text-binary       >=0.1  && <0.2,
     tostring          >=0.2  && <0.3,
+    transformers-base >=0.4  && <0.5,
     xmlhtml           >=0.2  && <0.3
 
   ghc-options: -Wall
@@ -66,3 +78,25 @@ executable hackage-matrix-builder
   main-is:          builder/Main.hs
   build-depends:    base, hackage-matrix-builder
   ghc-options:      -threaded -Wall
+
+executable web
+  main-is:             Web.hs
+  ghc-options:         -threaded -Wall
+  hs-source-dirs:      src-exe/web
+  default-language:    Haskell2010
+  build-depends:
+    base             >=4.8  && <4.9,
+    hackage-matrix-builder,
+    happstack-server >=7.4  && <7.5,
+    mtl              >=2.2  && <2.3,
+    rest-core        >=0.35 && <0.36
+
+executable web-gen
+  main-is:             WebGen.hs
+  ghc-options:         -threaded -Wall
+  default-language:    Haskell2010
+  hs-source-dirs:      src-exe/gen
+  build-depends:
+    base     >=4.8 && <4.9,
+    hackage-matrix-builder,
+    rest-gen >=0.17 && <0.18
