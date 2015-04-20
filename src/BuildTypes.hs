@@ -1,6 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -27,35 +25,46 @@ module BuildTypes
     , ToJSON
     ) where
 
+import           Control.DeepSeq
 import           Control.Monad
+import qualified Crypto.Hash.SHA256 as SHA256
 import           Data.Aeson (FromJSON,ToJSON)
 import qualified Data.Aeson as J
 import           Data.Bifunctor
-import           Data.Bitraversable
 import           Data.Binary
+import           Data.Bitraversable
 import           Data.Bits
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString.Base16 as B16
+import qualified Data.ByteString.Char8 as BC
+import           Data.Coerce
 import           Data.Hashable
-import           Data.List
+-- import           Data.List
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Set as Set
+import           Data.String
+import           Data.String.ToString
 import           Data.Text (Text)
+import qualified Data.Text as T
+import           Data.Text.Binary ()
+import qualified Data.Text.Encoding as T
 import           Data.Version
 import           GHC.Generics
 import           Numeric.Natural
 import           System.Exit
 import           Text.ParserCombinators.ReadP (readP_to_S, ReadP)
 
-import           Control.DeepSeq
-import qualified Crypto.Hash.SHA256 as SHA256
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Char8 as BC
-
 -- orphans
 deriving instance Generic ExitCode
 deriving instance NFData ExitCode
+
+-- | Class for types which have a 'FilePath'(-component) representation
+class ToFP s where
+    toFP :: s -> FilePath
+
+----------------------------------------------------------------------------
 
 -- | Known GHC versions
 data GhcVer = GHC_7_00
@@ -69,41 +78,54 @@ data GhcVer = GHC_7_00
 ghcVers :: [GhcVer]
 ghcVers = [minBound..maxBound]
 
-ghcVerStr :: GhcVer -> String
-ghcVerStr = drop 4 . show
+instance ToFP GhcVer where
+    toFP = drop 4 . show
 
-parseGhcVer :: String -> Maybe GhcVer
-parseGhcVer s = lookup s [ (ghcVerStr v, v) | v <- [minBound..maxBound] ]
+parseGhcVer :: Text -> Maybe GhcVer
+parseGhcVer s = Map.lookup s tab
+  where
+    tab = Map.fromList [ (ghcVerStr v, v) | v <- [minBound..maxBound] ]
+    ghcVerStr = T.pack . drop 4 . show
 
-parseGhcVer' :: String -> GhcVer
+parseGhcVer' :: Text -> GhcVer
 parseGhcVer' s = fromMaybe (error $ "parseGhcVer " ++ show s) . parseGhcVer $ s
 
 ----------------------------------------------------------------------------
 
-newtype PkgName = PkgName String
+newtype PkgName = PkgName Text
                 deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary,FromJSON,ToJSON)
 
-unPkgName :: PkgName -> String
-unPkgName (PkgName s) = s
+instance IsString PkgName where
+    fromString = PkgName . fromString
+
+instance ToString PkgName where
+    toString (PkgName t) = toString t
+
+instance ToFP PkgName where
+    toFP = T.unpack . coerce
 
 -- | Our variant of 'Data.Version.Version'
 newtype PkgVer = PkgVer [Word]
                deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary,FromJSON,ToJSON)
 
-showPkgVer :: PkgVer -> String
-showPkgVer (PkgVer v) = concat . intersperse "." . map show $ v
+instance ToFP PkgVer where
+    toFP = T.unpack . tshowPkgVer
 
--- | Dual to 'showPkgVer'
-parsePkgVer :: String -> Maybe PkgVer
+-- TODO: optimise 'T.pack . show' part
+tshowPkgVer :: PkgVer -> Text
+tshowPkgVer (PkgVer vs) = T.intercalate "." (map (T.pack . show) vs)
+
+-- | Dual to 'tshowPkgVer'
+parsePkgVer :: Text -> Maybe PkgVer
 parsePkgVer v0 = do
-    Version v [] <- runReadP parseVersion v0
+    Version v [] <- runReadP parseVersion (T.unpack v0)
     PkgVer <$> mapM toIntegralSized v
   where
     runReadP :: ReadP a -> String -> Maybe a
     runReadP p s = listToMaybe [ x | (x,"") <- readP_to_S p s ]
 
 -- | Non-total 'parsePkgVer'
-parsePkgVer' :: String -> PkgVer
+parsePkgVer' :: Text -> PkgVer
 parsePkgVer' s = fromMaybe (error $ "parsePkgVer " ++ show s) . parsePkgVer $ s
 
 majMinVer :: PkgVer -> (Word,Word,Word)
@@ -122,38 +144,45 @@ type PkgRev  = Word
 
 type PkgId   = (PkgName,PkgVer)
 
-showPkgId :: PkgId -> String
-showPkgId (PkgName n,v)
-  | null vs   = n -- version-less package id
-  | otherwise = n <> "-" <> vs
+tshowPkgId :: PkgId -> Text
+tshowPkgId (PkgName n,v)
+  | T.null vs = n -- version-less package id
+  | otherwise = mconcat [n, "-", vs]
   where
-    vs = showPkgVer v
+    vs = tshowPkgVer v
 
-
-parsePkgId :: String -> Maybe PkgId
+parsePkgId :: Text -> Maybe PkgId
 parsePkgId s = do
-    guard (not $ null pkgn)
+    guard (not $ T.null pkgn_)
     pkgv <- parsePkgVer pkgvs
-    let pkgid = (PkgName pkgn,pkgv)
-    guard (showPkgId pkgid == s)
+    let pkgid = (PkgName (T.init pkgn_),pkgv)
+    guard (tshowPkgId pkgid == s)
     return pkgid
   where
-    slen = length s
-    pkgvs = reverse . takeWhile (`elem` ('.':['0'..'9'])) . reverse $ s
-    pkgn = take (slen - (length pkgvs + 1)) s
+    (pkgn_,pkgvs) = T.breakOnEnd "-" s
 
-parsePkgId' :: String -> PkgId
+parsePkgId' :: Text -> PkgId
 parsePkgId' s = fromMaybe (error $ "parsePkgId " ++ show s) . parsePkgId $ s
 
 ----------------------------------------------------------------------------
 
-type SbId = String -- <pkgname>-<pkgver>-<dephash>
+newtype SbId = SbId Text -- <pkgname>-<pkgver>-<dephash>
+             deriving (Eq,Ord,Generic,NFData)
+
+instance Show SbId where
+    showsPrec p (SbId t) = showsPrec p t
+
+instance Read SbId where
+    readsPrec p = coerce (readsPrec p :: ReadS Text)
+
+instance ToFP SbId where
+    toFP = T.unpack . coerce
 
 mkSbId :: PkgId -> [PkgId] -> SbId
-mkSbId pkgid deps = showPkgId pkgid <> "_" <> hashDeps deps
+mkSbId pkgid deps = SbId $ mconcat [tshowPkgId pkgid, "_", coerce (hashDeps deps)]
 
-unSbId :: SbId -> (PkgId,String)
-unSbId sbid = force $ bimap parsePkgId' tail $ break (=='_') sbid
+unSbId :: SbId -> (PkgId,DepHash)
+unSbId = force . bimap parsePkgId' (DepHash . T.tail) . T.break (=='_') . coerce
 
 ----------------------------------------------------------------------------
 
@@ -189,7 +218,7 @@ data SbExitCode
     | SbExitFail [SbId] -- list contains indirect failures, i.e. the
                         -- ids of direct and indirect build-deps whose
                         -- indirect-failure list was empty
-    deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
+    deriving (Show,Read,Generic,NFData)
 
 -- | Represents build outcome status with associated meta-info
 data BuildResult
@@ -200,8 +229,12 @@ data BuildResult
     | BuildFailDeps [(PkgId,Text)] -- failed deps & associated build-outputs
     deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
-hashDeps :: [PkgId] -> String
-hashDeps = BC.unpack .B16.encode . SHA256.hash . BC.pack . show
+-- | Hash of package-dependencies constructed via 'hashDeps'
+newtype DepHash = DepHash Text
+                deriving (Eq,Ord,Generic,NFData)
+
+hashDeps :: [PkgId] -> DepHash
+hashDeps = DepHash . T.decodeUtf8 . B16.encode . SHA256.hash . BC.pack . show
 
 type PkgVerPfx = [Word]
 
@@ -213,10 +246,18 @@ data PkgCstr = PkgCstrEq  !PkgVer
 cstrFromPkgId :: PkgId -> (PkgName,PkgCstr)
 cstrFromPkgId = fmap PkgCstrEq
 
+tshowPkgCstr :: (PkgName,PkgCstr) -> Text
+tshowPkgCstr (PkgName n,cstr) = case cstr of
+    PkgCstrEq v      -> n <> " ==" <> tshowPkgVer v
+    PkgCstrPfx v     -> n <> " ==" <> T.intercalate "." (map showWord v ++ ["*"])
+    PkgCstrInstalled -> n <> " installed"
+  where
+    showWord :: Word -> Text
+    showWord = T.pack . show
+
+-- | Legacy version of 'tshowPkgCstr'
 showPkgCstr :: (PkgName,PkgCstr) -> String
-showPkgCstr (PkgName n,PkgCstrEq v)      = n <> " ==" <> showPkgVer v
-showPkgCstr (PkgName n,PkgCstrPfx v)     = n <> " ==" <> (concat $ intersperse "." (map show v ++ ["*"]))
-showPkgCstr (PkgName n,PkgCstrInstalled) = n <> " installed"
+showPkgCstr = T.unpack . tshowPkgCstr
 
 ----------------------------------------------------------------------------
 -- Some semi-orphans (they can only become full orphans, if aeson

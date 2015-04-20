@@ -1,6 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -56,12 +54,6 @@ truncStatus s = case s of
     FailDepBuild _ -> FailDepBuild'
 -}
 
-tshow :: Show a => a -> Text
-tshow = T.pack . show
-
-dispPkgVer :: PkgVer -> Text
-dispPkgVer = T.pack . showPkgVer
-
 html5Doc :: [Node] -> Document
 html5Doc = HtmlDocument UTF8 (Just $ DocType "html" NoExternalID NoInternalSubset)
 
@@ -78,7 +70,7 @@ thgv (PkgVer v) = Element "th" [] $ case v of
                             , Element "small" [] [Element "small" [] [TextNode ("." <> dispVer' ps)]]
                             ]
   where
-    dispVer' = dispPkgVer . PkgVer
+    dispVer' = tshowPkgVer . PkgVer
 
 grouper :: Ord a => (b -> a) -> [b] -> [(a,[b])]
 grouper sel ys = [ (sel $ head xs, xs)
@@ -90,7 +82,7 @@ docToBS = toByteString . render
 genHtmlReport :: Either FilePath Text -> ReportData -> Document
 genHtmlReport css ReportData {..} = html5Doc doc
   where
-    pkgname = T.pack (unPkgName rdPkgName)
+    PkgName pkgname = rdPkgName
     vs      = Map.keys rdVersions
     norls   = Set.empty -- FIXME
     xrevs   = fmap fst rdVersions
@@ -131,7 +123,7 @@ genHtmlReport css ReportData {..} = html5Doc doc
         [ Element "thead" [] [ Element "tr" [] (thPkgName : map thgv' gvs)]
         , Element "tbody" []
           [ Element "tr" [("class","solver-row")]
-            (Element "th" [("class","pkgv lastmaj")] [TextNode $ "*" ] :
+            (Element "th" [("class","pkgv lastmaj")] [TextNode "*" ] :
              [ lup' gv [] | gv <- gvs ])
           ]
         ]
@@ -166,13 +158,13 @@ genHtmlReport css ReportData {..} = html5Doc doc
     majVsPfxs = [ [a,b] | (a,b) <- nub . sort . map majorVer $ vs ]
 
     dispVPfx [] = "*"
-    dispVPfx vs' = dispPkgVer $ PkgVer vs'
+    dispVPfx vs' = tshowPkgVer $ PkgVer vs'
 
     lup' gv mjv = case rdGVersions ^? ix gv._3.ix mjv of
         Nothing      -> Element "td" [("class","lastmaj stcell")]            [TextNode "???"]
         Just Nothing -> Element "td" [("class","lastmaj stcell pass-no-ip")] [TextNode "∅"]
         Just (Just v) -> case lup v gv of
-            Element "td" attrs _ -> Element "td" (dropTitle attrs) [TextNode $ dispPkgVer v]
+            Element "td" attrs _ -> Element "td" (dropTitle attrs) [TextNode $ tshowPkgVer v]
       where
         dropTitle = filter ((/= "title") . fst)
 
@@ -195,7 +187,7 @@ genHtmlReport css ReportData {..} = html5Doc doc
                                        : [("title",title) | title /= ""])
                                      [TextNode lab | lab /= "" ]
 
-    legendTab = Element "table" [] $
+    legendTab = Element "table" []
       [ Element "tr" [] [ Element "td" [("class",cls <> " stcell")] [ TextNode l | l /= "" ]
                         , Element "td" [("style","text-align:left; padding-left: 5px")] [TextNode cmt] ]
       | (cls,l,cmt) <- [ ("pass-build",     "OK",          "package build succesful")
@@ -220,14 +212,14 @@ genHtmlReport css ReportData {..} = html5Doc doc
              | otherwise                = ""
 
         xrev = Map.findWithDefault 0 v xrevs
-        xrevt = "(" <> (tshow xrev) <> ")"
+        xrevt = "(" <> T.pack (show xrev) <> ")"
 
         xrevnode = [ Element "sup" [] [Element "a" [("class","xrev"),("href",revLogUrl),("title","revision log")]
                                        [TextNode xrevt]]
                    | xrev /= 0 ]
 
         n = pkgname
-        vtxt = dispPkgVer v
+        vtxt = tshowPkgVer v
         hdiffUrl = "http://hdiff.luite.com/cgit/" <> n <> "/commit?id=" <> vtxt
         hackUrl  = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/" <> n <> ".cabal/edit"
         revLogUrl = "https://hackage.haskell.org/package/" <> n <> "-" <> vtxt <> "/revisions"
@@ -251,7 +243,7 @@ brToStat = \case
                  ]
         in FailBuild t'
     BuildFailDeps xs ->
-        let t = mconcat [ "failed deps: ", T.pack $ unwords (map (showPkgId . fst) xs), "\n"
+        let t = mconcat [ "failed deps: ", T.unwords (map (tshowPkgId . fst) xs), "\n"
                         , "\n---\n", T.intercalate "\n---\n" (map snd xs)
                         ]
         in FailDepBuild t

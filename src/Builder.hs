@@ -1,10 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Builder (defaultMain) where
@@ -29,7 +27,10 @@ import           Data.List
 import qualified Data.Map.Strict as Map
 import           Data.Maybe
 import           Data.Monoid
--- import qualified Data.Text as T
+import           Data.String
+import           Data.String.ToString
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import           Data.Text.Encoding (decodeUtf8)
 import           System.Directory (getAppUserDataDirectory, createDirectory, createDirectoryIfMissing, getCurrentDirectory)
 import qualified System.Directory as D
@@ -92,11 +93,11 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
     getGhcVer <- addOracle $ \(GhcVerQ gv) -> do
         Stdout out <- command [] (ghcBinPath gv <> "ghc") ["--numeric-version"]
-        maybe (fail "getGhcVer") return $ parsePkgVer (dropWhileEnd (`elem` [' ','\n','\r']) out)
+        maybe (fail "getGhcVer") return $ parsePkgVer (T.dropWhileEnd (`elem` [' ','\n','\r']) (decodeUtf8 out))
 
-    getXRev <- addOracle $ \(PkgRevQ (PkgName pkgn,pkgv)) -> do
-        vs <- readXListFile ("report" </> pkgn <.> "idx")
-        let vs' = [ r | (PkgName n, v, r, _) <- vs, n == pkgn, v == pkgv ]
+    getXRev <- addOracle $ \(PkgRevQ (pkgn,pkgv)) -> do
+        vs <- readXListFile ("report" </> toFP pkgn <.> "idx")
+        let vs' = [ r | (n, v, r, _) <- vs, n == pkgn, v == pkgv ]
         case vs' of
             []  -> return Nothing
             [r] -> return (Just r)
@@ -128,35 +129,35 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
     "report/*.json" %> \out -> do
         let idxfn = out -<.> ".idx"
-            pkgn  = PkgName (takeBaseName out)
+            pkgn  = fromString (takeBaseName out)
 
         vs <- readXListFile idxfn
 
         let vs' = [ v | (n, v, _r, _) <- vs, n == pkgn ]
-            vstrs = map showPkgVer vs'
 
         unless (length vs == length vs') $
             fail "internal error"
 
-        need $ [ "report" </> unPkgName pkgn </> pv </> ghcVerStr gv <.> "result" | pv <- vstrs, gv <- ghcVers  ] ++
-               [ "report" </> unPkgName pkgn </> ghcVerStr gv <.> "solver" | gv <- ghcVers ]
+        need $ [ "report" </> toFP pkgn </> toFP v </> toFP gv <.> "result"
+               | v <- vs',  gv <- ghcVers  ] ++
+               [ "report" </> toFP pkgn </> toFP gv <.> "solver" | gv <- ghcVers ]
 
         matrix <- forM ghcVers $ \gv -> do
             gfullver <- getGhcVer (GhcVerQ gv)
 
-            sdata <- sreadFile ("report" </> unPkgName pkgn </> ghcVerStr gv <.> "solver") :: Action SolverData
+            sdata <- sreadFile ("report" </> toFP pkgn </> toFP gv <.> "solver") :: Action SolverData
 
             let sdata' = map (fmap solveResultToPkgVer) $
                          ([], fst sdata) : [ ([v1,v2], sr) | ((v1,v2), sr) <- snd sdata ]
 
             pvdata <- forM vs' $ \pv ->
-                (,) pv <$> sreadFile ("report" </> unPkgName pkgn </> showPkgVer pv </>
-                                      ghcVerStr gv <.> "result") :: Action (PkgVer,BuildResult)
+                (,) pv <$> sreadFile ("report" </> toFP pkgn </> toFP pv </>
+                                      toFP gv <.> "result") :: Action (PkgVer,BuildResult)
 
             return (gv, (gfullver, Map.fromList pvdata, Map.fromList sdata'))
 
         -- TODO
-        jwriteFileChanged out $ ReportData
+        jwriteFileChanged out ReportData
             { rdPkgName   = pkgn
             , rdVersions  = Map.fromList [ (v,(r,u)) | (n, v, r, u) <- vs, n == pkgn ]
             , rdGVersions = Map.fromList matrix
@@ -167,12 +168,13 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         let (pkgn,pkgv,gv) = splitRepPath out
             pkgid = (pkgn,pkgv)
 
-        etag <- BC.unpack <$> getHackageEtag HackageEtagQ
+        etag <- decodeUtf8 <$> getHackageEtag HackageEtagQ
 
         Just xrev <- getXRev (PkgRevQ pkgid)
 
-        putLoud $ "(Re)generating iplan for " <> showPkgId pkgid <> "~" <> show xrev
-                  <> " (Hackage-Etag = " <> etag <> ")"
+        putLoudT [ "(Re)generating iplan for ", tshowPkgId pkgid, "~", T.pack (show xrev)
+                 , " (Hackage-Etag = ", etag, ")"
+                 ]
 
         (sout,serr,tmp) <- dryInstall' gv pkgid []
 
@@ -182,7 +184,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
     "report/*/*.solver" %> \out -> do
         let (pkgn,gv) = splitSolvPath out
-            idxfn = "report" </> unPkgName pkgn <.> ".idx"
+            idxfn = "report" </> toFP pkgn <.> ".idx"
 
         vs4 <- readXListFile idxfn
         _ <- getHackageEtag HackageEtagQ
@@ -212,7 +214,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                 xdeps <- computeXDeps gv sbcfg
 
                 forM_ xdeps $ \(p1,p1deps) -> do
-                    putLoud $ showPkgId p1 <> " ==> " <> unwords (map showPkgId p1deps)
+                    putLoudT [tshowPkgId p1, " ==> ", T.unwords (map tshowPkgId p1deps)]
                     updateXDeps p1 [ (x,fromJust $ lookup x xdeps) | x <- p1deps ]
 
                 (sout, blog, rc) <- withTempDir $ \tmpdir -> runInstallXdeps tmpdir gv pkgid xdeps
@@ -224,7 +226,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                     SbExitFail []    -> return $ BuildFail (decodeUtf8 sout)
                     SbExitFail fsbids@(_:_) -> do
                         rcs <- forM fsbids $ \fsbid -> do
-                            let sbdir = "sandboxes" </> fsbid </> ghcVerStr gv <.> "d"
+                            let sbdir = "sandboxes" </> toFP fsbid </> toFP gv <.> "d"
                             sout' <- breadFile (sbdir </> "build.stdouterr")
                             return (fst (unSbId fsbid), decodeUtf8 sout')
                         return $ BuildFailDeps rcs
@@ -236,7 +238,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
     -- "sandboxes/*/*.d/cabal.sandbox.config"
     -- "sandboxes/*/*.d/.cabal-sandbox/logs/build.log"
         let (sbid,gv) = splitSbPath out
-            sbdir = "sandboxes" </> sbid </> ghcVerStr gv <.> "d"
+            sbdir = "sandboxes" </> toFP sbid </> toFP gv <.> "d"
             (pkgid,_) = unSbId sbid
 
         -- avoid rebuilding existing sandboxes
@@ -244,7 +246,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         unless outExists $ do
             xdeps <- lookupXDeps sbid
 
-            -- putNormal $ "...with deps: " ++ show (map (showPkgId . fst) xdeps)
+            -- putNormal $ "...with deps: " ++ show (map (tshowPkgId . fst) xdeps)
 
             -- paranoia
             liftIO $ removeFiles sbdir ["//*"] >> createDirectory sbdir
@@ -275,7 +277,7 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
         , "--force-reinstalls"
         , "--dry"
         , "--reorder-goals"
-        , unPkgName pkgname
+        , toString pkgname
         ] ++ concat [ ["--constraint", showPkgCstr nc] | nc <- constraints ]
 
     let !res = case rc of
@@ -288,24 +290,22 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
 
     go sout serr
         | B.isInfixOf "All the requested packages are already installed:" sout = AlreadyInstalled (head out2)
-     -- | last out' /= pkgid = error $ "dryInstall: internal inconsistency" ++ show (out', pkgid)
+--      | last out' /= pkgid = error $ "dryInstall: internal inconsistency" ++ show (out', pkgid)
         | otherwise          = InstallPlan (last out') (init out') bpkgs
       where
-        out' = map (parsePkgId' . BC.unpack) $
-               map (BC.takeWhile (/= ' ')) $
+        out' = map (parsePkgId' . decodeUtf8 . BC.takeWhile (/= ' ')) $
                tail $
                dropWhile (not . B.isPrefixOf "In order, the following would be installed") $
                BC.lines sout
 
-        out2 = map (parsePkgId' . BC.unpack) $
-               map (BC.takeWhile (/= ' ')) $
+        out2 = map (parsePkgId' . decodeUtf8 . BC.takeWhile (/= ' ')) $
                tail $
                dropWhile (not . B.isPrefixOf "All the requested packages are already installed:") $
                BC.lines sout
 
 
         bpkgs | B.isInfixOf "Warning: The following packages are likely to be broken by the reinstalls:" serr
-              = map (parsePkgId' . BC.unpack) $
+              = map (parsePkgId' . decodeUtf8) $
                 tail $
                 dropWhile (not . B.isPrefixOf "Warning: The following packages are likely to be broken by the reinstalls:") $
                 BC.lines serr
@@ -319,7 +319,7 @@ updateXDeps :: PkgId -> XDeps -> Action ()
 updateXDeps pkgid xdeps
     = unless (null xdeps) $ do
         liftIO $ createDirectoryIfMissing False "deps"
-        swriteFileChanged ("deps" </> mkSbId pkgid deps <.> "xdeplist") xdeps
+        swriteFileChanged ("deps" </> toFP (mkSbId pkgid deps) <.> "xdeplist") xdeps
   where
     deps = map fst xdeps
 
@@ -328,7 +328,7 @@ lookupXDeps sbid
   | hashDeps [] == snd (unSbId sbid) = pure []
   | otherwise = do
       let (_,dephash) = unSbId sbid
-      xdeps <- sreadFile ("deps" </> sbid <.> "xdeplist")
+      xdeps <- sreadFile ("deps" </> toFP sbid <.> "xdeplist")
       unless (hashDeps (map fst xdeps) == dephash) $
           fail ("lookupXDeps "++ show sbid ++ ": integrity check failed")
       return xdeps
@@ -344,9 +344,9 @@ computeXDeps gv sbcfg = do
 
 runInstallXdeps :: FilePath -> GhcVer -> PkgId -> XDeps -> Action (ByteString, ByteString, SbExitCode)
 runInstallXdeps sbdir gv pkgid xdeps = do
-    putNormal $ concat [ "creating ", show gv, " sandbox for ", showPkgId pkgid, "  ("
-                       , unwords (map (showPkgId . fst) xdeps), ") at ", show sbdir
-                       ]
+    putNormalT [ "creating ", T.pack (show gv), " sandbox for ", tshowPkgId pkgid, "  ("
+               , T.unwords (map (tshowPkgId . fst) xdeps), ") at ", T.pack (show sbdir)
+               ]
 
     -- maybe abort early and report only the first failed dep?
     need [ mkSbPath p1 p1deps </> "exit.code" | (p1,p1deps) <- xdeps ]
@@ -392,9 +392,9 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                 , "--force-reinstalls"
                 , "--report-planning-failure"
                 , "--remote-build-reporting=detailed"
-                , showPkgId pkgid
+                , T.unpack (tshowPkgId pkgid)
                 ]
-                ++ concat [ [ "--constraint", showPkgCstr c ] | c <- (xdepcstrs++xtraCstrs) ]
+                ++ concat [ [ "--constraint", showPkgCstr c ] | c <- xdepcstrs++xtraCstrs ]
 
             bwriteFileChanged (sbdir </> "build.stdouterr") sout
 
@@ -404,12 +404,13 @@ runInstallXdeps sbdir gv pkgid xdeps = do
             when (rc == ExitSuccess) $ do
                 (Exit rc', Stdout pkgdump) <- command [ Cwd sbdir, ghcOpt, EchoStderr False
                                                       , Traced "cabal-sandbox-describe"]
-                                              cabalExe [ "sandbox", "hc-pkg", "--", "describe", showPkgId pkgid ]
+                                              cabalExe [ "sandbox", "hc-pkg", "--", "describe"
+                                                       , T.unpack (tshowPkgId pkgid) ]
                 case rc' of
                     ExitSuccess -> bwriteFileChanged (sbdir </> "pkg.cfg") (fixupPkgDump pkgdump)
-                    ExitFailure _ -> do
+                    ExitFailure _ ->
                         -- TODO: analyse 'sout' to verify non-library package
-                        putNormal $ unwords ["WARNING: no package", showPkgId pkgid, "registered; assuming non-library package"]
+                        putNormalT ["WARNING: no package ", tshowPkgId pkgid, " registered; assuming non-library package"]
 
             -- TODO: validate resulting sandbox matches sandbox-specification
 
@@ -421,7 +422,7 @@ runInstallXdeps sbdir gv pkgid xdeps = do
 
             return $!! (sout,blog,src)
   where
-    mkSbPath p1 p1deps = "sandboxes" </> mkSbId p1 p1deps </> ghcVerStr gv <.> "d"
+    mkSbPath p1 p1deps = "sandboxes" </> toFP (mkSbId p1 p1deps) </> toFP gv <.> "d"
 
     xdeppkgns = map (fst . fst) xdeps
     xdepcstrsv = [ (n,PkgCstrEq v) | ((n,v),_) <- xdeps ]
@@ -448,7 +449,7 @@ runInstallXdeps sbdir gv pkgid xdeps = do
         let x' = map fst x
         unless (null $ xdeppkgns \\ x') $
             fail "runInstallXdeps: integrity check failed"
-        return [ (n,PkgCstrInstalled) | n <- (x' \\ xdeppkgns) ]
+        return [ (n,PkgCstrInstalled) | n <- x' \\ xdeppkgns ]
 
 
 ----------------------------------------------------------------------------
@@ -459,6 +460,9 @@ runInstallXdeps sbdir gv pkgid xdeps = do
 
 -- bread :: Read a => ByteString -> a
 -- bread bs = fromMaybe (error $ "bread " <> show bs) . readMaybe . BC.unpack $ bs
+
+tread :: Read a => Text -> a
+tread t = fromMaybe (error $ "tread " <> show t) . readMaybe . T.unpack $ t
 
 -- | Write a file, but only if the contents would change.
 bwriteFileChanged :: FilePath -> B.ByteString -> Action ()
@@ -493,6 +497,15 @@ sreadFileIO fn = do
 breadFile :: FilePath -> Action B.ByteString
 breadFile x = need [x] >> liftIO (B.readFile x)
 
+-- | Read a file, after calling 'need'. The argument file will be tracked as a dependency.
+treadFile :: FilePath -> Action Text
+treadFile x = need [x] >> liftIO (T.readFile x)
+
+-- | A version of 'treadFile'' which also splits the result into
+-- lines.  The argument file will be tracked as a dependency.
+treadFileLines :: FilePath -> Action [Text]
+treadFileLines = fmap T.lines . treadFile
+
 -- | Read JSON data
 jreadFile :: FromJSON a => FilePath -> Action a
 jreadFile fn = do
@@ -505,13 +518,15 @@ jreadFile fn = do
 jwriteFileChanged :: ToJSON a => FilePath -> a -> Action ()
 jwriteFileChanged fn = bwriteFileChanged fn . BL.toStrict . J.encode
 
+
+
 -- | ...
 readXListFile :: FilePath -> Action [(PkgName, PkgVer, PkgRev, Bool)]
 readXListFile fn = do
-    lns <- readFileLines fn
-    return $!! map (go . words) lns
+    lns <- treadFileLines fn
+    return $!! map (go . T.words) lns
   where
-    go [n0,v0,r0,d0] = (PkgName n0, parsePkgVer' v0, read r0, read d0)
+    go [n0,v0,r0,d0] = (PkgName n0, parsePkgVer' v0, tread r0, tread d0)
     go _             = error "readXListFile"
 
 -- | ...
@@ -519,27 +534,31 @@ splitRepPath :: FilePath -> (PkgName, PkgVer, GhcVer)
 splitRepPath fp = force (pkgn,pkgv,gv)
   where
     fp'  = dropDirectory1 fp
-    pkgn = PkgName $ takeDirectory1 fp'
+    pkgn = fromString $ takeDirectory1 fp'
     fp'' = dropDirectory1 fp'
-    pkgv = parsePkgVer' $ takeDirectory1 fp''
-    gv   = parseGhcVer' $ takeBaseName fp''
+    pkgv = parsePkgVer' . fromString . takeDirectory1 $ fp''
+    gv   = parseGhcVer' . fromString . takeBaseName $ fp''
 
 splitSolvPath :: FilePath -> (PkgName, GhcVer)
 splitSolvPath fp = force (pkgn,gv)
   where
     fp'  = dropDirectory1 fp
-    (pkgn,fp'') = (PkgName $ takeDirectory1 fp', dropDirectory1 fp')
-    gv   = parseGhcVer' $ dropExtension fp''
+    (pkgn,fp'') = (fromString $ takeDirectory1 fp', dropDirectory1 fp')
+    gv   = parseGhcVer' . fromString . dropExtension $ fp''
 
 -- | ...
 splitSbPath :: FilePath -> (SbId, GhcVer)
 splitSbPath fp = force (sbid,gv)
   where
     fp'  = dropDirectory1 fp
-    sbid = takeDirectory1 fp'
+    sbid = SbId $ T.pack $ takeDirectory1 fp'
     gvs  = dropExtension $ takeDirectory1 $ dropDirectory1 fp'
-    gv   = parseGhcVer' gvs
+    gv   = parseGhcVer' (T.pack gvs)
 
 
 fixupPkgDump :: ByteString -> ByteString
 fixupPkgDump = (`BC.append` "\n") . fst . BC.breakSubstring "\n---"
+
+putLoudT, putNormalT :: [Text] -> Action ()
+putLoudT   = putLoud   . T.unpack . mconcat
+putNormalT = putNormal . T.unpack . mconcat
