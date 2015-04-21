@@ -12,45 +12,51 @@
   </head>
   <body>
 
-
     <div id="header">
       <h4>Package Search</h4>
       <input type="text" id="search">
     </div>
 
-    <h4>Solver Matrix (constrained by single version)</h4>
-    <div id="package"></div>
+    <div id="notfound">
+      The package <strong id="notfound-pkgname"></strong> was not found!
+    </div>
 
-    <h4 id="legend">Legend</h4>
-    <table id="legend-table">
-      <tr>
-        <td class="pass-build stcell">OK</td>
-        <td class="text">package build succesful</td>
-      </tr>
-      <tr>
-        <td class="pass-no-op stcell">OK (boot)</td>
-        <td class="text">pre-installed version</td>
-      </tr>
-      <tr>
-        <td class="pass-no-ip stcell">OK (no-ip)</td>
-        <td class="text">no install-plan found</td>
-      </tr>
-      <tr>
-        <td class="fail-build stcell">FAIL (pkg)</td>
-        <td class="text">package failed to build</td>
-      </tr>
-      <tr>
-        <td class="fail-dep-build stcell">FAIL (deps)</td>
-        <td class="text">package dependencies failed to build</td>
-      </tr>
-      <tr>
-        <td class="fail-unknown stcell"></td>
-        <td class="text">test-result missing</td>
-      </tr>
-    </table>
+    <div id="buildreport">
 
-    <h4>Logs</h4>
-    <div id="log-container"></div>
+      <h4>Solver Matrix (constrained by single version)</h4>
+      <div id="package"></div>
+
+      <h4 id="legend">Legend</h4>
+      <table id="legend-table">
+        <tr>
+          <td class="pass-build stcell">OK</td>
+          <td class="text">package build succesful</td>
+        </tr>
+        <tr>
+          <td class="pass-no-op stcell">OK (boot)</td>
+          <td class="text">pre-installed version</td>
+        </tr>
+        <tr>
+          <td class="pass-no-ip stcell">OK (no-ip)</td>
+          <td class="text">no install-plan found</td>
+        </tr>
+        <tr>
+          <td class="fail-build stcell">FAIL (pkg)</td>
+          <td class="text">package failed to build</td>
+        </tr>
+        <tr>
+          <td class="fail-dep-build stcell">FAIL (deps)</td>
+          <td class="text">package dependencies failed to build</td>
+        </tr>
+        <tr>
+          <td class="fail-unknown stcell"></td>
+          <td class="text">test-result missing</td>
+        </tr>
+      </table>
+
+      <h4>Logs</h4>
+      <div id="log-container"></div>
+    </div>
 
   </body>
 </html>

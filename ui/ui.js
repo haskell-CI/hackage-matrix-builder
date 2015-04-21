@@ -41,23 +41,30 @@
   function setupPicker (items) {
     $("#search").autocomplete(
       { source : items
-      , select : function () {
-          console.log("change", this, arguments);
-          selectedPackage($(this).val());
+      , select : function (_, v) {
+          selectedPackage(v.item.value);
         }
       });
   }
 
   function selectedPackage (pkgName) {
     $("#select-package").val(pkgName);
-    api.Package.byName(pkgName).get(packageLoaded.bind(null, pkgName), fail("Package.byName"));
+    api.Package.byName(pkgName).get(packageLoaded.bind(null, pkgName), packageNotFound.bind(null, pkgName));
+  }
+
+  function packageNotFound (pkgName) {
+    $("#buildreport").hide();
+    $("#notfound-pkgname").text(pkgName);
+    $("#notfound").show();
   }
 
   function packageLoaded (pkgName, p) {
+    $("#notfound").hide();
     window.history.replaceState(null, pkgName, "/package/" + pkgName);
     $("#package").html("");
     clearLog();
     renderSingleVersionMatrix(pkgName, p);
+    $("#buildreport").show();
   }
 
   function setLog (header, messages) {
