@@ -1,94 +1,3 @@
-table {
-    border: 3px solid black;
-    border-collapse: collapse;
-}
-
-td {
-    border-top:    1px dotted black;
-    border-bottom: 1px dotted black;
-    border-right:  1px solid black;
-    border-left:   1px solid black;
-
-    text-align: right;
-    padding-left: 5px;
-    padding-right: 5px;
-}
-
-td.sucell {
-    border: 1px solid black;
-}
-
-td.stcell {
-    text-align: center;
-}
-
-th {
-    border: 1px solid black;
-    padding-left: 5px;
-    padding-right: 5px;
-    font-family: Helvetica, sans-serif;
-}
-
-thead th {
-    border: 2px solid black;
-    border-bottom: 3px solid black;
-    background-color: #eeeeee;
-    font-family: Helvetica, sans-serif;
-}
-
-tfoot th {
-    border: 2px solid black;
-    border-bottom: 3px solid black;
-    background-color: #eeeeee;
-    font-family: Helvetica, sans-serif;
-}
-
-th.pkgv {
-    border-top:    1px dotted black;
-    border-bottom: 1px dotted black;
-    border-right:  2px solid black;
-    text-align: left;
-    background-color: #eeeeee;
-    font-family: Helvetica, sans-serif;
-}
-
-th.lastmin {
-    border-bottom: 1px solid black;
-}
-
-th.lastmaj {
-    border-bottom: 3px solid black;
-}
-
-td.lastmin {
-    border-bottom: 1px solid black;
-}
-
-td.lastmaj {
-    border-bottom: 3px solid black;
-}
-
-tbody.pkg-row tr:last-child td {
-    border-bottom: 3px solid black;
-}
-
-tbody.pkg-row tr th {
-    border-bottom: 3px solid black;
-    border-right: 2px solid black;
-}
-
-tr.solver-row td {
-    border-bottom: 3px solid black;
-    border-right: 2px solid black;
-}
-
-td.pass-build { background-color: #00ff00; }
-td.pass-no-ip { background-color: #007700; }
-td.pass-no-op { background-color: #00cc00; }
-td.fail-build { background-color: #ff0000; }
-td.fail-dep-build { background-color: #770000; }
-td.fail-unknown { background-color: #000000; }
-
 #header {
   margin-bottom: 40px;
   height: auto;
@@ -97,6 +6,7 @@ td.fail-unknown { background-color: #000000; }
   width: 200px;
   font-size: 32px;
 }
+
 #log-container {
   border: 1px solid black;
   margin: 20px;
@@ -108,6 +18,58 @@ td.fail-unknown { background-color: #000000; }
   overflow: scroll;
   border: 1px solid black;
 }
-.fail-build:hover, .fail-dep-build:hover {
-  cursor: pointer;
+
+
+/* Table */
+
+table {
+  border: 3px solid black;
+  border-collapse: collapse;
+}
+
+td {
+  border-top:    1px dotted black;
+  border-bottom: 1px dotted black;
+  border-right:  1px solid black;
+  border-left:   1px solid black;
+
+  text-align: right;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+th {
+  border: 1px solid black;
+  padding-left: 5px;
+  padding-right: 5px;
+  font-family: Helvetica, sans-serif;
+}
+
+th.pkgv {
+  text-align: left;
+  background-color: #eeeeee;
+  font-family: Helvetica, sans-serif;
+}
+
+tr.first-minor { border-top: 3px solid black; }
+tr.first-major { border-top: 5px solid black; }
+
+td.pass-build { background-color: #00ff00; }
+td.pass-no-ip { background-color: #007700; }
+td.pass-no-op { background-color: #00cc00; }
+td.fail-build { background-color: #ff0000; }
+td.fail-dep-build { background-color: #770000; }
+td.fail-unknown { background-color: #000000; }
+
+.fail-build:hover, .fail-dep-build:hover { cursor: pointer; }
+
+td.stcell {
+  text-align: center;
+}
+
+/* legend */
+
+.legend-table .text {
+  text-align: left;
+  padding-left: 5px;
 }

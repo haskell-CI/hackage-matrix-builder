@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS -fno-warn-orphans #-}
-module Api.Package where
+module Api.Package (resource) where
 
 import           Control.Arrow
 import           Control.Monad.Except
@@ -10,6 +10,7 @@ import           Control.Monad.Reader
 import           Data.Aeson             (FromJSON (..), ToJSON (..), decode)
 import qualified Data.ByteString.Lazy   as L
 import           Data.JSON.Schema
+import           Data.List
 import qualified Data.Map.Strict        as Map
 import           Data.String.ToString
 import           Data.Text              (pack, unpack)
@@ -63,7 +64,7 @@ get = mkConstHandler jsonO handler
 
 data ReportDataJson = ReportDataJson
     { pkgName     :: String
-    , versions    :: [Ver]
+    , versions    :: [[[Ver]]]
     , ghcVersions :: [GVer]
     } deriving (Generic, Show)
 
@@ -75,7 +76,7 @@ reportDataJson = \case
     , rdGVersions = c
     } -> ReportDataJson
       { pkgName     = toString a
-      , versions    = map toVer . Map.toList $ b
+      , versions    = map (map (map toVer)) . map (groupBy minorVersionGrouping) . groupBy majorVersionGrouping . Map.toList $ b
       , ghcVersions = map f . Map.toList $ c
       }
     where
@@ -87,11 +88,12 @@ reportDataJson = \case
       f :: (GhcVer, (PkgVer, Map PkgVer BuildResult, Map PkgVerPfx (Maybe PkgVer)))
         -> GVer
       f (w,(x,y,z)) = GVer
-        { ghcVer = ghcVerToV w
-        , pkgVer = pkgVerToV x
-        , resultsA = map (\(a1,a2) -> VersionResult { pkgVersion = pkgVerToV a1, result = br a2 }) . Map.toList $ y
+        { ghcVer   = ghcVerToV w
+        , pkgVer   = pkgVerToV x
+        , resultsA = map toVersionResult . Map.toList $ y
         , resultsB = map (second $ fmap pkgVerToV) . Map.toList $ z
         }
+      toVersionResult (v,r) = VersionResult { pkgVersion = pkgVerToV v, result = br r }
       br :: BuildResult -> Result
       br = \case
         BuildOk         -> Ok
@@ -106,18 +108,33 @@ reportDataJson = \case
           , message = y
           }) $ l
 
+majorVersionGrouping :: (PkgVer, a) -> (PkgVer, a) -> Bool
+majorVersionGrouping (a,_) (b,_) = verMajor a == verMajor b
+
+minorVersionGrouping :: (PkgVer, a) -> (PkgVer, a) -> Bool
+minorVersionGrouping (a,_) (b,_) = verMinor a == verMinor b
+
+verMajor :: PkgVer -> PkgVerPfx
+verMajor v = case unPkgVer v of
+  []    -> []
+  [a]   -> [a,0]
+  a:b:_ -> [a,b]
+
+verMinor :: PkgVer -> PkgVerPfx
+verMinor v = case unPkgVer v of
+  []      -> []
+  [a]     -> [a,0,0]
+  [a,b]   -> [a,b,0]
+  a:b:c:_ -> [a,b,c]
+
 pkgVerToV :: PkgVer -> V
-pkgVerToV p = V
-  { segments = unPkgVer p
-  , name     = T.unpack . tshowPkgVer $ p
-  }
+pkgVerToV p = V (unPkgVer p) (T.unpack . tshowPkgVer $ p)
 
 ghcVerToV :: GhcVer -> V
 ghcVerToV g = V
   { segments = ghcVerSegments g
   , name     = ghcVerName     g
   }
-
 
 instance ToJSON     ReportDataJson where toJSON    = gtoJson
 instance FromJSON   ReportDataJson where parseJSON = gparseJson

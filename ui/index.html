@@ -9,38 +9,40 @@
     <script src="/ui.js"></script>
   </head>
   <body>
+
     <div id="header">
       <h4>Packages</h4>
       <div id="package-list"></div>
     </div>
 
+    <h4>Solver Matrix (constrained by single version)</h4>
     <div id="package"></div>
 
     <h4 id="legend">Legend</h4>
-    <table>
+    <table id="legend-table">
       <tr>
         <td class="pass-build stcell">OK</td>
-        <td style="text-align:left; padding-left: 5px">package build succesful</td>
+        <td class="text">package build succesful</td>
       </tr>
       <tr>
         <td class="pass-no-op stcell">OK (boot)</td>
-        <td style="text-align:left; padding-left: 5px">pre-installed version</td>
+        <td class="text">pre-installed version</td>
       </tr>
       <tr>
         <td class="pass-no-ip stcell">OK (no-ip)</td>
-        <td style="text-align:left; padding-left: 5px">no install-plan found</td>
+        <td class="text">no install-plan found</td>
       </tr>
       <tr>
         <td class="fail-build stcell">FAIL (pkg)</td>
-        <td style="text-align:left; padding-left: 5px">package failed to build</td>
+        <td class="text">package failed to build</td>
       </tr>
       <tr>
         <td class="fail-dep-build stcell">FAIL (deps)</td>
-        <td style="text-align:left; padding-left: 5px">package dependencies failed to build</td>
+        <td class="text">package dependencies failed to build</td>
       </tr>
       <tr>
         <td class="fail-unknown stcell"></td>
-        <td style="text-align:left; padding-left: 5px">test-result missing</td>
+        <td class="text">test-result missing</td>
       </tr>
     </table>
 
