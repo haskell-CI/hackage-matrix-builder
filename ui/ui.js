@@ -33,7 +33,19 @@
         selectedPackage(l.items[0]);
       }
 
+      setupPicker(l.items);
+
     }, fail("Package.list"));
+  }
+
+  function setupPicker (items) {
+    $("#search").autocomplete(
+      { source : items
+      , select : function () {
+          console.log("change", this, arguments);
+          selectedPackage($(this).val());
+        }
+      });
   }
 
   function selectedPackage (pkgName) {
