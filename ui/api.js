@@ -221,5 +221,23 @@ MatrixApi.prototype.Package.list =
   {
     return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
   };
+MatrixApi.prototype.Package.prototype.Resource =
+  function Resource (url, secureUrl, modifyRequest)
+  {
+    if (this instanceof Resource)
+    {
+      MatrixApi.setContext(this, url, secureUrl, modifyRequest);
+    }
+    else
+    {
+      return Resource.access(url, secureUrl, modifyRequest);
+    }
+  };
+MatrixApi.prototype.Package.prototype.Resource.apiObjectType = "resourceDir";
+MatrixApi.prototype.Package.prototype.Resource.create =
+  function (text, success, error, params, callOpts)
+  {
+    return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "text/plain", "text/json", text, callOpts, this.modifyRequest);
+  };
 
 })(this);

@@ -23,6 +23,18 @@
 
     <div id="buildreport">
 
+      <div id="build-queuer-container">
+        <input id="build-queuer" type="button" value="Queue build">
+        <div id="build-queuer-pass">
+          <form id="build-queuer-form">
+            <label>Password: <input type="password" id="build-queuer-password"></label>
+            <input type="submit" value="Submit">
+            <div id="build-queuer-pass-error" class="error">Wrong password!</div>
+          </form>
+        </div>
+        <div id="build-queuer-ok">Ok. Queued build</div>
+      </div>
+
       <h4>Solver Matrix (constrained by single version)</h4>
       <div id="package"></div>
 

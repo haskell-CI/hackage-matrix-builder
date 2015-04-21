@@ -64,7 +64,34 @@
     $("#package").html("");
     clearLog();
     renderSingleVersionMatrix(pkgName, p);
+    setupBuildQueuer(pkgName);
     $("#buildreport").show();
+  }
+
+  function setupBuildQueuer (pkgName) {
+    $("#build-queuer").click(function () {
+      $(this).hide();
+      $("#build-queuer-pass").show().submit(function (e) {
+        e.preventDefault();
+        setTimeout(function () {
+          api.Package.byName(pkgName).Resource.create($("#build-queuer-password").val(), function () {
+            $("#build-queuer").hide();
+            $("#build-queuer-pass").hide();
+            $("#build-queuer-ok").show();
+          }, function () {
+            $("#build-queuer-pass-error").show();
+          });
+        }, 0);
+      });
+    });
+  }
+
+  function cleanupBuildQueuer () {
+    $("#build-queuer").off("click");
+    $("#build-queuer-form").off("submit");
+    $("#build-queuer-ok").hide();
+    $("#build-queuer-pass").hide();
+    $("#build-queuer").show();
   }
 
   function setLog (header, messages) {

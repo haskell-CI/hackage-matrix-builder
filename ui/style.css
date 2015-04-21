@@ -1,4 +1,4 @@
-#notfound, #buildreport { display: none; }
+#notfound, #buildreport, #build-queuer-pass, #build-queuer-pass-error, #build-queuer-ok { display: none; }
 
 body { padding: 30px; }
 
@@ -10,6 +10,8 @@ body { padding: 30px; }
   width: 200px;
   font-size: 32px;
 }
+
+.error { color: red; }
 
 #log-container {
   border: 1px solid black;
@@ -23,6 +25,13 @@ body { padding: 30px; }
   border: 1px solid black;
 }
 
+/* Queuer */
+
+#build-queuer-container {
+  border: 2px solid black;
+  width: 300px;
+  padding: 20px;
+}
 
 /* Table */
 

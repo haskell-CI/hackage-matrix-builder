@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS -fno-warn-orphans #-}
-module Api.Package (resource) where
+module Api.Package (resource, WithPackage, Identifier (..)) where
 
 import           Control.Arrow
 import           Control.Monad.Except
@@ -28,7 +28,7 @@ import           BuildTypes
 
 data Identifier = Name Text
 
-instance Info Identifier where describe _ = "identifier"
+instance Info Identifier where describe _ = "package-name"
 
 instance ShowUrl Identifier where
   showUrl (Name t) = unpack t
