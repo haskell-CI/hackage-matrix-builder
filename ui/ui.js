@@ -11,9 +11,36 @@
     };
   }
 
+  function setupRouting ()
+  {
+    function getPackageName (url)
+    {
+      return /\/package\/([^\/]+)$/.test(url) && RegExp.$1;
+    }
+
+    $("body").delegate("a", "click", function (e) {
+      var url = $(this).attr("href");
+      var pkgName = getPackageName(url);
+      if (/(^[^/]|#)/.test(url)) {
+        return true;
+      }
+      e.preventDefault();
+      setTimeout(selectedPackage.bind(null, pkgName), 0);
+    });
+
+    var pkgName = getPackageName(window.location.href);
+    if (pkgName) {
+      selectedPackage(pkgName);
+    }
+    return pkgName;
+  }
+  function setUrl(pkgName)
+  {
+    window.history.replaceState(null, pkgName, packageUrl(pkgName));
+  }
+
   function main () {
-    var pkgName = /\/package\/([^\/]+)$/.test(window.location.href)
-                && RegExp.$1;
+    var pkgName = setupRouting();
 
     api.Package.list(function ok (l) {
 
@@ -49,6 +76,7 @@
   }
 
   function selectedPackage (pkgName) {
+    setUrl(pkgName);
     $("#select-package").val(pkgName);
     api.Package.byName(pkgName).get(packageLoaded.bind(null, pkgName), packageNotFound.bind(null, pkgName));
   }
@@ -65,7 +93,6 @@
 
   function packageLoaded (pkgName, p) {
     $("#notfound").hide();
-    window.history.replaceState(null, pkgName, packageUrl(pkgName));
     $("#package").html("");
     renderSingleVersionMatrix(pkgName, p);
     setupBuildQueuer(pkgName);
@@ -200,7 +227,7 @@
                           return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
                                  , contents : $("<div>").append
                                                 ( $("<a>").addClass("package-link")
-                                                          .attr("href", packageUrl(pkgName))
+                                                          .attr("href", packageUrl(v.pkgId.pPackageName))
                                                           .text("Go to this package")
                                                 , $("<pre>").addClass("log-entry").text(v.message)
                                                 )
