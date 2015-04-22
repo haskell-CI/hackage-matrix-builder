@@ -59,9 +59,13 @@
     $("#notfound").show();
   }
 
+  function packageUrl (pkgName) {
+    return "/package/" + pkgName
+  }
+
   function packageLoaded (pkgName, p) {
     $("#notfound").hide();
-    window.history.replaceState(null, pkgName, "/package/" + pkgName);
+    window.history.replaceState(null, pkgName, packageUrl(pkgName));
     $("#package").html("");
     renderSingleVersionMatrix(pkgName, p);
     setupBuildQueuer(pkgName);
@@ -107,9 +111,7 @@
             })
           )
       , messages.map(function (v, i)  {
-          return $("<div>").attr("id", "fragment-" + (i+1)).append
-            ( $("<pre>").addClass("log-entry").text(v.contents)
-            );
+          return $("<div>").attr("id", "fragment-" + (i+1)).append(v.contents);
         })
       );
     tabs.tabs();
@@ -179,8 +181,8 @@
                     var packageVersion = $(e.target).attr("data-package-version");
                     setupTabs
                       ("Compilation failure"
-                      , [{ label    : "GHC-" + ghcVersion + "/" + packageVersion
-                         , contents : r
+                      , [{ label    : "GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion
+                         , contents : $("<pre>").addClass("log-entry").text(r)
                         }]
                       );
                   });
@@ -196,7 +198,12 @@
                       ( r.length + " dependencies failed to compile"
                       , r.map(function (v, i) {
                           return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
-                                 , contents : v.message
+                                 , contents : $("<div>").append
+                                                ( $("<a>").addClass("package-link")
+                                                          .attr("href", packageUrl(pkgName))
+                                                          .text("Go to this package")
+                                                , $("<pre>").addClass("log-entry").text(v.message)
+                                                )
                                  };
                         })
                       );
