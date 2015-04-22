@@ -3,30 +3,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Api.Package.Report (resource) where
 
-import           Control.Arrow
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Data.Aeson             (FromJSON (..), ToJSON (..), decode)
-import qualified Data.ByteString.Lazy   as L
-import           Data.JSON.Schema
-import           Data.List
-import qualified Data.Map.Strict        as Map
-import           Data.String.ToString
-import           Data.Text              (pack, unpack)
-import qualified Data.Text              as T
-import           Generics.Generic.Aeson
+import qualified Data.Text            as T
 import           Rest
-import           Rest.Info              (Info (..))
-import qualified Rest.Resource          as R
-import           Rest.ShowUrl
-import           System.Directory
+import qualified Rest.Resource        as R
 import           System.Directory
 
-import           Api.Package            (Identifier (..), WithPackage)
-import qualified Api.Package            as Package
-import           Api.Types
-import           BuildReport
-import           BuildTypes
+import           Api.Package          (Identifier (..), WithPackage)
 
 resource :: Resource WithPackage WithPackage Void Void Void
 resource = mkResourceId
