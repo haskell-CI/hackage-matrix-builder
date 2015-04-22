@@ -13,16 +13,9 @@ body { padding: 30px; }
 
 .error { color: red; }
 
-#log-container {
-  border: 1px solid black;
-  margin: 20px;
-  padding: 5px;
-}
-#log-container .log-entry {
-  margin: 5px;
+#tabs-container .log-entry {
   height: 400px;
   overflow: scroll;
-  border: 1px solid black;
 }
 
 /* Queuer */

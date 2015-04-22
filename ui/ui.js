@@ -36,6 +36,7 @@
       setupPicker(l.items);
 
     }, fail("Package.list"));
+
   }
 
   function setupPicker (items) {
@@ -62,13 +63,14 @@
     $("#notfound").hide();
     window.history.replaceState(null, pkgName, "/package/" + pkgName);
     $("#package").html("");
-    clearLog();
     renderSingleVersionMatrix(pkgName, p);
     setupBuildQueuer(pkgName);
+    cleanupTabs();
     $("#buildreport").show();
   }
 
   function setupBuildQueuer (pkgName) {
+    cleanupBuildQueuer();
     $("#build-queuer").click(function () {
       $(this).hide();
       $("#build-queuer-pass").show().submit(function (e) {
@@ -94,20 +96,27 @@
     $("#build-queuer").show();
   }
 
-  function setLog (header, messages) {
-    $("#log-container").html("");
-    var logHeader = $("<div>").text(header);
-    $("#log-container").append(logHeader);
-    messages.forEach(function (m) {
-      var pre = $("<pre>").addClass("log-entry").text(m);
-      $("#log-container").append(pre);
-    });
-    $("#log-container").show();
+  function setupTabs (header, messages) {
+    cleanupTabs();
+    var tabs = $("<div>").attr("id", "tabs").append
+      ( $("<ul>").append
+          ( messages.map(function (v, i) {
+              return $("<li>").append
+                ( $("<a>").attr("href", "#fragment-" + (i+1)).text(v.label)
+                );
+            })
+          )
+      , messages.map(function (v, i)  {
+          return $("<div>").attr("id", "fragment-" + (i+1)).append
+            ( $("<pre>").addClass("log-entry").text(v.contents)
+            );
+        })
+      );
+    tabs.tabs();
+    tabs.appendTo($("#tabs-container"));
   }
-
-  function clearLog () {
-    $("#log-container").html("");
-    $("#log-container").hide();
+  function cleanupTabs () {
+    $("#tabs-container").html("");
   }
 
   function renderSingleVersionMatrix (pkgName, p) {
@@ -166,7 +175,14 @@
                 td.text("FAIL (pkg)")
                   .addClass("fail-build")
                   .click(function (e) {
-                    setLog("Compilation failure", [r]);
+                    var ghcVersion = $(e.target).attr("data-ghc-version");
+                    var packageVersion = $(e.target).attr("data-package-version");
+                    setupTabs
+                      ("Compilation failure"
+                      , [{ label    : "GHC-" + ghcVersion + "/" + packageVersion
+                         , contents : r
+                        }]
+                      );
                   });
               })(r);
             } else if (r = res.result.failDeps) {
@@ -174,7 +190,16 @@
                 td.text("FAIL (" + r.length + " deps)")
                   .addClass("fail-dep-build")
                   .click(function (e) {
-                    setLog(r.length + " dependencies failed to compile", r.map(function (v) { return v.message; }));
+                    var ghcVersion = $(e.target).attr("data-ghc-version");
+                    // setLog(r.length + " dependencies failed to compile", r.map(function (v) { return v.message; }));
+                    setupTabs
+                      ( r.length + " dependencies failed to compile"
+                      , r.map(function (v, i) {
+                          return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
+                                 , contents : v.message
+                                 };
+                        })
+                      );
                   });
               })(r);
             } else if (res.result.nop) {
