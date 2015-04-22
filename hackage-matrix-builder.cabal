@@ -36,6 +36,7 @@ library
   exposed-modules:
     Api
     Api.Package
+    Api.Package.Report
     Api.Types
     BuildReport
     BuildTypes
