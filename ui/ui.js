@@ -220,7 +220,6 @@
                   .addClass("fail-dep-build")
                   .click(function (e) {
                     var ghcVersion = $(e.target).attr("data-ghc-version");
-                    // setLog(r.length + " dependencies failed to compile", r.map(function (v) { return v.message; }));
                     setupTabs
                       ( r.length + " dependencies failed to compile"
                       , r.map(function (v, i) {
