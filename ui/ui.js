@@ -6,7 +6,7 @@
     , "http://localhost:3000/api"
     , function modifyRequest (req) {
         console.log(req.url);
-        if (req.type === "POST" && /resource\/?$/.test(req.url)) {
+        if (req.type === "POST" && /report\/?$/.test(req.url)) {
           req.headers.Authorization = "Basic " + localStorage.ba;
         }
         return req;
@@ -111,7 +111,7 @@
   function setupBuildQueuer (pkgName) {
 
     function doReq () {
-      api.Package.byName(pkgName).Resource.create(function () {
+      api.Package.byName(pkgName).Report.create(function () {
         $("#build-queuer").hide();
         $("#build-queuer-pass").hide();
         $("#build-queuer-ok").show();

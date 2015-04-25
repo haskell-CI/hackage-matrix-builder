@@ -18,7 +18,7 @@ import           Api.Package           (Identifier (..), WithPackage)
 
 resource :: Resource WithPackage WithPackage Void Void Void
 resource = mkResourceId
-  { R.name   = "resource"
+  { R.name   = "report"
   , R.schema = noListing $ named []
   , R.create = Just create
   }

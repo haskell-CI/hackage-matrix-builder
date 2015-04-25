@@ -221,20 +221,20 @@ MatrixApi.prototype.Package.list =
   {
     return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
   };
-MatrixApi.prototype.Package.prototype.Resource =
-  function Resource (url, secureUrl, modifyRequest)
+MatrixApi.prototype.Package.prototype.Report =
+  function Report (url, secureUrl, modifyRequest)
   {
-    if (this instanceof Resource)
+    if (this instanceof Report)
     {
       MatrixApi.setContext(this, url, secureUrl, modifyRequest);
     }
     else
     {
-      return Resource.access(url, secureUrl, modifyRequest);
+      return Report.access(url, secureUrl, modifyRequest);
     }
   };
-MatrixApi.prototype.Package.prototype.Resource.apiObjectType = "resourceDir";
-MatrixApi.prototype.Package.prototype.Resource.create =
+MatrixApi.prototype.Package.prototype.Report.apiObjectType = "resourceDir";
+MatrixApi.prototype.Package.prototype.Report.create =
   function (success, error, params, callOpts)
   {
     return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
