@@ -1,9 +1,17 @@
 (function () {
   $(window).ready(main);
 
-  var api = new MatrixApi( "http://localhost:3000/api"
-                         , "http://localhost:3000/api"
-                         );
+  var api = new MatrixApi
+    ( "http://localhost:3000/api"
+    , "http://localhost:3000/api"
+    , function modifyRequest (req) {
+        console.log(req.url);
+        if (req.type === "POST" && /resource\/?$/.test(req.url)) {
+          req.headers.Authorization = "Basic " + localStorage.ba;
+        }
+        return req;
+      }
+    );
 
   function fail (msg) {
     return function () {
@@ -101,21 +109,37 @@
   }
 
   function setupBuildQueuer (pkgName) {
+
+    function doReq () {
+      api.Package.byName(pkgName).Resource.create(function () {
+        $("#build-queuer").hide();
+        $("#build-queuer-pass").hide();
+        $("#build-queuer-ok").show();
+      }, function () {
+        $("#build-queuer-pass-error").show();
+        delete localStorage.ba;
+      });
+    }
+
     cleanupBuildQueuer();
     $("#build-queuer").click(function () {
-      $(this).hide();
-      $("#build-queuer-pass").show().submit(function (e) {
-        e.preventDefault();
-        setTimeout(function () {
-          api.Package.byName(pkgName).Resource.create($("#build-queuer-password").val(), function () {
-            $("#build-queuer").hide();
-            $("#build-queuer-pass").hide();
-            $("#build-queuer-ok").show();
-          }, function () {
-            $("#build-queuer-pass-error").show();
-          });
-        }, 0);
-      });
+      $(this.hide);
+      if (localStorage.ba) {
+        doReq();
+      } else {
+        $(this).hide();
+        $("#build-queuer-pass").show().submit(function (e) {
+          e.preventDefault();
+          setTimeout(function () {
+            if (!localStorage.ba) {
+              var user = "trustee";
+              var pass = $("#build-queuer-password").val();
+              localStorage.ba = btoa(user + ":" + pass);
+              doReq();
+            }
+          }, 0);
+        });
+      }
     });
   }
 

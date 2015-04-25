@@ -28,6 +28,7 @@ newtype Root a = Root { unRoot :: ReaderT ServerData (ServerPartT IO) a }
     , Rest
     , ServerMonad
     , WebMonad Response
+    , Happstack
     )
 
 instance HasRqData Root where

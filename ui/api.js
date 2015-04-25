@@ -235,9 +235,9 @@ MatrixApi.prototype.Package.prototype.Resource =
   };
 MatrixApi.prototype.Package.prototype.Resource.apiObjectType = "resourceDir";
 MatrixApi.prototype.Package.prototype.Resource.create =
-  function (text, success, error, params, callOpts)
+  function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "text/plain", "text/json", text, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
   };
 
 })(this);
