@@ -4,7 +4,8 @@ body,h1,h2,h3,h4,h5,h6,a {
 }
 h2 { font-size: 24px; font-weight: 400; }
 
-a { text-decoration: none; }
+a { text-decoration: none; color: #428bca; }
+a:hover { text-decoration: underline; }
 
 .clearfix:after {
   content: "";
