@@ -23,12 +23,10 @@
     $("body").delegate("a", "click", function (e) {
       var currentUri = new Uri(window.location.href);
       var linkUri = new Uri($(this).attr("href"));
-      console.log(linkUri.toString());
 
       if ( (currentUri.host() !== linkUri.host() && linkUri.host())
         || (currentUri.path() === linkUri.path() && linkUri.anchor())
          ) {
-        console.log("External link or local anchor", window.location.href);
         return true;
       }
 
@@ -40,9 +38,8 @@
   }
 
   function fromUri (uri, force) {
-    console.log("fromUri", uri.toString());
     if (!force && uri.path() === new Uri(window.location.href).path()) {
-      console.log("noop link", uri.toString());
+      return;
     }
     setPath(uri.path());
 
@@ -53,7 +50,6 @@
 
     var pkgName;
     if (pkgName = getPackageName(uri)) {
-      setPath(uri.path());
       selectedPackage(pkgName);
       return;
     }
