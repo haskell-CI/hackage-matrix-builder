@@ -25,7 +25,7 @@
       var linkUri = new Uri($(this).attr("href"));
 
       if ( (currentUri.host() !== linkUri.host() && linkUri.host())
-        || (currentUri.path() === linkUri.path() && linkUri.anchor())
+        || ((currentUri.path() === linkUri.path() || !linkUri.path()) && linkUri.anchor())
          ) {
         return true;
       }
@@ -251,7 +251,7 @@
                           return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
                                  , contents : $("<div>").append
                                                 ( $("<a>").addClass("package-link")
-                                                          .attr("href", packageUrl(v.pkgId.pPackageName))
+                                                          .attr("href", packageUri(v.pkgId.pPackageName))
                                                           .text("Go to this package")
                                                 , $("<pre>").addClass("log-entry").text(v.message)
                                                 )
