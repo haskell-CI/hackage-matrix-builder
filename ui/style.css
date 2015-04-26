@@ -93,6 +93,7 @@ body { margin: 0; }
   float: right;
   background-color: #f4f1e2;
   padding: 20px;
+  width: 350px;
 }
 
 #actions .header {
@@ -162,4 +163,4 @@ td.stcell {
 }
 
 /* default hidden */
-#notfound, #buildreport, #build-queuer-pass, #build-queuer-pass-error, #build-queuer-ok { display: none; }
+#notfound, #buildreport { display: none; }

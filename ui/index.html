@@ -29,16 +29,10 @@
 
         <div id="actions">
           <h2 class="header">Administration</h2>
-          <div id="build-queuer-container">
-            <input id="build-queuer" type="button" value="Queue build for this package">
-            <div id="build-queuer-pass">
-              <form id="build-queuer-form">
-                <label>Password: <input type="password" id="build-queuer-password"></label>
-                <input type="submit" value="Submit">
-                <div id="build-queuer-pass-error" class="error">Wrong password!</div>
-              </form>
-            </div>
-            <div id="build-queuer-ok">Ok. Queued build</div>
+          <div id="queueing">
+            <input id="action-1" class="action" type="button" value="Queue build for this package">
+            <div class="error"><div>Failed to queue build, bad password?</div><input type="button" id="action-2" class="action" value="Try again"></div>
+            <div class="success">Build queued!</div>
           </div>
         </div>
 

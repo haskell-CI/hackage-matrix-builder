@@ -4,13 +4,6 @@
   var api = new MatrixApi
     ( "http://localhost:3000/api"
     , "http://localhost:3000/api"
-    , function modifyRequest (req) {
-        console.log(req.url);
-        if (req.type === "POST" && /report\/?$/.test(req.url)) {
-          req.headers.Authorization = "Basic " + localStorage.ba;
-        }
-        return req;
-      }
     );
 
   function fail (msg) {
@@ -109,46 +102,22 @@
   }
 
   function setupBuildQueuer (pkgName) {
-
-    function doReq () {
-      api.Package.byName(pkgName).Report.create(function () {
-        $("#build-queuer").hide();
-        $("#build-queuer-pass").hide();
-        $("#build-queuer-ok").show();
-      }, function () {
-        $("#build-queuer-pass-error").show();
-        delete localStorage.ba;
-      });
-    }
-
     cleanupBuildQueuer();
-    $("#build-queuer").click(function () {
-      $(this.hide);
-      if (localStorage.ba) {
-        doReq();
-      } else {
-        $(this).hide();
-        $("#build-queuer-pass").show().submit(function (e) {
-          e.preventDefault();
-          setTimeout(function () {
-            if (!localStorage.ba) {
-              var user = "trustee";
-              var pass = $("#build-queuer-password").val();
-              localStorage.ba = btoa(user + ":" + pass);
-              doReq();
-            }
-          }, 0);
-        });
-      }
+
+    $("#queueing .action").click(function () {
+      $("#queueing #action-1").hide();
+      api.Package.byName(pkgName).Report.create(function () {
+        $("#queueing .success").show();
+      }, function () {
+        $("#queueing .error").show();
+      });
     });
   }
 
   function cleanupBuildQueuer () {
-    $("#build-queuer").off("click");
-    $("#build-queuer-form").off("submit");
-    $("#build-queuer-ok").hide();
-    $("#build-queuer-pass").hide();
-    $("#build-queuer").show();
+    $("#queueing .action").off("click");
+    $("#queueing .success").hide();
+    $("#queueing .error").hide();
   }
 
   function setupTabs (header, messages) {
