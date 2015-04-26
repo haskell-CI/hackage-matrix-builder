@@ -12,55 +12,97 @@
     };
   }
 
+  function getPackageName (uri)
+  {
+    return (/^\/package\/([^\/]+)$/.test(uri.path()) && RegExp.$1) || null;
+  }
+
   function setupRouting ()
   {
-    function getPackageName (url)
-    {
-      return /\/package\/([^\/]+)$/.test(url) && RegExp.$1;
-    }
 
     $("body").delegate("a", "click", function (e) {
-      var url = $(this).attr("href");
-      var pkgName = getPackageName(url);
-      if (/(^[^/]|#)/.test(url)) {
+      var currentUri = new Uri(window.location.href);
+      var linkUri = new Uri($(this).attr("href"));
+      console.log(linkUri.toString());
+
+      if ( (currentUri.host() !== linkUri.host() && linkUri.host())
+        || (currentUri.path() === linkUri.path() && linkUri.anchor())
+         ) {
+        console.log("External link or local anchor", window.location.href);
         return true;
       }
+
       e.preventDefault();
-      setTimeout(selectedPackage.bind(null, pkgName), 0);
+      setTimeout(function () { fromUri(linkUri); }, 0);
     });
 
-    var pkgName = getPackageName(window.location.href);
-    if (pkgName) {
-      selectedPackage(pkgName);
-    }
-    return pkgName;
+    fromUri(new Uri(window.location.href), true);
   }
-  function setUrl(pkgName)
+
+  function fromUri (uri, force) {
+    console.log("fromUri", uri.toString());
+    if (!force && uri.path() === new Uri(window.location.href).path()) {
+      console.log("noop link", uri.toString());
+    }
+    setPath(uri.path());
+
+    if (uri.path() === "/") {
+      renderHome();
+      return;
+    }
+
+    var pkgName;
+    if (pkgName = getPackageName(uri)) {
+      setPath(uri.path());
+      selectedPackage(pkgName);
+      return;
+    }
+
+    renderNotFound();
+  }
+
+  function hidePages () {
+    $(".page").hide();
+  }
+
+  function renderNotFound (pkgName) {
+    hidePages();
+
+    var msg = "Page not found, sorry!";
+    if (pkgName) {
+      msg = $("<div>").append("The package ", $("<strong>").text(pkgName), " could not be found");
+    }
+
+    $("#page-notfound").html("").append(msg);
+    $("#page-notfound").show();
+  }
+  function cleanupNotFound () {
+  }
+
+  function renderHome () {
+    hidePages();
+    $("#page-home").show();
+  }
+
+  function setPath (path)
   {
-    window.history.replaceState(null, pkgName, packageUrl(pkgName));
+    window.history.replaceState(null, "", path);
   }
 
   function main () {
-    var pkgName = setupRouting();
+    setupRouting();
 
     api.Package.list(function ok (l) {
 
       var s = $("<select/>").attr("id", "select-package");
       s.change(function () {
-        selectedPackage($(this).val());
+        fromUri(packageUri($(this).val()));
       });
       l.items.forEach(function (v) {
         var li = $("<option/>").text(v).attr("value", v);
         s.append(li);
       });
       $("#package-list").append(s);
-
-      if (pkgName) {
-        selectedPackage(pkgName);
-      } else if (l.items.length > 0) {
-        selectedPackage(l.items[0]);
-      }
-
       setupPicker(l.items);
 
     }, fail("Package.list"));
@@ -71,34 +113,28 @@
     $("#search").autocomplete(
       { source : items
       , select : function (_, v) {
-          selectedPackage(v.item.value);
+          fromUri(packageUri(v.item.value));
         }
       });
   }
 
   function selectedPackage (pkgName) {
-    setUrl(pkgName);
     $("#select-package").val(pkgName);
-    api.Package.byName(pkgName).get(packageLoaded.bind(null, pkgName), packageNotFound.bind(null, pkgName));
+    api.Package.byName(pkgName).get(renderPackage.bind(null, pkgName), renderNotFound.bind(null, pkgName));
   }
 
-  function packageNotFound (pkgName) {
-    $("#buildreport").hide();
-    $("#notfound-pkgname").text(pkgName);
-    $("#notfound").show();
+  function packageUri (pkgName) {
+    return new Uri("/package/" + pkgName);
   }
 
-  function packageUrl (pkgName) {
-    return "/package/" + pkgName
-  }
-
-  function packageLoaded (pkgName, p) {
-    $("#notfound").hide();
+  function renderPackage (pkgName, p) {
+    hidePages();
     $("#package").html("");
     renderSingleVersionMatrix(pkgName, p);
     setupBuildQueuer(pkgName);
     cleanupTabs();
     $("#buildreport").show();
+    $("#page-buildreport").show();
   }
 
   function setupBuildQueuer (pkgName) {

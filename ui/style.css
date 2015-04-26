@@ -164,4 +164,4 @@ td.stcell {
 }
 
 /* default hidden */
-#notfound, #buildreport { display: none; }
+.page { display: none; }
