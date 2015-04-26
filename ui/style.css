@@ -90,22 +90,27 @@ body { margin: 0; }
 
 /* Queuer */
 
-#actions {
+#right {
   float: right;
-  background-color: #f4f1e2;
-  padding: 20px;
-  width: 350px;
+  padding: 0;
+  width: 500px;
 }
 
-#actions .header {
+#right .sub {
+  background-color: #f4f1e2;
+  margin-bottom: 10px;
+  padding: 20px;
+}
+
+#right .header {
   margin-top: 0;
 }
 
-#actions #build-queuer-container {
+#right #build-queuer-container {
   width: 300px;
 }
 
-#actions input[type=button], #actions input[type=submit] {
+#right input[type=button], #right input[type=submit] {
   font-size: 20px;
 }
 
