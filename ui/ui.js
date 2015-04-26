@@ -69,10 +69,8 @@
       msg = $("<div>").append("The package ", $("<strong>").text(pkgName), " could not be found");
     }
 
-    $("#page-notfound").html("").append(msg);
+    $("#page-notfound .message").html("").append(msg);
     $("#page-notfound").show();
-  }
-  function cleanupNotFound () {
   }
 
   function renderHome () {
