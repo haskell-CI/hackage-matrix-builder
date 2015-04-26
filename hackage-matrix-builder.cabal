@@ -60,6 +60,7 @@ library
     json-schema       >=0.7  && <0.8,
     lens              >=4.9  && <4.10,
     shake             >=0.15 && <0.16,
+    split             >=0.2  && <0.3,
     monad-control     >=0.3  && <0.4,
     mtl               >=2.2  && <2.3,
     rest-core         >=0.35 && <0.36,
@@ -86,11 +87,12 @@ executable web
   hs-source-dirs:      src-exe/web
   default-language:    Haskell2010
   build-depends:
-    base             >=4.8  && <4.9,
+    base                   >=4.8  && <4.9,
+    directory              >=1.2  && <1.3,
     hackage-matrix-builder,
-    happstack-server >=7.4  && <7.5,
-    mtl              >=2.2  && <2.3,
-    rest-core        >=0.35 && <0.36
+    happstack-server       >=7.4  && <7.5,
+    mtl                    >=2.2  && <2.3,
+    rest-core              >=0.35 && <0.36
 
 executable web-gen
   main-is:             WebGen.hs
@@ -98,6 +100,6 @@ executable web-gen
   default-language:    Haskell2010
   hs-source-dirs:      src-exe/gen
   build-depends:
-    base     >=4.8 && <4.9,
+    base                   >=4.8 && <4.9,
     hackage-matrix-builder,
-    rest-gen >=0.17 && <0.18
+    rest-gen               >=0.17 && <0.18
