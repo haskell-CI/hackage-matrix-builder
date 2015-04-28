@@ -1,10 +1,7 @@
 (function () {
   $(window).ready(main);
 
-  var api = new MatrixApi
-    ( "http://localhost:3000/api"
-    , "http://localhost:3000/api"
-    );
+  var api = new MatrixApi("/api", "/api");
 
   function fail (msg) {
     return function () {
