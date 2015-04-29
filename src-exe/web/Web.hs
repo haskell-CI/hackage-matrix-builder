@@ -25,7 +25,9 @@ main = do
 
 router :: Root Response
 router = msum
-  [ dir "api" $ toResponse <$> apiToHandler api
+  [ dir "api" $ do
+      setHeaderM "Content-Disposition" "*"
+      toResponse <$> apiToHandler api
   , serveDirectory DisableBrowsing ["index.html"] "ui"
   , dir "package" $ serveFile (asContentType "text/html") "ui/index.html"
   ]
