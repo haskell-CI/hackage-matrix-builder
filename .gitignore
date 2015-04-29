@@ -13,5 +13,5 @@
 /sandboxes
 /queue
 /auth
-ui/config.js
-packages.json
+/ui/config.js
+/packages.json
