@@ -15,6 +15,7 @@ import qualified Data.ByteString.Lazy   as L
 import           Data.JSON.Schema
 import           Data.List              (groupBy, isSuffixOf, sort)
 import qualified Data.Map.Strict        as Map
+import           Data.Ord
 import           Data.String.ToString
 import           Data.Text              (pack, unpack)
 import qualified Data.Text              as T
@@ -116,7 +117,7 @@ get = mkConstHandler jsonO handler
 
 reportsByStamp :: IO [ReportTime]
 reportsByStamp
-   =  fmap (map toReportTime) $ filesByStamp (".json" `isSuffixOf`) "report"
+   =  fmap (map toReportTime) $ filesByStamp (flip $ comparing snd) (".json" `isSuffixOf`) "report"
   where
     toReportTime :: (Text,UTCTime) -> ReportTime
     toReportTime (a,b) = ReportTime

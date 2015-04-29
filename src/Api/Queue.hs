@@ -5,6 +5,7 @@ module Api.Queue (resource) where
 
 import           Control.Monad.Except
 import           Data.List            (isPrefixOf)
+import           Data.Ord
 import           Data.Text            (Text)
 import           Rest
 import qualified Rest.Resource        as R
@@ -23,4 +24,4 @@ list :: ListHandler Root
 list = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [Text]
-    handler r = liftIO . fmap (listRange r . map fst) $ filesByStamp (not . ("." `isPrefixOf`)) "queue"
+    handler r = liftIO . fmap (listRange r . map fst) $ filesByStamp (comparing snd) (not . ("." `isPrefixOf`)) "queue"
