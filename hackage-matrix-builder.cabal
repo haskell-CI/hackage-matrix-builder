@@ -37,7 +37,9 @@ library
     Api
     Api.Package
     Api.Package.Report
+    Api.Queue
     Api.Types
+    Api.Utils
     BuildReport
     BuildTypes
     Builder
@@ -54,6 +56,7 @@ library
     cryptohash        >=0.11 && <0.12,
     deepseq           >=1.4  && <1.5,
     directory         >=1.2  && <1.3,
+    filepath          >=1.4  && <1.5,
     generic-aeson     >=0.2  && <0.3,
     happstack-server  >=7.4  && <7.5,
     hashable          >=1.2  && <1.3,

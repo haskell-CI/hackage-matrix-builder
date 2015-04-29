@@ -69,10 +69,21 @@
   }
 
   function renderLatest () {
-    api.Package.listLatestReports(ok, fail("Could not find latest"), { count : 10 });
-    function ok (res) {
+    api.Queue.list(function (queue) {
+      api.Package.listLatestReports(ok.bind(null, queue), fail("Package.listLatestReports"), { count : 10 });
+    }, fail("Queue.list"));
+
+    function ok (queue, res) {
       hidePages();
+
       var cont = $("#page-latest");
+
+      cont.find("#queue-list").html("").append
+        ( queue.items.map(function (i) {
+            return $("<li>").append(packageLink(i));
+          })
+        );
+
       cont.find("#build-list").html("").append
         ( res.items.map(function (i) {
             return $("<li>").append
@@ -108,6 +119,7 @@
   }
 
   function main () {
+
     // Preload package metadata for all packages
     window.allPackages = [];
     var responses = 0;
@@ -131,6 +143,7 @@
       setupRouting();
       setupPicker(window.allPackages);
     }
+
   }
 
   function setupPicker (items) {

@@ -13,9 +13,8 @@ import           Data.Aeson             (FromJSON (..), ToJSON (..), decode,
                                          withObject, (.:))
 import qualified Data.ByteString.Lazy   as L
 import           Data.JSON.Schema
-import           Data.List              (groupBy, isSuffixOf, sort, sortBy)
+import           Data.List              (groupBy, isSuffixOf, sort)
 import qualified Data.Map.Strict        as Map
-import           Data.Ord
 import           Data.String.ToString
 import           Data.Text              (pack, unpack)
 import qualified Data.Text              as T
@@ -29,6 +28,7 @@ import           Safe
 import           System.Directory
 
 import           Api.Types
+import           Api.Utils
 import           BuildReport
 import           BuildTypes
 
@@ -95,9 +95,6 @@ listLatestReport = mkListing jsonO handler
     handler :: Range -> ExceptT Reason_ Root [ReportTime]
     handler r = listRange r <$> liftIO reportsByStamp
 
-listRange :: Range -> [a] -> [a]
-listRange r = take (count r) . drop (offset r)
-
 get :: Handler WithPackage
 get = mkConstHandler jsonO handler
   where
@@ -119,15 +116,11 @@ get = mkConstHandler jsonO handler
 
 reportsByStamp :: IO [ReportTime]
 reportsByStamp
-   =  fmap (map toReportTime)
-   .  fmap (sortBy (flip $ comparing snd))
-   .  mapM (\fp -> (fp,) <$> getModificationTime ("report/" ++ fp))
-  <=< fmap (filter (".json" `isSuffixOf`))
-   $  getDirectoryContents "report/"
+   =  fmap (map toReportTime) $ filesByStamp (".json" `isSuffixOf`) "report"
   where
-    toReportTime :: (String,UTCTime) -> ReportTime
+    toReportTime :: (Text,UTCTime) -> ReportTime
     toReportTime (a,b) = ReportTime
-      { rt_packageName = pack . reverse . drop 5 . reverse $ a
+      { rt_packageName = T.reverse . T.drop 5 . T.reverse $ a
       , rt_reportStamp = b
       }
 

@@ -256,5 +256,23 @@ MatrixApi.prototype.Package.prototype.Report.create =
   {
     return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
   };
+MatrixApi.prototype.Queue =
+  function Queue (url, secureUrl, modifyRequest)
+  {
+    if (this instanceof Queue)
+    {
+      MatrixApi.setContext(this, url, secureUrl, modifyRequest);
+    }
+    else
+    {
+      return Queue.access(url, secureUrl, modifyRequest);
+    }
+  };
+MatrixApi.prototype.Queue.apiObjectType = "resourceDir";
+MatrixApi.prototype.Queue.list =
+  function (success, error, params, callOpts)
+  {
+    return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+  };
 
 })(this);
