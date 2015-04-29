@@ -1,7 +1,8 @@
 (function () {
   $(window).ready(main);
 
-  var api = new MatrixApi("/api", "/api");
+  var apiRootUrl = ((appConfig && appConfig.apiHost) || "") + "/api";
+  var api = new MatrixApi(apiRootUrl, apiRootUrl);
 
   function fail (msg) {
     return function () {

@@ -17,6 +17,12 @@ main = do
   unless authExists $ do
     putStrLn "Writing default login to ./auth: user=trustee pass=1234"
     writeFile "auth" "trustee/1234"
+
+  jsConfigExists <- doesFileExist "ui/config.js"
+  unless jsConfigExists $ do
+    putStrLn "Writing default JS configuration to ./ui/config.js"
+    writeFile "ui/config.js" "var appConfig = { apiHost : '' };\n"
+
   putStrLn "Starting server on http://localhost:3000"
   let serverData = ServerData
   simpleHTTP nullConf { port = 3000 } $ do
