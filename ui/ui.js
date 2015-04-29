@@ -73,11 +73,11 @@
     function ok (res) {
       hidePages();
       var cont = $("#page-latest");
-      cont.find("#build-list").append
+      cont.find("#build-list").html("").append
         ( res.items.map(function (i) {
             return $("<li>").append
               ( packageLink(i.packageName)
-              , $("<small>").text(" (built " + i.reportStamp + ")")
+              , $("<small>").text(" (built " + new Date(i.reportStamp).toString() + ")")
               );
           })
         );
