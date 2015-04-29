@@ -90,7 +90,7 @@
 
     var msg = "Page not found, sorry!";
     if (pkgName) {
-      msg = $("<div>").append("The package ", $("<strong>").text(pkgName), " could not be found");
+      msg = $("<div>").append("The package ", $("<strong>").text(pkgName), " could not be found.");
     }
 
     $("#page-notfound .message").html("").append(msg);
@@ -108,23 +108,29 @@
   }
 
   function main () {
-    setupRouting();
-
-    api.Package.list(function ok (l) {
-
-      var s = $("<select/>").attr("id", "select-package");
-      s.change(function () {
-        fromUri(packageUri($(this).val()));
-      });
-      l.items.forEach(function (v) {
-        var li = $("<option/>").text(v).attr("value", v);
-        s.append(li);
-      });
-      $("#package-list").append(s);
-      setupPicker(l.items);
-
-    }, fail("Package.list"));
-
+    // Preload package metadata for all packages
+    window.allPackages = [];
+    var responses = 0;
+    for (var i = 0; i < 10; i++) {
+      (function (i) {
+        api.Package.list(function (l) {
+          l.items.forEach(function (v) { window.allPackages.push(v); });
+          responses++;
+          checkDone();
+        }, function () {
+          fail("Package.list: " + i);
+          responses++;
+          checkDone();
+        }, { count : 1000, offset : i*1000 });
+      })(i);
+    }
+    function checkDone () {
+      if (responses < 10) {
+        return;
+      }
+      setupRouting();
+      setupPicker(window.allPackages);
+    }
   }
 
   function setupPicker (items) {
@@ -138,7 +144,11 @@
 
   function selectedPackage (pkgName) {
     $("#select-package").val(pkgName);
-    api.Package.byName(pkgName).get(renderPackage.bind(null, pkgName), renderNotFound.bind(null, pkgName));
+    if (window.allPackages.indexOf(pkgName) === -1) {
+      renderNotFound(pkgName);
+      return;
+    }
+    api.Package.byName(pkgName).get(renderPackage.bind(null, pkgName), renderPackage.bind(null, pkgName, null));
   }
 
   function packageUri (pkgName) {
@@ -147,12 +157,22 @@
 
   function renderPackage (pkgName, p) {
     hidePages();
+    $("#page-package .package-name").text(pkgName);
     $("#package").html("");
-    renderSingleVersionMatrix(pkgName, p);
+    if (p) {
+      renderSingleVersionMatrix(pkgName, p);
+      $(".package-header").show();
+      $(".logs-header").show();
+      $("#package-not-built").hide();
+    } else {
+      $(".package-header").hide();
+      $(".logs-header").hide();
+      $("#package-not-built").show();
+    }
     setupBuildQueuer(pkgName);
     cleanupTabs();
     $("#buildreport").show();
-    $("#page-buildreport").show();
+    $("#page-package").show();
   }
 
   function setupBuildQueuer (pkgName) {

@@ -18,7 +18,16 @@ body { margin: 0; }
 
 /* Pages */
 
-.page { display: none; }
+.page {
+  display: none;
+  margin-top: 100px;
+  margin-left: 200px;
+}
+
+#page-package {
+  margin-top: 15px;
+  margin-left: 75px;
+}
 
 #content { padding: 30px; }
 
@@ -175,11 +184,4 @@ td.stcell {
 .legend-table .text {
   text-align: left;
   padding-left: 5px;
-}
-
-/* Textual Pages */
-
-#page-home,#page-notfound,#page-latest {
-  margin-top: 100px;
-  margin-left: 200px;
 }

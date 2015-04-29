@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# OPTIONS -fno-warn-orphans #-}
@@ -8,10 +9,11 @@ module Api.Package (resource, WithPackage, Identifier (..)) where
 import           Control.Arrow
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Data.Aeson             (FromJSON (..), ToJSON (..), decode)
+import           Data.Aeson             (FromJSON (..), ToJSON (..), decode,
+                                         withObject, (.:))
 import qualified Data.ByteString.Lazy   as L
 import           Data.JSON.Schema
-import           Data.List              (groupBy, isSuffixOf, sortBy)
+import           Data.List              (groupBy, isSuffixOf, sort, sortBy)
 import qualified Data.Map.Strict        as Map
 import           Data.Ord
 import           Data.String.ToString
@@ -51,8 +53,8 @@ type WithPackage = ReaderT Identifier Root
 resource :: Resource Root WithPackage Identifier Listing Void
 resource = mkResourceReader
   { R.name   = "package"
-  , R.schema = withListing All $ named [ ("name"         , singleBy (Name . pack))
-                                       , ("latest-report", single LatestReport)
+  , R.schema = withListing All $ named [ ("name"          , singleBy (Name . pack))
+                                       , ("latest-report" , single LatestReport)
                                        , ("latest-reports", listing LatestReports)
                                        ]
   , R.get    = Just get
@@ -61,12 +63,19 @@ resource = mkResourceReader
      LatestReports -> listLatestReport
   }
 
+newtype PackageMeta = PackageMeta { meta_name :: Text }
+  deriving (Eq, Show)
+
+instance FromJSON PackageMeta where
+  parseJSON = withObject "PackageMeta" $ fmap PackageMeta . (.: "packageName")
+
 list :: ListHandler Root
 list = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [Text]
-    handler r =
-      listRange r . map pack . map (reverse . drop 5 . reverse) . filter (".json" `isSuffixOf`) <$> liftIO (getDirectoryContents "report/")
+    handler r = do
+      pkgs <- liftIO (decode <$> L.readFile "packages.json") `orThrow` Busy
+      return . listRange r . sort . map meta_name $ pkgs
 
 data ReportTime = ReportTime
   { rt_packageName :: Text
