@@ -52,11 +52,37 @@
       return;
     }
 
+    if (uri.path() === "/latest") {
+      renderLatest();
+      return;
+    }
+
     renderNotFound();
   }
 
   function hidePages () {
     $(".page").hide();
+  }
+
+  function packageLink (pkgName) {
+    return $("<a>").attr("href", packageUri(pkgName).toString()).text(pkgName);
+  }
+
+  function renderLatest () {
+    api.Package.listLatestReports(ok, fail("Could not find latest"), { count : 10 });
+    function ok (res) {
+      hidePages();
+      var cont = $("#page-latest");
+      cont.find("#build-list").append
+        ( res.items.map(function (i) {
+            return $("<li>").append
+              ( packageLink(i.packageName)
+              , $("<small>").text(" (built " + i.reportStamp + ")")
+              );
+          })
+        );
+      cont.show();
+    }
   }
 
   function renderNotFound (pkgName) {

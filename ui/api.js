@@ -216,10 +216,27 @@ MatrixApi.prototype.Package.byName =
       };
     return accessor;
   };
+MatrixApi.prototype.Package.latestReport =
+  function ()
+  {
+    var postfix = 'latest-report/';
+    var accessor = new this(this.contextUrl + postfix, this.secureContextUrl + postfix, this.modifyRequest);
+    accessor.get =
+      function (success, error, params, callOpts)
+      {
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+      };
+    return accessor;
+  };
 MatrixApi.prototype.Package.list =
   function (success, error, params, callOpts)
   {
     return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+  };
+MatrixApi.prototype.Package.listLatestReports =
+  function (success, error, params, callOpts)
+  {
+    return MatrixApi.ajaxCall("GET", this.contextUrl + 'latest-reports/', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Package.prototype.Report =
   function Report (url, secureUrl, modifyRequest)

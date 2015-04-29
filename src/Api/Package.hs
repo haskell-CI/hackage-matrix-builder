@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections       #-}
 {-# OPTIONS -fno-warn-orphans #-}
 module Api.Package (resource, WithPackage, Identifier (..)) where
 
@@ -10,63 +11,122 @@ import           Control.Monad.Reader
 import           Data.Aeson             (FromJSON (..), ToJSON (..), decode)
 import qualified Data.ByteString.Lazy   as L
 import           Data.JSON.Schema
-import           Data.List
+import           Data.List              (groupBy, isSuffixOf, sortBy)
 import qualified Data.Map.Strict        as Map
+import           Data.Ord
 import           Data.String.ToString
 import           Data.Text              (pack, unpack)
 import qualified Data.Text              as T
+import           Data.Time
 import           Generics.Generic.Aeson
 import           Rest
 import           Rest.Info              (Info (..))
 import qualified Rest.Resource          as R
 import           Rest.ShowUrl
+import           Safe
 import           System.Directory
 
 import           Api.Types
 import           BuildReport
 import           BuildTypes
 
-data Identifier = Name Text
+data Identifier
+  = Name Text
+  | LatestReport
 
-instance Info Identifier where describe _ = "package-name"
+data Listing
+  = All
+  | LatestReports
+
+instance Info Identifier where
+  describe _ = "identifier"
 
 instance ShowUrl Identifier where
-  showUrl (Name t) = unpack t
+  showUrl = \case
+    Name t       -> unpack t
+    LatestReport -> "latest-report"
 
 type WithPackage = ReaderT Identifier Root
 
-resource :: Resource Root WithPackage Identifier () Void
+resource :: Resource Root WithPackage Identifier Listing Void
 resource = mkResourceReader
   { R.name   = "package"
-  , R.schema = withListing () $ named [("name", singleBy (Name . pack))]
+  , R.schema = withListing All $ named [ ("name"         , singleBy (Name . pack))
+                                       , ("latest-report", single LatestReport)
+                                       , ("latest-reports", listing LatestReports)
+                                       ]
   , R.get    = Just get
-  , R.list   = const list
+  , R.list   = \case
+     All           -> list
+     LatestReports -> listLatestReport
   }
 
 list :: ListHandler Root
 list = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [Text]
-    handler _ =
-      map pack . map (reverse . drop 5) . filter ((reverse ".json" ==) . take 5) . map reverse <$> liftIO (getDirectoryContents "report/")
+    handler r =
+      listRange r . map pack . map (reverse . drop 5 . reverse) . filter ((".json" `isSuffixOf`) . take 5) . map reverse <$> liftIO (getDirectoryContents "report/")
+
+data ReportTime = ReportTime
+  { rt_packageName :: Text
+  , rt_reportStamp :: UTCTime
+  } deriving (Eq, Generic, Show)
+
+instance ToJSON     ReportTime where toJSON    = gtoJsonWithSettings    reportTimeSettings
+instance FromJSON   ReportTime where parseJSON = gparseJsonWithSettings reportTimeSettings
+instance JSONSchema ReportTime where schema    = gSchemaWithSettings    reportTimeSettings
+
+reportTimeSettings :: Settings
+reportTimeSettings = Settings { stripPrefix = Just "rt_" }
+
+listLatestReport :: ListHandler Root
+listLatestReport = mkListing jsonO handler
+  where
+    handler :: Range -> ExceptT Reason_ Root [ReportTime]
+    handler r = listRange r <$> liftIO reportsByStamp
+
+listRange :: Range -> [a] -> [a]
+listRange r = take (count r) . drop (offset r)
 
 get :: Handler WithPackage
 get = mkConstHandler jsonO handler
   where
     handler :: ExceptT Reason_ WithPackage ReportDataJson
     handler = do
-      Name t <- ask
+      ident <- ask
+      case ident of
+        Name t      -> byName t
+        LatestReport -> do
+          latest <- liftIO (fmap headMay reportsByStamp) `orThrow` NotFound
+          byName $ rt_packageName latest
+    byName :: Text -> ExceptT Reason_ WithPackage ReportDataJson
+    byName t = do
       let fp = "report/" ++ unpack t ++ ".json"
       exists <- liftIO $ doesFileExist fp
       unless exists $ throwError NotFound
       f <- liftIO $ L.readFile fp
       maybe (throwError Busy) (return . reportDataJson) . decode $ f
 
+reportsByStamp :: IO [ReportTime]
+reportsByStamp
+   =  fmap (map toReportTime)
+   .  fmap (sortBy (flip $ comparing snd))
+   .  mapM (\fp -> (fp,) <$> getModificationTime ("report/" ++ fp))
+  <=< fmap (filter (".json" `isSuffixOf`))
+   $  getDirectoryContents "report/"
+  where
+    toReportTime :: (String,UTCTime) -> ReportTime
+    toReportTime (a,b) = ReportTime
+      { rt_packageName = pack . reverse . drop 5 . reverse $ a
+      , rt_reportStamp = b
+      }
+
 data ReportDataJson = ReportDataJson
-    { pkgName     :: String
-    , versions    :: [[[Ver]]]
-    , ghcVersions :: [GVer]
-    } deriving (Generic, Show)
+  { pkgName     :: String
+  , versions    :: [[[Ver]]]
+  , ghcVersions :: [GVer]
+  } deriving (Generic, Show)
 
 reportDataJson :: ReportData -> ReportDataJson
 reportDataJson = \case

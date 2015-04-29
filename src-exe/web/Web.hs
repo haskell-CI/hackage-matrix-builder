@@ -35,5 +35,8 @@ router = msum
       setHeaderM "Content-Disposition" "*"
       toResponse <$> apiToHandler api
   , serveDirectory DisableBrowsing ["index.html"] "ui"
-  , dir "package" $ serveFile (asContentType "text/html") "ui/index.html"
+  , dir "package" serveIndex
+  , dir "latest" serveIndex
   ]
+  where
+    serveIndex = serveFile (asContentType "text/html") "ui/index.html"

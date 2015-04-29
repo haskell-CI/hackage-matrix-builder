@@ -179,7 +179,9 @@ td.stcell {
 
 /* Textual Pages */
 
-#page-home,#page-notfound {
+#page-home,#page-notfound,#page-latest {
   margin-top: 100px;
   margin-left: 200px;
 }
+
+/* Latest */
