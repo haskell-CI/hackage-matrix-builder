@@ -66,7 +66,7 @@ list = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [Text]
     handler r =
-      listRange r . map pack . map (reverse . drop 5 . reverse) . filter ((".json" `isSuffixOf`) . take 5) . map reverse <$> liftIO (getDirectoryContents "report/")
+      listRange r . map pack . map (reverse . drop 5 . reverse) . filter (".json" `isSuffixOf`) <$> liftIO (getDirectoryContents "report/")
 
 data ReportTime = ReportTime
   { rt_packageName :: Text
