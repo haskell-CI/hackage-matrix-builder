@@ -3,12 +3,13 @@
 module Main (main) where
 
 import           Control.Monad.Except
+import           Happstack.Server.Compression
 import           Happstack.Server.FileServe
 import           Happstack.Server.SimpleHTTP
-import           Rest.Run                    (apiToHandler)
+import           Rest.Run                     (apiToHandler)
 import           System.Directory
 
-import           Api                         (api)
+import           Api                          (api)
 import           Api.Types
 
 main :: IO ()
@@ -31,7 +32,7 @@ assertFile fp contents = do
     writeFile fp contents
 
 router :: Root Response
-router = msum
+router = void compressedResponseFilter >> msum
   [ dir "api" $ do
       setHeaderM "Content-Disposition" "*"
       toResponse <$> apiToHandler api
