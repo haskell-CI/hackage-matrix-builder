@@ -18,6 +18,10 @@
   function setupRouting ()
   {
 
+    $(window).on("popstate", function () {
+      fromUri(new Uri(window.location.href), true, true);
+    });
+
     $("body").delegate("a", "click", function (e) {
       var currentUri = new Uri(window.location.href);
       var linkUri = new Uri($(this).attr("href"));
@@ -35,11 +39,13 @@
     fromUri(new Uri(window.location.href), true);
   }
 
-  function fromUri (uri, force) {
+  function fromUri (uri, force, isPopping) {
     if (!force && uri.path() === new Uri(window.location.href).path()) {
       return;
     }
-    setPath(uri.path());
+    if (!isPopping) {
+      setPath(uri.path());
+    }
 
     if (uri.path() === "/") {
       renderHome();
@@ -168,7 +174,7 @@
 
   function setPath (path)
   {
-    window.history.replaceState(null, "", path);
+    window.history.pushState(null, "", path);
   }
 
   function main () {
