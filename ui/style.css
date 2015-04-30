@@ -196,3 +196,6 @@ td.stcell {
   font-size: 20px;
   float: left;
 }
+#page-packages #packages-only-reports {
+  margin-left: 50px;
+}

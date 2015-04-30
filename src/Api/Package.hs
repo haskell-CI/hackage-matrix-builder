@@ -70,7 +70,6 @@ newtype PackageMeta = PackageMeta { meta_name :: Text }
 instance FromJSON PackageMeta where
   parseJSON = withObject "PackageMeta" $ fmap PackageMeta . (.: "packageName")
 
-
 data PackageListItem = PackageListItem
   { pliName        :: Text
   , pliReportStamp :: Maybe UTCTime

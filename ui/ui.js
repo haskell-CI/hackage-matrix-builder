@@ -78,7 +78,9 @@
     var page = $("#page-packages");
     var headers = page.find(".headers").html("");
     var pkgList = page.find(".packages").html("");
+    var onlyReports = page.find("#packages-only-reports");
     var headers = [];
+    var selectedPrefix = "A";
     for (var i = 65; i <= 90; i++) {
       headers.push(String.fromCharCode(i));
     }
@@ -92,20 +94,22 @@
                       .click(function (e) {
               e.preventDefault();
               e.stopPropagation();
-              showPrefix($(this).attr("data-prefix"));
+              selectedPrefix = $(this).attr("data-prefix");
+              showPrefix();
               })
             );
         })
       );
-    function showPrefix (prefix) {
-      prefix = prefix.toLowerCase();
+    onlyReports.change(showPrefix);
+    function showPrefix () {
+      var showOnlyReports = onlyReports.is(":checked");
       pkgList.html("");
       pkgList.append
         ( window.allPackages.filter(function (v) {
-              return v[0].toLowerCase() === prefix;
+              return v[0].toUpperCase() === selectedPrefix
+                 && (!showOnlyReports || window.allPackagesMore[v].lastReport);
           }).map(function (v) {
             var more = window.allPackagesMore[v].lastReport;
-            console.log(more);
             return $("<li>").append
               ( packageLink(v)
               , more && $("<small>").text(" (last built: " + new Date(more).toString() + ")")
@@ -113,7 +117,7 @@
           })
         );
     }
-    showPrefix("A");
+    showPrefix();
     page.show();
   }
 
