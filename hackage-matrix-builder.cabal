@@ -39,6 +39,7 @@ library
     Api.Package.Report
     Api.Queue
     Api.Root
+    Api.Types
     Api.Utils
     WebServer
     Generate

@@ -1,6 +1,3 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module Api.Queue (resource) where
 
 import           Control.Monad.Except
