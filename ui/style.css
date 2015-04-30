@@ -14,7 +14,10 @@ a:hover { text-decoration: underline; }
   clear: both;
 }
 
-body { margin: 0; }
+body {
+  margin: 0;
+  background-color: #FDFDFF;
+}
 
 /* Pages */
 
@@ -200,3 +203,13 @@ td.stcell {
 #page-packages #packages-only-reports {
   margin-left: 50px;
 }
+
+/** jQuery UI tweaks **/
+
+body .ui-widget-header {
+  border: none;
+  background: #5e4e89;
+}
+body .ui-widget-content a { text-decoration: none; color: #428bca; }
+body .ui-widget-content a:hover { text-decoration: underline; }
+body .ui-widget-content { background: none; background-color: #FAFAFF; }
