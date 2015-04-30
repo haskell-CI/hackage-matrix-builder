@@ -421,28 +421,28 @@
 
     if (/^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash)) {
       setTimeout(function () {
-      /^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash);
-      var ghcVersion     = RegExp.$1;
-      var packageVersion = RegExp.$2;
-      var ghcVer = p.ghcVersions.filter(function (v) { return v.ghcVer.name === ghcVersion; })[0];
-      if (!ghcVer) {
-        console.warn("Could not find ghc version: GHC-" + ghcVersion);
-        return;
-      }
-      var res = ghcVer.resultsA.filter(function (v) { return v.pkgVersion.name === packageVersion; })[0];
-      if (!res) {
-        console.warn("Could not find ghc/package version: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
-        return;
-      }
-      var r;
-      if (r = res.result.fail) {
-        setupFailTabs(ghcVersion, pkgName, packageVersion, r);
-      }
-      else if (r = res.result.failDeps) {
-        setupFailDepsTabs(ghcVersion, r);
-      } else {
-        console.warn("No build failure found for: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
-      }
+        /^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash);
+        var ghcVersion     = RegExp.$1;
+        var packageVersion = RegExp.$2;
+        var ghcVer = p.ghcVersions.filter(function (v) { return v.ghcVer.name === ghcVersion; })[0];
+        if (!ghcVer) {
+          console.warn("Could not find ghc version: GHC-" + ghcVersion);
+          return;
+        }
+        var res = ghcVer.resultsA.filter(function (v) { return v.pkgVersion.name === packageVersion; })[0];
+        if (!res) {
+          console.warn("Could not find ghc/package version: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+          return;
+        }
+        var r;
+        if (r = res.result.fail) {
+          setupFailTabs(ghcVersion, pkgName, packageVersion, r);
+        }
+        else if (r = res.result.failDeps) {
+          setupFailDepsTabs(ghcVersion, r);
+        } else {
+          console.warn("No build failure found for: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+        }
       }, 0);
     }
   }
