@@ -13,7 +13,7 @@ import           Data.Aeson             (FromJSON (..), ToJSON (..), decode,
                                          withObject, (.:))
 import qualified Data.ByteString.Lazy   as L
 import           Data.JSON.Schema
-import           Data.List              (groupBy, isSuffixOf, sort)
+import           Data.List              (foldl', groupBy, isSuffixOf)
 import qualified Data.Map.Strict        as Map
 import           Data.Ord
 import           Data.String.ToString
@@ -70,18 +70,41 @@ newtype PackageMeta = PackageMeta { meta_name :: Text }
 instance FromJSON PackageMeta where
   parseJSON = withObject "PackageMeta" $ fmap PackageMeta . (.: "packageName")
 
+
+data PackageListItem = PackageListItem
+  { pliName        :: Text
+  , pliReportStamp :: Maybe UTCTime
+  } deriving (Eq, Generic, Ord, Show)
+
+instance ToJSON     PackageListItem where toJSON    = gtoJsonWithSettings    packageListItemSettings
+instance FromJSON   PackageListItem where parseJSON = gparseJsonWithSettings packageListItemSettings
+instance JSONSchema PackageListItem where schema    = gSchemaWithSettings    packageListItemSettings
+
+packageListItemSettings :: Settings
+packageListItemSettings = Settings { stripPrefix = Just "pli" }
+
 list :: ListHandler Root
 list = mkListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [Text]
+    handler :: Range -> ExceptT Reason_ Root [PackageListItem]
     handler r = do
+      reports <- liftIO reportsByStamp
       pkgs <- liftIO (decode <$> L.readFile "packages.json") `orThrow` Busy
-      return . listRange r . sort . map meta_name $ pkgs
+      return . listRange r . f reports . map meta_name $ pkgs
+    f :: [ReportTime] -> [Text] -> [PackageListItem]
+    f reps pkgs
+      = map (\(pn,rs) -> PackageListItem { pliName = pn, pliReportStamp = rs })
+      . Map.toList
+      . foldl' (\pm rt -> Map.insert (rt_packageName rt) (Just $ rt_reportStamp rt) pm) pkgMap
+      $ reps
+      where
+        pkgMap :: Map Text (Maybe a)
+        pkgMap = Map.fromList . map (,Nothing) $ pkgs
 
 data ReportTime = ReportTime
   { rt_packageName :: Text
   , rt_reportStamp :: UTCTime
-  } deriving (Eq, Generic, Show)
+  } deriving (Eq, Generic, Ord, Show)
 
 instance ToJSON     ReportTime where toJSON    = gtoJsonWithSettings    reportTimeSettings
 instance FromJSON   ReportTime where parseJSON = gparseJsonWithSettings reportTimeSettings

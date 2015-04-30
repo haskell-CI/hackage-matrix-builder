@@ -104,7 +104,12 @@
         ( window.allPackages.filter(function (v) {
               return v[0].toLowerCase() === prefix;
           }).map(function (v) {
-            return $("<li>").append(packageLink(v));
+            var more = window.allPackagesMore[v].lastReport;
+            console.log(more);
+            return $("<li>").append
+              ( packageLink(v)
+              , more && $("<small>").text(" (last built: " + new Date(more).toString() + ")")
+              );
           })
         );
     }
@@ -166,11 +171,15 @@
 
     // Preload package metadata for all packages
     window.allPackages = [];
+    window.allPackagesMore = {};
     var responses = 0;
     for (var i = 0; i < 10; i++) {
       (function (i) {
         api.Package.list(function (l) {
-          l.items.forEach(function (v) { window.allPackages.push(v); });
+          l.items.forEach(function (v) {
+            window.allPackages.push(v.name);
+            window.allPackagesMore[v.name] = { name : v.name, lastReport : v.reportStamp };
+          });
           responses++;
           checkDone();
         }, function () {
