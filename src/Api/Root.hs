@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeFamilies               #-}
-module Api.Types (ServerData (..), Root (..), runRoot) where
+module Api.Root (ServerData (..), Root (..), runRoot) where
 
 import           Control.Applicative
 import           Control.Monad.Base

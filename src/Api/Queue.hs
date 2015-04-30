@@ -10,7 +10,7 @@ import           Data.Text            (Text)
 import           Rest
 import qualified Rest.Resource        as R
 
-import           Api.Types
+import           Api.Root             (Root)
 import           Api.Utils
 
 resource :: Resource Root Root Void () Void

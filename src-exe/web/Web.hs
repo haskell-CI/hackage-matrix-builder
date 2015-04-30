@@ -10,7 +10,7 @@ import           Rest.Run                     (apiToHandler)
 import           System.Directory
 
 import           Api                          (api)
-import           Api.Types
+import           Api.Root
 
 main :: IO ()
 main = do

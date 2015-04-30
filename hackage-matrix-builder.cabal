@@ -38,7 +38,7 @@ library
     Api.Package
     Api.Package.Report
     Api.Queue
-    Api.Types
+    Api.Root
     Api.Utils
     BuildReport
     BuildTypes

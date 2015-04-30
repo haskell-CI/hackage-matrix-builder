@@ -5,7 +5,7 @@ import           Rest.Api
 import qualified Api.Package        as Package
 import qualified Api.Package.Report as Package.Report
 import qualified Api.Queue          as Queue
-import           Api.Types
+import           Api.Root           (Root)
 
 api :: Api Root
 api = [(mkVersion 1 0 0, Some1 router)]

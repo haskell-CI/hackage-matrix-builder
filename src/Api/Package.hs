@@ -28,7 +28,7 @@ import           Rest.ShowUrl
 import           Safe
 import           System.Directory
 
-import           Api.Types
+import           Api.Root               (Root)
 import           Api.Utils
 import           BuildReport
 import           BuildTypes
