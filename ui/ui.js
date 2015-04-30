@@ -57,6 +57,11 @@
       return;
     }
 
+    if (uri.path() === "/packages") {
+      renderPackages();
+      return;
+    }
+
     renderNotFound();
   }
 
@@ -68,13 +73,52 @@
     return $("<a>").attr("href", packageUri(pkgName).toString()).text(pkgName);
   }
 
+  function renderPackages () {
+    hidePages();
+    var page = $("#page-packages");
+    var headers = page.find(".headers").html("");
+    var pkgList = page.find(".packages").html("");
+    var headers = [];
+    for (var i = 65; i <= 90; i++) {
+      headers.push(String.fromCharCode(i));
+    }
+    page.find(".headers").append
+      ( headers.map(function (v) {
+          return $("<li>").append
+            ( $("<a>").attr("data-prefix", v)
+                      .addClass("header")
+                      .attr("href","")
+                      .text(v)
+                      .click(function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              showPrefix($(this).attr("data-prefix"));
+              })
+            );
+        })
+      );
+    function showPrefix (prefix) {
+      prefix = prefix.toLowerCase();
+      pkgList.html("");
+      pkgList.append
+        ( window.allPackages.filter(function (v) {
+              return v[0].toLowerCase() === prefix;
+          }).map(function (v) {
+            return $("<li>").append(packageLink(v));
+          })
+        );
+    }
+    showPrefix("A");
+    page.show();
+  }
+
   function renderLatest () {
+    hidePages();
     api.Queue.list(function (queue) {
       api.Package.listLatestReports(ok.bind(null, queue), fail("Package.listLatestReports"), { count : 10 });
     }, fail("Queue.list"));
 
     function ok (queue, res) {
-      hidePages();
 
       var cont = $("#page-latest");
 

@@ -39,6 +39,7 @@ router = void compressedResponseFilter >> msum
   , serveDirectory DisableBrowsing ["index.html"] "ui"
   , dir "package" serveIndex
   , dir "latest" serveIndex
+  , dir "packages" serveIndex
   ]
   where
     serveIndex = serveFile (asContentType "text/html") "ui/index.html"
