@@ -118,7 +118,7 @@
             var more = window.allPackagesMore[v].lastReport;
             return $("<li>").append
               ( packageLink(v)
-              , more && $("<small>").text(" (last built: " + new Date(more).toString() + ")")
+              , more && $("<small>").text(" - last built: " + formatDate(more))
               );
           })
         );
@@ -153,7 +153,7 @@
         ( res.items.map(function (i) {
             return $("<li>").append
               ( packageLink(i.packageName)
-              , $("<small>").text(" (built " + new Date(i.reportStamp).toString() + ")")
+              , $("<small>").text(" - built " + formatDate(i.reportStamp))
               );
           })
         );
@@ -453,6 +453,11 @@
         }
       }, 0);
     }
+  }
+
+  function formatDate (d) {
+    d = new Date(d);
+    return d.toLocaleString().replace("T", " ");
   }
 
 })();
