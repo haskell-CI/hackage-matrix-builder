@@ -36,7 +36,7 @@
       setTimeout(function () { fromUri(linkUri); }, 0);
     });
 
-    fromUri(new Uri(window.location.href), true);
+    fromUri(new Uri(window.location.href), true, true);
   }
 
   function fromUri (uri, force, isPopping) {
@@ -176,6 +176,15 @@
   {
     window.history.pushState(null, "", path);
   }
+  function setHash (hash)
+  {
+    var uri = new Uri(window.location.href);
+    if (uri.anchor() == hash) {
+      return;
+    }
+    uri.anchor(hash);
+    window.history.replaceState(null, "", uri.toString());
+  }
 
   function main () {
 
@@ -270,7 +279,7 @@
     $("#queueing .error").hide();
   }
 
-  function setupTabs (header, messages) {
+  function setupTabs (messages) {
     cleanupTabs();
     var tabs = $("<div>").attr("id", "tabs").append
       ( $("<ul>").append
@@ -349,12 +358,8 @@
                   .click(function (e) {
                     var ghcVersion = $(e.target).attr("data-ghc-version");
                     var packageVersion = $(e.target).attr("data-package-version");
-                    setupTabs
-                      ("Compilation failure"
-                      , [{ label    : "GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion
-                         , contents : $("<pre>").addClass("log-entry").text(r)
-                        }]
-                      );
+                    setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+                    setupFailTabs(ghcVersion, pkgName, packageVersion, r);
                   });
               })(r);
             } else if (r = res.result.failDeps) {
@@ -363,19 +368,9 @@
                   .addClass("fail-dep-build")
                   .click(function (e) {
                     var ghcVersion = $(e.target).attr("data-ghc-version");
-                    setupTabs
-                      ( r.length + " dependencies failed to compile"
-                      , r.map(function (v, i) {
-                          return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
-                                 , contents : $("<div>").append
-                                                ( $("<a>").addClass("package-link")
-                                                          .attr("href", packageUri(v.pkgId.pPackageName))
-                                                          .text("Go to this package")
-                                                , $("<pre>").addClass("log-entry").text(v.message)
-                                                )
-                                 };
-                        })
-                      );
+                    var packageVersion = $(e.target).attr("data-package-version");
+                    setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+                    setupFailDepsTabs(ghcVersion, r);
                   });
               })(r);
             } else if (res.result.nop) {
@@ -401,6 +396,55 @@
       });
     });
     $("#package").append(t.append(trs));
+
+    function setupFailTabs (ghcVersion, pkgName, packageVersion, r) {
+      setupTabs
+        ( [{ label    : "GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion
+           , contents : $("<pre>").addClass("log-entry").text(r)
+          }]
+        );
+    }
+
+    function setupFailDepsTabs (ghcVersion, r) {
+      setupTabs
+        ( r.map(function (v, i) {
+            return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
+                   , contents : $("<div>").append
+                                  ( packageLink(v.pkgId.pPackageName).text("Go to this package")
+                                  , $("<pre>").addClass("log-entry").text(v.message)
+                                  )
+                   };
+          })
+        );
+
+    }
+
+    if (/^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash)) {
+      setTimeout(function () {
+      /^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash);
+      var ghcVersion     = RegExp.$1;
+      var packageVersion = RegExp.$2;
+      var ghcVer = p.ghcVersions.filter(function (v) { return v.ghcVer.name === ghcVersion; })[0];
+      if (!ghcVer) {
+        console.warn("Could not find ghc version: GHC-" + ghcVersion);
+        return;
+      }
+      var res = ghcVer.resultsA.filter(function (v) { return v.pkgVersion.name === packageVersion; })[0];
+      if (!res) {
+        console.warn("Could not find ghc/package version: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+        return;
+      }
+      var r;
+      if (r = res.result.fail) {
+        setupFailTabs(ghcVersion, pkgName, packageVersion, r);
+      }
+      else if (r = res.result.failDeps) {
+        setupFailDepsTabs(ghcVersion, r);
+      } else {
+        console.warn("No build failure found for: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+      }
+      }, 0);
+    }
   }
 
 })();

@@ -102,9 +102,6 @@ body { margin: 0; }
   height: 400px;
   overflow: scroll;
 }
-#tabs-container .package-link {
-  color: blue;
-}
 
 /** Queuer **/
 
