@@ -129,13 +129,19 @@
 
   function renderLatest () {
     hidePages();
+
+    var cont = $("#page-latest");
+    cont.find(".refresh").off("click").on("click", function (e) {
+      e.preventDefault();
+      setTimeout(renderLatest, 0);
+    });
+
     api.Queue.list(function (queue) {
       api.Package.listLatestReports(ok.bind(null, queue), fail("Package.listLatestReports"), { count : 10 });
     }, fail("Queue.list"));
 
     function ok (queue, res) {
 
-      var cont = $("#page-latest");
 
       cont.find("#queue-list").html("").append
         ( queue.items.map(function (i) {

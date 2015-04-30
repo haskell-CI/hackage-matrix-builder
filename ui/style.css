@@ -106,34 +106,34 @@ body {
   overflow: scroll;
 }
 
-/** Queuer **/
+/* Right column */
 
-#right {
+.right {
   float: right;
   padding: 0;
   width: 425px;
 }
 
-#right .sub {
+.right .sub {
   background-color: #f4f1e2;
   margin-bottom: 10px;
   padding: 20px;
 }
 
-#right .header {
+.right .header {
   margin-top: 0;
 }
 
-#right #build-queuer-container {
+.right #build-queuer-container {
   width: 300px;
 }
 
-#queueing label {
-  font-size: 12px;
+.right input[type=button], .right input[type=submit] {
+  font-size: 20px;
 }
 
-#right input[type=button], #right input[type=submit] {
-  font-size: 20px;
+.right label {
+  font-size: 12px;
 }
 
 /** Table **/
