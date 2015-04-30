@@ -264,8 +264,9 @@
     cleanupBuildQueuer();
 
     $("#queueing .action").click(function () {
-      $("#queueing #action-1").hide();
-      api.Package.byName(pkgName).Report.create(function () {
+      var prio = $("#queueing .prio").val();
+      $("#queueing .form").hide();
+      api.Package.byName(pkgName).Report.create(prio, function () {
         $("#queueing .success").show();
       }, function () {
         $("#queueing .error").show();
@@ -274,6 +275,7 @@
   }
 
   function cleanupBuildQueuer () {
+    $("#queueing .form").show();
     $("#queueing .action").off("click");
     $("#queueing .success").hide();
     $("#queueing .error").hide();

@@ -100,7 +100,16 @@
           <div class="sub">
             <h4 class="header">Administration</h2>
             <div id="queueing">
-              <input id="action-1" class="action" type="button" value="Queue build for this package">
+              <div class="form">
+                <label>Priority
+                  <select class="prio">
+                    <option value="high">High</option>
+                    <option value="medium" selected="selected">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+                  </label>
+                <input class="action" type="button" value="Queue build for this package">
+              </div>
               <div class="error"><div>Failed to queue build, bad password?</div><input type="button" id="action-2" class="action" value="Try again"></div>
               <div class="success">Build queued!</div>
             </div>

@@ -125,6 +125,10 @@ body { margin: 0; }
   width: 300px;
 }
 
+#queueing label {
+  font-size: 12px;
+}
+
 #right input[type=button], #right input[type=submit] {
   font-size: 20px;
 }
