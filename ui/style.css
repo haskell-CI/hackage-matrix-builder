@@ -210,6 +210,8 @@ body .ui-widget-header {
   border: none;
   background: #5e4e89;
 }
-body .ui-widget-content a { text-decoration: none; color: #428bca; }
+body .ui-widget-content a { text-decoration: none; color: #428BCA; }
 body .ui-widget-content a:hover { text-decoration: underline; }
 body .ui-widget-content { background: none; background-color: #FAFAFF; }
+body .ui-widget-header .ui-state-default { background: #E6E6F9; }
+body .ui-widget-header .ui-state-active { background: #FAFAFF; }
