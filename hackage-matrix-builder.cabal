@@ -50,6 +50,7 @@ library
 
   build-depends:
     aeson             >=0.8  && <0.9,
+    aeson-utils       >=0.3  && <0.4,
     base              >=4.8  && <4.9,
     base16-bytestring >=0.1  && <0.2,
     bifunctors        >=4.2  && <4.3,
