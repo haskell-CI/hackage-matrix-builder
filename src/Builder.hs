@@ -342,6 +342,7 @@ computeXDeps gv sbcfg = do
         unless (p1 == p1') $ fail "WTF"
         return (p1, p1deps)
 
+-- | @cabal install@ with exactly the 'XDeps'-specified build-dependencies
 runInstallXdeps :: FilePath -> GhcVer -> PkgId -> XDeps -> Action (ByteString, ByteString, SbExitCode)
 runInstallXdeps sbdir gv pkgid xdeps = do
     putNormalT [ "creating ", T.pack (show gv), " sandbox for ", tshowPkgId pkgid, "  ("
@@ -353,7 +354,8 @@ runInstallXdeps sbdir gv pkgid xdeps = do
 
     oldcwd <- liftIO getCurrentDirectory
 
-    -- find out if additional constraints are needed
+    -- find out if additional constraints are needed keep extra build-deps beyond xdeps from sneaking in
+    -- NOTE/TODO: we could avoid this if we tracked the exact flag-settings of each package in 'XDeps'
     xtraCstrs <- computeAllXtraCstrs
 
     -- initialise sandbox
@@ -447,9 +449,14 @@ runInstallXdeps sbdir gv pkgid xdeps = do
         -- find out if additional constraints are needed
         (_,_,InstallPlan _pkg0 x _) <- dryInstall' gv pkgid (xdepcstrsv++xcstrs0)
         let x' = map fst x
-        unless (null $ xdeppkgns \\ x') $
-            fail "runInstallXdeps: integrity check failed"
-        return [ (n,PkgCstrInstalled) | n <- x' \\ xdeppkgns ]
+            xcstrs' = [ (n,PkgCstrInstalled) | n <- x' \\ xdeppkgns ] -- new additional xcstrs
+            missing = xdeppkgns \\ x' -- deps that are missing from the install-plan
+
+        -- when x contains no more unwanted deps, verify that x still contains everything we asked for
+        when (null xcstrs' && not (null missing)) $
+            fail (unlines [ "runInstallXdeps: integrity check failed", "xcstrs0 = "++show xcstrs0, "xdeps = "++show (map fst xdeps), "x = "++show x
+                          , "missing = "++show missing, "xcstrs' = "++show xcstrs' ])
+        return xcstrs'
 
 
 ----------------------------------------------------------------------------
