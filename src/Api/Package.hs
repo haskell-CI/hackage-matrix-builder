@@ -13,7 +13,7 @@ import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import qualified Data.ByteString.Lazy as L
-import           Data.List            (foldl', isSuffixOf)
+import           Data.List
 import qualified Data.Map.Strict      as Map
 import           Data.Ord
 import           Data.Text            (pack, unpack)
@@ -93,7 +93,7 @@ listLatestReport = mkListing jsonO handler
 
 reportsByStamp :: IO [ReportTime]
 reportsByStamp
-   =  fmap (map toReportTime) $ filesByStamp (flip $ comparing snd) (".json" `isSuffixOf`) "report"
+   =  fmap (map toReportTime . sortBy (flip $ comparing snd)) $ filesByStamp (".json" `isSuffixOf`) "report"
   where
     toReportTime :: (Text,UTCTime) -> ReportTime
     toReportTime (a,b) = ReportTime

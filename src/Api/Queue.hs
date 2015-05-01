@@ -1,14 +1,14 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 module Api.Queue (resource) where
 
 import           Control.Monad.Except
-import           Data.List            (isPrefixOf)
-import           Data.Ord
-import           Data.Text            (Text)
 import           Rest
 import qualified Rest.Resource        as R
 
 import           Api.Root             (Root)
 import           Api.Utils
+import           Queue
 
 resource :: Resource Root Root Void () Void
 resource = mkResourceId
@@ -20,5 +20,5 @@ resource = mkResourceId
 list :: ListHandler Root
 list = mkListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [Text]
-    handler r = liftIO . fmap (listRange r . map fst) $ filesByStamp (comparing snd) (not . ("." `isPrefixOf`)) "queue"
+    handler :: Range -> ExceptT Reason_ Root [QueueItem]
+    handler r = listRange r <$> liftIO readQueue

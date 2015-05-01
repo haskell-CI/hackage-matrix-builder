@@ -41,11 +41,12 @@ library
     Api.Root
     Api.Types
     Api.Utils
-    WebServer
-    Generate
     BuildReport
     BuildTypes
     Builder
+    Generate
+    Queue
+    WebServer
 
   build-depends:
     aeson             >=0.8  && <0.9,

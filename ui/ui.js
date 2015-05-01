@@ -142,10 +142,12 @@
 
     function ok (queue, res) {
 
-
       cont.find("#queue-list").html("").append
-        ( queue.items.map(function (i) {
-            return $("<li>").append(packageLink(i));
+        ( queue.items.map(function (i,x) {
+            return $("<tr>").append
+                      ( $("<td>").addClass("package-name").append(packageLink(i.packageName))
+                      , $("<td>").addClass("priority").addClass(i.priority).text(i.priority)
+                      );
           })
         );
 

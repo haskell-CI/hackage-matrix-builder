@@ -8,7 +8,6 @@ import qualified Data.ByteString.Lazy  as L
 import           Data.List.Split
 import qualified Data.Map              as Map
 import           Data.Text             (unpack)
-import qualified Data.Text             as T
 import           Happstack.Server.Auth (basicAuth)
 import           Rest
 import qualified Rest.Resource         as R
@@ -17,6 +16,7 @@ import           System.IO
 
 import           Api.Package           (PackageIdentifier (..), WithPackage)
 import           Api.Types
+import           Queue
 
 data ReportIdentifier = Latest
 
@@ -40,9 +40,7 @@ create = mkInputHandler jsonI handler
         [u,p] -> do
           lift $ basicAuth "localhost" (Map.fromList [(u, p)]) $ return ()
           Name pkg <- ask
-          liftIO $ do
-            createDirectoryIfMissing True "queue"
-            writeFile ("queue/" ++ T.unpack pkg) (prioToString prio)
+          liftIO $ Queue.addToQueue (unpack pkg) prio
         _ -> do
           liftIO $ hPutStrLn stderr "Failure reading auth file"
           throwError Busy

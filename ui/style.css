@@ -138,12 +138,12 @@ body {
 
 /** Table **/
 
-table {
+#page-package table {
   border: 3px solid black;
   border-collapse: collapse;
 }
 
-td {
+#page-package td {
   border-top:    1px dotted black;
   border-bottom: 1px dotted black;
   border-right:  1px solid black;
@@ -154,32 +154,32 @@ td {
   padding-right: 5px;
 }
 
-th {
+#page-package th {
   border: 1px solid black;
   padding-left: 5px;
   padding-right: 5px;
   font-family: Helvetica, sans-serif;
 }
 
-th.pkgv {
+#page-package th.pkgv {
   text-align: left;
   background-color: #eeeeee;
   font-family: Helvetica, sans-serif;
 }
 
-tr.first-minor { border-top: 3px solid black; }
-tr.first-major { border-top: 5px solid black; }
+#page-package tr.first-minor { border-top: 3px solid black; }
+#page-package tr.first-major { border-top: 5px solid black; }
 
-td.pass-build { background-color: #00ff00; }
-td.pass-no-ip { background-color: #007700; }
-td.pass-no-op { background-color: #00cc00; }
-td.fail-build { background-color: #ff0000; }
-td.fail-dep-build { background-color: #770000; }
-td.fail-unknown { background-color: #000000; }
+#page-package td.pass-build { background-color: #00ff00; }
+#page-package td.pass-no-ip { background-color: #007700; }
+#page-package td.pass-no-op { background-color: #00cc00; }
+#page-package td.fail-build { background-color: #ff0000; }
+#page-package td.fail-dep-build { background-color: #770000; }
+#page-package td.fail-unknown { background-color: #000000; }
 
-.fail-build:hover, .fail-dep-build:hover { cursor: pointer; }
+#page-package .fail-build:hover, .fail-dep-build:hover { cursor: pointer; }
 
-td.stcell {
+#page-package td.stcell {
   text-align: center;
 }
 
@@ -202,6 +202,21 @@ td.stcell {
 }
 #page-packages #packages-only-reports {
   margin-left: 50px;
+}
+
+/** Latest **/
+
+#queue-list td {
+  padding: 0px 10px 0 0;
+}
+#queue-list .priority.high {
+  color: black;
+}
+#queue-list .priority.medium {
+  color: #999;
+}
+#queue-list .priority.low {
+  color: #DDD;
 }
 
 /** jQuery UI tweaks **/

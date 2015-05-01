@@ -35,7 +35,6 @@ data ReportTime = ReportTime
 instance ToJSON     ReportTime where toJSON    = gtoJsonWithSettings    reportTimeSettings
 instance FromJSON   ReportTime where parseJSON = gparseJsonWithSettings reportTimeSettings
 instance JSONSchema ReportTime where schema    = gSchemaWithSettings    reportTimeSettings
-
 reportTimeSettings :: Settings
 reportTimeSettings = Settings { stripPrefix = Just "rt_" }
 
@@ -202,19 +201,3 @@ data DepFailure = DepFailure
 instance ToJSON     DepFailure where toJSON    = gtoJson
 instance FromJSON   DepFailure where parseJSON = gparseJson
 instance JSONSchema DepFailure where schema    = gSchema
-
-data Priority
-  = Low
-  | Medium
-  | High
-  deriving (Eq, Generic, Show)
-
-prioToString :: Priority -> String
-prioToString = \case
-  Low    -> "low"
-  Medium -> "medium"
-  High   -> "high"
-
-instance ToJSON     Priority where toJSON    = gtoJson
-instance FromJSON   Priority where parseJSON = gparseJson
-instance JSONSchema Priority where schema    = gSchema
