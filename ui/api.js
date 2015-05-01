@@ -216,18 +216,6 @@ MatrixApi.prototype.Package.byName =
       };
     return accessor;
   };
-MatrixApi.prototype.Package.latestReport =
-  function ()
-  {
-    var postfix = 'latest-report/';
-    var accessor = new this(this.contextUrl + postfix, this.secureContextUrl + postfix, this.modifyRequest);
-    accessor.get =
-      function (success, error, params, callOpts)
-      {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
-      };
-    return accessor;
-  };
 MatrixApi.prototype.Package.list =
   function (success, error, params, callOpts)
   {
@@ -251,6 +239,18 @@ MatrixApi.prototype.Package.prototype.Report =
     }
   };
 MatrixApi.prototype.Package.prototype.Report.apiObjectType = "resourceDir";
+MatrixApi.prototype.Package.prototype.Report.latest =
+  function ()
+  {
+    var postfix = 'latest/';
+    var accessor = new this(this.contextUrl + postfix, this.secureContextUrl + postfix, this.modifyRequest);
+    accessor.get =
+      function (success, error, params, callOpts)
+      {
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+      };
+    return accessor;
+  };
 MatrixApi.prototype.Package.prototype.Report.create =
   function (json, success, error, params, callOpts)
   {

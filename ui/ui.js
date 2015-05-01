@@ -239,7 +239,7 @@
       renderNotFound(pkgName);
       return;
     }
-    api.Package.byName(pkgName).get(renderPackage.bind(null, pkgName), renderPackage.bind(null, pkgName, null));
+    api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName), renderPackage.bind(null, pkgName, null));
   }
 
   function packageUri (pkgName) {

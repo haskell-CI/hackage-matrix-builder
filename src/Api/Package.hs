@@ -2,7 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 {-# OPTIONS -fno-warn-orphans #-}
-module Api.Package (resource, WithPackage, Identifier (..)) where
+module Api.Package
+  ( WithPackage
+  , PackageIdentifier (..)
+  , resource
+  , reportsByStamp
+  ) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
@@ -18,37 +23,30 @@ import           Rest
 import           Rest.Info            (Info (..))
 import qualified Rest.Resource        as R
 import           Rest.ShowUrl
-import           Safe
-import           System.Directory
 
 import           Api.Root             (Root)
 import           Api.Types
 import           Api.Utils
 import           BuildTypes
 
-data Identifier
-  = Name Text
-  | LatestReport
+data PackageIdentifier = Name Text
 
 data Listing
   = All
   | LatestReports
 
-instance Info Identifier where
+instance Info PackageIdentifier where
   describe _ = "identifier"
 
-instance ShowUrl Identifier where
-  showUrl = \case
-    Name t       -> unpack t
-    LatestReport -> "latest-report"
+instance ShowUrl PackageIdentifier where
+  showUrl (Name t) = unpack t
 
-type WithPackage = ReaderT Identifier Root
+type WithPackage = ReaderT PackageIdentifier Root
 
-resource :: Resource Root WithPackage Identifier Listing Void
+resource :: Resource Root WithPackage PackageIdentifier Listing Void
 resource = mkResourceReader
   { R.name   = "package"
   , R.schema = withListing All $ named [ ("name"          , singleBy (Name . pack))
-                                       , ("latest-report" , single LatestReport)
                                        , ("latest-reports", listing LatestReports)
                                        ]
   , R.get    = Just get
@@ -56,6 +54,12 @@ resource = mkResourceReader
      All           -> list
      LatestReports -> listLatestReport
   }
+
+get :: Handler WithPackage
+get = mkConstHandler jsonO handler
+  where
+    handler :: ExceptT Reason_ WithPackage ()
+    handler = return ()
 
 newtype PackageMeta = PackageMeta { meta_name :: Text }
   deriving (Eq, Show)
@@ -86,25 +90,6 @@ listLatestReport = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [ReportTime]
     handler r = listRange r <$> liftIO reportsByStamp
-
-get :: Handler WithPackage
-get = mkConstHandler jsonO handler
-  where
-    handler :: ExceptT Reason_ WithPackage ReportDataJson
-    handler = do
-      ident <- ask
-      case ident of
-        Name t      -> byName t
-        LatestReport -> do
-          latest <- liftIO (fmap headMay reportsByStamp) `orThrow` NotFound
-          byName $ rt_packageName latest
-    byName :: Text -> ExceptT Reason_ WithPackage ReportDataJson
-    byName t = do
-      let fp = "report/" ++ unpack t ++ ".json"
-      exists <- liftIO $ doesFileExist fp
-      unless exists $ throwError NotFound
-      f <- liftIO $ L.readFile fp
-      maybe (throwError Busy) (return . reportDataJson) . decode $ f
 
 reportsByStamp :: IO [ReportTime]
 reportsByStamp
