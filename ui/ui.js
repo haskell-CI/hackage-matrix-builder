@@ -233,6 +233,14 @@
           fromUri(packageUri(v.item.value));
         }
       });
+    $("#search").keydown(function (e) {
+      if (e.which === 13) {
+        e.preventDefault();
+        e.stopPropagation();
+        fromUri(packageUri($(this).val()));
+        return;
+      }
+    });
   }
 
   function selectedPackage (pkgName) {
