@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
 module Api.Types where
 
 import           Control.Arrow
@@ -11,7 +12,6 @@ import           Data.List              (groupBy)
 import qualified Data.Map.Strict        as Map
 import           Data.String
 import           Data.String.ToString
-import qualified Data.Text              as T
 import           Data.Time
 import           Generics.Generic.Aeson
 import           Rest.Info
@@ -35,7 +35,6 @@ data PackageListItem = PackageListItem
 instance ToJSON     PackageListItem where toJSON    = gtoJsonWithSettings    packageListItemSettings
 instance FromJSON   PackageListItem where parseJSON = gparseJsonWithSettings packageListItemSettings
 instance JSONSchema PackageListItem where schema    = gSchemaWithSettings    packageListItemSettings
-
 packageListItemSettings :: Settings
 packageListItemSettings = Settings { stripPrefix = Just "pli" }
 
@@ -74,7 +73,7 @@ reportDataJson = \case
       }
     where
       toVer (x,(y,z)) = Ver
-        { version       = V { segments = unPkgVer x, name = T.unpack $ tshowPkgVer x }
+        { version       = Version $ tshowPkgVer x
         , revision      = y
         , bo            = z
         }
@@ -121,25 +120,24 @@ verMinor v = case unPkgVer v of
   a:b:c:_ -> [a,b,c]
 
 pkgVerToV :: PkgVer -> V
-pkgVerToV p = V (unPkgVer p) (T.unpack . tshowPkgVer $ p)
+pkgVerToV = V . Version . tshowPkgVer
 
 ghcVerToV :: GhcVer -> V
-ghcVerToV g = V
-  { segments = ghcVerSegments g
-  , name     = ghcVerName     g
-  }
+ghcVerToV = V . Version . ghcVerName
 
 data V = V
-  { segments :: [Word]
-  , name     :: String
+  { name :: Version
   } deriving (Show, Generic)
 
 instance ToJSON     V where toJSON    = gtoJson
 instance FromJSON   V where parseJSON = gparseJson
 instance JSONSchema V where schema    = gSchema
 
+newtype Version = Version { unVersion :: Text }
+  deriving (Eq, FromJSON, JSONSchema, Ord, Show, ToJSON)
+
 data Ver = Ver
-  { version  :: V
+  { version  :: Version
   , revision :: PkgRev
   , bo       :: Bool
   } deriving (Generic, Show)
@@ -168,7 +166,7 @@ ghcVerSegments = \case
   GHC_7_08 -> [7,8]
   GHC_7_10 -> [7,10]
 
-ghcVerName :: GhcVer -> String
+ghcVerName :: GhcVer -> Text
 ghcVerName = \case
   GHC_7_00 -> "7.0"
   GHC_7_02 -> "7.2"
