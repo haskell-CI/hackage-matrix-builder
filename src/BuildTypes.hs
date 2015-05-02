@@ -1,11 +1,11 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE StandaloneDeriving    #-}
+{-# LANGUAGE ViewPatterns          #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -27,34 +27,34 @@ module BuildTypes
 
 import           Control.DeepSeq
 import           Control.Monad
-import qualified Crypto.Hash.SHA256 as SHA256
-import           Data.Aeson (FromJSON,ToJSON)
-import qualified Data.Aeson as J
+import qualified Crypto.Hash.SHA256           as SHA256
+import           Data.Aeson                   (FromJSON, ToJSON)
+import qualified Data.Aeson                   as J
 import           Data.Bifunctor
 import           Data.Binary
 import           Data.Bitraversable
 import           Data.Bits
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Base16 as B16
-import qualified Data.ByteString.Char8 as BC
+import           Data.ByteString              (ByteString)
+import qualified Data.ByteString.Base16       as B16
+import qualified Data.ByteString.Char8        as BC
 import           Data.Coerce
 import           Data.Hashable
 -- import           Data.List
-import qualified Data.Map as Map
+import qualified Data.Map                     as Map
 import           Data.Maybe
 import           Data.Monoid
-import qualified Data.Set as Set
+import qualified Data.Set                     as Set
 import           Data.String
 import           Data.String.ToString
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Data.Text.Binary ()
-import qualified Data.Text.Encoding as T
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import           Data.Text.Binary             ()
+import qualified Data.Text.Encoding           as T
 import           Data.Version
 import           GHC.Generics
 import           Numeric.Natural
 import           System.Exit
-import           Text.ParserCombinators.ReadP (readP_to_S, ReadP)
+import           Text.ParserCombinators.ReadP (ReadP, readP_to_S)
 
 -- orphans
 deriving instance Generic ExitCode
@@ -144,6 +144,22 @@ type PkgRev  = Word
 
 type PkgId   = (PkgName,PkgVer)
 
+data PkgFlag = PkgFlagSet !Text
+             | PkgFlagUnset !Text
+             deriving (Show,Read,Eq,Ord,Generic,NFData,FromJSON,ToJSON)
+
+type PkgIdFlags = (PkgId,[PkgFlag])
+
+tshowPkgFlag :: PkgFlag -> Text
+tshowPkgFlag (PkgFlagSet t)    = T.cons '+' t
+tshowPkgFlag (PkgFlagUnset t)  = T.cons '-' t
+
+tshowPkgIdFlags :: PkgIdFlags -> Text
+tshowPkgIdFlags (pkgid,flgs) = tshowPkgId pkgid <> case flgs of
+    []    -> ""
+    (_:_) -> T.cons ':' (T.intercalate "," (map tshowPkgFlag flgs))
+
+
 tshowPkgId :: PkgId -> Text
 tshowPkgId (PkgName n,v)
   | T.null vs = n -- version-less package id
@@ -178,17 +194,20 @@ instance Read SbId where
 instance ToFP SbId where
     toFP = T.unpack . coerce
 
-mkSbId :: PkgId -> [PkgId] -> SbId
-mkSbId pkgid deps = SbId $ mconcat [tshowPkgId pkgid, "_", coerce (hashDeps deps)]
+mkSbId :: PkgIdFlags -> [PkgIdFlags] -> SbId
+mkSbId dep0@(pkgid,_) deps = SbId $ mconcat [tshowPkgId pkgid, "_", coerce (hashDeps $ dep0:deps)]
 
 unSbId :: SbId -> (PkgId,DepHash)
 unSbId = force . bimap parsePkgId' (DepHash . T.tail) . T.break (=='_') . coerce
 
 ----------------------------------------------------------------------------
 
+data IPType = IPNewPkg | IPNewVer | IPReInst
+            deriving (Show,Read,Eq,Generic,NFData)
+
 data DryResult
     = AlreadyInstalled !PkgId           -- ^ target already installed, nothing to do
-    | InstallPlan      !PkgId [PkgId] [PkgId]  -- ^ install-plan for target, required
+    | InstallPlan      !PkgId [PkgFlag] [(PkgId,[PkgFlag],[PkgId],IPType)] [PkgId]  -- ^ install-plan for target, required
                                                -- sub-targets, and reinstall-affected
                                                -- packages
     | NoInstallPlan    !Int !ByteString -- ^ failed to find valid install plan
@@ -210,7 +229,7 @@ solveResultToPkgVer SolveNoInstall   = Nothing
 dryToSolveResult :: DryResult -> SolveResult
 dryToSolveResult = \case
     AlreadyInstalled pid -> SolveNoOp (snd pid)
-    InstallPlan pid _ _  -> SolveInstall (snd pid)
+    InstallPlan pid _ _ _  -> SolveInstall (snd pid)
     NoInstallPlan _ _    -> SolveNoInstall
 
 data SbExitCode
@@ -233,7 +252,7 @@ data BuildResult
 newtype DepHash = DepHash Text
                 deriving (Eq,Ord,Generic,NFData)
 
-hashDeps :: [PkgId] -> DepHash
+hashDeps :: [PkgIdFlags] -> DepHash
 hashDeps = DepHash . T.decodeUtf8 . B16.encode . SHA256.hash . BC.pack . show
 
 type PkgVerPfx = [Word]
@@ -241,16 +260,21 @@ type PkgVerPfx = [Word]
 data PkgCstr = PkgCstrEq  !PkgVer
              | PkgCstrPfx PkgVerPfx  -- ^ @PkgCstrPfx []@ means no constraint at all
              | PkgCstrInstalled
+             | PkgCstrFlag !PkgFlag
              deriving (Show,Read,Generic,NFData,Eq,Ord,FromJSON,ToJSON)
 
 cstrFromPkgId :: PkgId -> (PkgName,PkgCstr)
-cstrFromPkgId = fmap PkgCstrEq
+cstrFromPkgId = bimap id PkgCstrEq
+
+cstrsFromPkgIdFlags :: PkgIdFlags -> [(PkgName,PkgCstr)]
+cstrsFromPkgIdFlags (pid,fls) = cstrFromPkgId pid : [(fst pid,PkgCstrFlag fl)|fl<-fls]
 
 tshowPkgCstr :: (PkgName,PkgCstr) -> Text
 tshowPkgCstr (PkgName n,cstr) = case cstr of
     PkgCstrEq v      -> n <> " ==" <> tshowPkgVer v
     PkgCstrPfx v     -> n <> " ==" <> T.intercalate "." (map showWord v ++ ["*"])
     PkgCstrInstalled -> n <> " installed"
+    PkgCstrFlag f    -> n <> " " <> tshowPkgFlag f
   where
     showWord :: Word -> Text
     showWord = T.pack . show

@@ -1,8 +1,8 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
 module Builder (defaultMain) where
@@ -10,33 +10,41 @@ module Builder (defaultMain) where
 import           BuildReport
 import           BuildTypes
 
-import           Development.Shake
+import           Development.Shake          hiding ((*>))
 import           Development.Shake.Classes
 -- import           Development.Shake.Command
 import           Development.Shake.FilePath
 -- import           Development.Shake.Util
 
 import           Control.DeepSeq
-import           Control.Exception (evaluate)
+import           Control.Exception          (evaluate)
+import           Control.Lens               hiding ((<.>))
 import           Control.Monad
-import qualified Data.Aeson as J
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BC
-import qualified Data.ByteString.Lazy as BL
+import qualified Data.Aeson                 as J
+import qualified Data.ByteString            as B
+import qualified Data.ByteString.Char8      as BC
+import qualified Data.ByteString.Lazy       as BL
+import qualified Data.Char                  as C
 import           Data.List
-import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict            as Map
 import           Data.Maybe
 import           Data.Monoid
+import qualified Data.Set                   as Set
 import           Data.String
 import           Data.String.ToString
-import qualified Data.Text as T
-import qualified Data.Text.IO as T
-import           Data.Text.Encoding (decodeUtf8)
-import           System.Directory (getAppUserDataDirectory, createDirectory, createDirectoryIfMissing, getCurrentDirectory)
-import qualified System.Directory as D
+import qualified Data.Text                  as T
+import           Data.Text.Encoding         (decodeUtf8)
+import qualified Data.Text.IO               as T
+import           System.Directory           (createDirectory,
+                                             createDirectoryIfMissing,
+                                             getAppUserDataDirectory,
+                                             getCurrentDirectory)
+import qualified System.Directory           as D
 import           System.IO
 import           System.IO.Unsafe
-import           Text.Read (readMaybe)
+import qualified Text.Parsec                as P
+import qualified Text.Parsec.Text           as P
+import           Text.Read                  (readMaybe)
 
 ----------------------------------------------------------------------------
 -- Filesystem configuration
@@ -176,11 +184,11 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                  , " (Hackage-Etag = ", etag, ")"
                  ]
 
-        (sout,serr,tmp) <- dryInstall' gv pkgid []
+        (sout,serr,iplan) <- dryInstall' gv pkgid []
 
         bwriteFileChanged (out -<.> "iplan_stdout") sout
         bwriteFileChanged (out -<.> "iplan_stderr") serr
-        swriteFileChanged out tmp
+        swriteFileChanged out iplan
 
     "report/*/*.solver" %> \out -> do
         let (pkgn,gv) = splitSolvPath out
@@ -210,14 +218,18 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
             AlreadyInstalled _ -> return BuildNop
             NoInstallPlan _ _  -> return BuildNoIp
 
-            InstallPlan _ sbcfg _ -> do
-                xdeps <- computeXDeps gv sbcfg
+            InstallPlan pkgid' pkgflgs sbcfg _ -> do
+                unless (pkgid' == pkgid) $
+                    fail (unwords [show pkgid', "/=", show pkgid])
+
+                let pkg0 = (pkgid,pkgflgs)
+                    xdeps = computeXDeps pkg0 sbcfg
 
                 forM_ xdeps $ \(p1,p1deps) -> do
-                    putLoudT [tshowPkgId p1, " ==> ", T.unwords (map tshowPkgId p1deps)]
+                    putLoudT [tshowPkgIdFlags p1, " ==> ", T.unwords (map tshowPkgIdFlags p1deps)]
                     updateXDeps p1 [ (x,fromJust $ lookup x xdeps) | x <- p1deps ]
 
-                (sout, blog, rc) <- withTempDir $ \tmpdir -> runInstallXdeps tmpdir gv pkgid xdeps
+                (sout, blog, rc) <- withTempDir $ \tmpdir -> runInstallXdeps tmpdir gv pkg0 xdeps
                 bwriteFileChanged (out -<.> "build_stdout") sout
                 bwriteFileChanged (out -<.> "build_log") blog
 
@@ -239,12 +251,12 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
     -- "sandboxes/*/*.d/.cabal-sandbox/logs/build.log"
         let (sbid,gv) = splitSbPath out
             sbdir = "sandboxes" </> toFP sbid </> toFP gv <.> "d"
-            (pkgid,_) = unSbId sbid
+            -- (pkgid,_) = unSbId sbid
 
         -- avoid rebuilding existing sandboxes
         outExists <- liftIO $ D.doesFileExist out
         unless outExists $ do
-            xdeps <- lookupXDeps sbid
+            (pkg0,xdeps) <- lookupXDeps sbid
 
             -- putNormal $ "...with deps: " ++ show (map (tshowPkgId . fst) xdeps)
 
@@ -252,7 +264,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
             liftIO $ removeFiles sbdir ["//*"] >> createDirectory sbdir
 
             -- will create 'exit.code' file
-            void $ runInstallXdeps sbdir gv pkgid xdeps
+            void $ runInstallXdeps sbdir gv pkg0 xdeps
 
     -- phony "clean" $ do
     --     putNormal "Cleaning files..."
@@ -269,8 +281,9 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
     ghcOpt <- addGhcPath gv
     -- command_ [Cwd tmpdir, ghcOpt, EchoStdout False, Traced "cabal-sandbox-init"] cabalExe [ "sandbox", "init" ]
     (Exit rc, Stdout sout, Stderr serr) <-
-        command [ghcOpt, Traced "cabal-install-dry"] cabalExe $
+        command [ghcOpt, Traced "xcabal-install-dry"] xcabalExe $
         [ "--ignore-sandbox", "install"
+        , "-v2"
         , "--global"
         , "--with-ghc", ghcbin
         , "--max-backjumps=-1"
@@ -288,75 +301,121 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
   where
     ghcbin = ghcBinPath gv <> "ghc"
 
-    go sout serr
-        | B.isInfixOf "All the requested packages are already installed:" sout = AlreadyInstalled (head out2)
---      | last out' /= pkgid = error $ "dryInstall: internal inconsistency" ++ show (out', pkgid)
-        | otherwise          = InstallPlan (last out') (init out') bpkgs
+    go sout serr = case soutlines of
+        (_:"In order, the following would be installed:":depls) ->
+            let deps = map (parseDepLine . decodeUtf8) depls
+                goal = last deps
+                subgs = init deps
+            in InstallPlan (goal^._1) (goal^._2) subgs bpkgs
+
+        (_:"All the requested packages are already installed:":depls) ->
+            let deps = map (parsePkgId' . decodeUtf8 . BC.takeWhile (/= ' ')) depls
+            in AlreadyInstalled (head deps)
+
+        _ -> error ("dryInstall: unexpected output " ++ show soutlines)
+
       where
-        out' = map (parsePkgId' . decodeUtf8 . BC.takeWhile (/= ' ')) $
-               tail $
-               dropWhile (not . B.isPrefixOf "In order, the following would be installed") $
-               BC.lines sout
+        soutlines = dropWhile (/= "Resolving dependencies...") $ BC.lines sout
 
-        out2 = map (parsePkgId' . decodeUtf8 . BC.takeWhile (/= ' ')) $
-               tail $
-               dropWhile (not . B.isPrefixOf "All the requested packages are already installed:") $
-               BC.lines sout
+        bpkgs = case dropWhile (not . B.isPrefixOf "Warning: The following packages are likely to be broken by the reinstalls:") $ BC.lines serr of
+            (_:depls) -> map (parsePkgId' . decodeUtf8) depls
+            []        -> []
 
+        -- <pkgid> ('(latest: ' <lver> ')')?  ((+|-)<flag>)* ('(via: ' <pkgid>+ ')')? ...
+        parseDepLine l = either (\e -> error (unlines ["parseDepLine", show l, show e])) id
+                         . P.parse (depline <* P.eof) "" $ l
+          where
+            depline :: P.Parser  (PkgId, [PkgFlag], [PkgId], IPType) -- (T.Text, [T.Text], [T.Text])
+            depline = do
+                pid <- pkgid <* spc
+                _ <- P.optionMaybe (P.try (P.string "(latest: ") *> pkgv <* P.string ") ")
+                flgs <- (P.try flg) `P.endBy` spc
+                -- _ <- stanza `P.endBy` spc
+                dps <- P.option [] (P.try (P.string "(via: ") *> (pkgid `P.sepBy` spc) <* P.string ") ")
+                ty <- P.choice [ P.try (P.string "(new package)") *> pure IPNewPkg
+                               , P.try (P.string "(new version)") *> pure IPNewVer
+                               ,        P.string "(reinstall)"    *> pure IPReInst
+                                 <* P.optionMaybe (P.string " (changes: " *> P.many (P.noneOf ")") <* P.char ')')
+                               ]
 
-        bpkgs | B.isInfixOf "Warning: The following packages are likely to be broken by the reinstalls:" serr
-              = map (parsePkgId' . decodeUtf8) $
-                tail $
-                dropWhile (not . B.isPrefixOf "Warning: The following packages are likely to be broken by the reinstalls:") $
-                BC.lines serr
-              | otherwise = []
+                pid' <-       maybe (fail "bad pkg-id") return . parsePkgId . T.pack $ pid
+                dps' <- mapM (maybe (fail "bad pkg-id") return . parsePkgId . T.pack) dps
+
+                return (pid', flgs, dps', ty)
+
+            spc   = void (P.char ' ')
+            pkgv  = P.many1 (P.satisfy (\c -> C.isDigit c || c == '.'))
+            pkgid = P.many1 (P.satisfy (\c -> C.isAlphaNum c || c `elem` ['-','.']))
+            flgid = P.many1 (P.satisfy (\c -> C.isAlphaNum c || c `elem` ['-','_']))
+            flg = do
+                b <- (=='+') <$> P.oneOf "+-"
+                (if b then PkgFlagSet else PkgFlagUnset) . T.pack <$> flgid
 
 ----------------------------------------------------------------------------
 
-type XDeps = [(PkgId, [PkgId])]
+-- | Install-plan represented as list of @(pkg, fwd-deps)@ pairs
+--
+-- the total list, as well as the fwd-deps lists are topologically sorted
+type XDeps = [(PkgIdFlags,[PkgIdFlags])]
 
-updateXDeps :: PkgId -> XDeps -> Action ()
-updateXDeps pkgid xdeps
-    = unless (null xdeps) $ do
-        liftIO $ createDirectoryIfMissing False "deps"
-        swriteFileChanged ("deps" </> toFP (mkSbId pkgid deps) <.> "xdeplist") xdeps
+-- | Compute (transitive-flattened) forward-xdeps
+computeXDeps :: PkgIdFlags -> [(PkgId, [PkgFlag], [PkgId], IPType)] -> XDeps
+computeXDeps (pkgid0,_) ds =
+    force [ (mkpidfl pid,map mkpidfl (getdeps pid)) | pid <- pkgids ]
   where
-    deps = map fst xdeps
+    pkgids = ds^..traversed._1
 
-lookupXDeps :: SbId -> Action XDeps
-lookupXDeps sbid
-  | hashDeps [] == snd (unSbId sbid) = pure []
-  | otherwise = do
-      let (_,dephash) = unSbId sbid
-      xdeps <- sreadFile ("deps" </> toFP sbid <.> "xdeplist")
-      unless (hashDeps (map fst xdeps) == dephash) $
-          fail ("lookupXDeps "++ show sbid ++ ": integrity check failed")
-      return xdeps
+    topsort xs
+      | Set.member pkgid0 xss = error "computeXDeps: cycle detected"
+      | otherwise = [ p | p <- pkgids, Set.member p xss ]
+      where
+        xss = Set.fromList xs
 
--- TODO: extend 'cabal install --dry' to print out dep-graph to avoid calling multiple times into cabal
-computeXDeps :: GhcVer -> [PkgId] -> Action XDeps
-computeXDeps gv sbcfg = do
-    let cstrs = map cstrFromPkgId sbcfg
-    forM sbcfg $ \p1 -> do
-        (_,_,InstallPlan p1' p1deps _) <- dryInstall' gv p1 cstrs
-        unless (p1 == p1') $ fail "WTF"
-        return (p1, p1deps)
+    mkpidfl pid = Map.findWithDefault (error "computeXDeps") pid pkgflags
+    pkgflags = Map.fromList [ (pid,(pid,pfls)) | (pid, pfls, _, _) <- ds ]
+
+    -- list of pkg->pkg fwd-dep edges
+    fdeps = [ (p1,p2) | (p2,_,p1s,_) <- ds, p1 <- p1s ]
+
+    -- transitive closure; fdeps should be a DAG
+    getdeps pid = topsort $ Map.findWithDefault [] pid tfdeps -- is top-sorted
+    tfdeps = Map.fromListWith (++) . map (fmap (:[])) . Set.toAscList . transClosure . Set.fromList $ fdeps
+
+transClosure :: Ord a => Set (a,a) -> Set (a,a)
+transClosure clo0
+  | clo0 == clo1  = clo0
+  | otherwise     = transClosure clo1
+  where
+    clo1 = clo0 <> Set.fromList clo'
+    -- new transitive edges
+    clo' = [(a, c) | (a , b) <- Set.toList clo0
+                   , (b', c) <- Set.toList clo0
+                   , b == b'
+                   ]
+
+updateXDeps :: PkgIdFlags -> XDeps -> Action ()
+updateXDeps pkg deps = do
+    liftIO $ createDirectoryIfMissing False "deps"
+    swriteFileChanged ("deps" </> toFP (mkSbId pkg (map fst deps)) <.> "xdeps") (pkg,deps)
+
+lookupXDeps :: SbId -> Action (PkgIdFlags,XDeps)
+lookupXDeps sbid = do
+    (pkg,deps) <- sreadFile ("deps" </> toFP sbid <.> "xdeps")
+    unless (mkSbId pkg (map fst deps) == sbid) $
+        fail ("lookupXDeps "++ show sbid ++ ": integrity check failed")
+    return (pkg,deps)
 
 -- | @cabal install@ with exactly the 'XDeps'-specified build-dependencies
-runInstallXdeps :: FilePath -> GhcVer -> PkgId -> XDeps -> Action (ByteString, ByteString, SbExitCode)
+runInstallXdeps :: FilePath -> GhcVer -> PkgIdFlags -> XDeps -> Action (ByteString, ByteString, SbExitCode)
 runInstallXdeps sbdir gv pkgid xdeps = do
-    putNormalT [ "creating ", T.pack (show gv), " sandbox for ", tshowPkgId pkgid, "  ("
-               , T.unwords (map (tshowPkgId . fst) xdeps), ") at ", T.pack (show sbdir)
+    putNormalT [ "creating ", T.pack (show gv), " sandbox for ", tshowPkgIdFlags pkgid, "  ("
+               , T.unwords (map (tshowPkgIdFlags . fst) xdeps), ") at ", T.pack (show sbdir)
                ]
 
     -- maybe abort early and report only the first failed dep?
     need [ mkSbPath p1 p1deps </> "exit.code" | (p1,p1deps) <- xdeps ]
 
     oldcwd <- liftIO getCurrentDirectory
-
-    -- find out if additional constraints are needed keep extra build-deps beyond xdeps from sneaking in
-    -- NOTE/TODO: we could avoid this if we tracked the exact flag-settings of each package in 'XDeps'
-    xtraCstrs <- computeAllXtraCstrs
 
     -- initialise sandbox
     ghcOpt <- addGhcPath gv
@@ -385,7 +444,7 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                     cabalExe [ "sandbox", "hc-pkg", "--", "register", oldcwd </> pkgcfg ]
 
             -- do the build
-            (Exit rc, Stdouterr sout) <- command [Cwd sbdir, ghcOpt, Traced "cabal-install"] cabalExe $
+            (Exit rc, Stdouterr sout) <- command [Cwd sbdir, ghcOpt, Traced "xcabal-install"] xcabalExe $
                 [ "--require-sandbox", "install"
                 , "--with-ghc", ghcbin
                 , "--jobs=1"
@@ -394,25 +453,40 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                 , "--force-reinstalls"
                 , "--report-planning-failure"
                 , "--remote-build-reporting=detailed"
-                , T.unpack (tshowPkgId pkgid)
+                , toString (pkgid^._1._1 :: PkgName)
                 ]
-                ++ concat [ [ "--constraint", showPkgCstr c ] | c <- xdepcstrs++xtraCstrs ]
+                ++ concat [ [ "--constraint", showPkgCstr c ]
+                          | c <- cstrsFromPkgIdFlags pkgid ++ xdepcstrs ]
 
             bwriteFileChanged (sbdir </> "build.stdouterr") sout
 
             blog <- liftIO $ B.readFile (sbdir </> ".cabal-sandbox" </> "logs" </> "build.log")
                 -- TODO: parse build.log
 
+
             when (rc == ExitSuccess) $ do
+                let tpkgid = tshowPkgId (fst pkgid)
+                    installedPkgs = map (decodeUtf8 . BC.drop 10)
+                                    . filter (BC.isPrefixOf "Installed ") . BC.lines $ sout
+
+                -- simple sanity check
+                case installedPkgs of
+                    [] -> fail "runInstallXdeps: missing 'Installed'-line in output"
+                    [tpkgid'] -> unless (tpkgid' == tpkgid) $
+                                 fail (unwords [ "runInstallXdeps:"
+                                               , show tpkgid', "/=", show tpkgid
+                                               ])
+                    (_:_:_) -> fail ("runInstallXdeps: installedPkgs=" ++ show installedPkgs)
+
                 (Exit rc', Stdout pkgdump) <- command [ Cwd sbdir, ghcOpt, EchoStderr False
                                                       , Traced "cabal-sandbox-describe"]
                                               cabalExe [ "sandbox", "hc-pkg", "--", "describe"
-                                                       , T.unpack (tshowPkgId pkgid) ]
+                                                       , T.unpack tpkgid ]
                 case rc' of
                     ExitSuccess -> bwriteFileChanged (sbdir </> "pkg.cfg") (fixupPkgDump pkgdump)
                     ExitFailure _ ->
                         -- TODO: analyse 'sout' to verify non-library package
-                        putNormalT ["WARNING: no package ", tshowPkgId pkgid, " registered; assuming non-library package"]
+                        putNormalT ["WARNING: no package ", tpkgid, " registered; assuming non-library package"]
 
             -- TODO: validate resulting sandbox matches sandbox-specification
 
@@ -426,38 +500,10 @@ runInstallXdeps sbdir gv pkgid xdeps = do
   where
     mkSbPath p1 p1deps = "sandboxes" </> toFP (mkSbId p1 p1deps) </> toFP gv <.> "d"
 
-    xdeppkgns = map (fst . fst) xdeps
-    xdepcstrsv = [ (n,PkgCstrEq v) | ((n,v),_) <- xdeps ]
+    xdepcstrsv = concatMap (cstrsFromPkgIdFlags . fst) xdeps
     xdepcstrs  = xdepcstrsv <> [ (n,PkgCstrInstalled) | (n,_) <- xdepcstrsv ]
 
     ghcbin = ghcBinPath gv <> "ghc"
-
-    -- | 'xdepcstrsv' may leave some DOF, here we compute extra cstrs
-    -- needed to keep additional packages from sneaking into the
-    -- build-plan
-    computeAllXtraCstrs = go []
-      where
-        go xcstrs0 = do
-            xcstrs <- computeXtraCstrsStep xcstrs0
-            case xcstrs of
-                []    -> return xcstrs0
-                (_:_) -> do
-                    putNormal $ "WARNING: extra dependencies sneaked in: " ++ show (map fst xcstrs)
-                    go (xcstrs0++xcstrs)
-
-    computeXtraCstrsStep xcstrs0 = do
-        -- find out if additional constraints are needed
-        (_,_,InstallPlan _pkg0 x _) <- dryInstall' gv pkgid (xdepcstrsv++xcstrs0)
-        let x' = map fst x
-            xcstrs' = [ (n,PkgCstrInstalled) | n <- x' \\ xdeppkgns ] -- new additional xcstrs
-            missing = xdeppkgns \\ x' -- deps that are missing from the install-plan
-
-        -- when x contains no more unwanted deps, verify that x still contains everything we asked for
-        when (null xcstrs' && not (null missing)) $
-            fail (unlines [ "runInstallXdeps: integrity check failed", "xcstrs0 = "++show xcstrs0, "xdeps = "++show (map fst xdeps), "x = "++show x
-                          , "missing = "++show missing, "xcstrs' = "++show xcstrs' ])
-        return xcstrs'
-
 
 ----------------------------------------------------------------------------
 -- misc helpers

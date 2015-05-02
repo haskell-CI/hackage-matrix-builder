@@ -1,9 +1,9 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass        #-}
+{-# LANGUAGE DeriveGeneric         #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecordWildCards       #-}
 
 module BuildReport (ReportData(..), genHtmlReport, docToBS) where
 
@@ -12,12 +12,12 @@ import           Control.Lens
 import           Data.Bits
 import           Data.Function
 import           Data.List
-import qualified Data.Map.Strict as Map
+import qualified Data.Map.Strict          as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord
-import qualified Data.Set as Set
-import qualified Data.Text as T
+import qualified Data.Set                 as Set
+import qualified Data.Text                as T
 import           Text.XmlHtml
 
 import           BuildTypes
