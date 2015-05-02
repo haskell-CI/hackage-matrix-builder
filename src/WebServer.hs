@@ -15,6 +15,7 @@ defaultMain = do
   assertFile "auth" "trustee/1234"
   assertFile "ui/config.js" "var appConfig = { apiHost : '' };\n"
   assertFile "packages.json" "[]"
+  createDirectoryIfMissing False "queue"
 
   putStrLn "Starting server on port 3000"
   let serverData = ServerData
