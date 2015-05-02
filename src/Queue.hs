@@ -23,16 +23,15 @@ import           Data.List               (isPrefixOf, sortBy)
 import           Data.Maybe
 import           Data.Ord
 import           Data.String.Conversions
-import           Data.Text               (unpack)
+import           Data.String.ToString
 import           Data.Time
 import           Generics.Generic.Aeson
 import           System.Directory
 import           System.FilePath         ((</>))
 
+import           Api.Types               (PackageName (..))
 import           Api.Utils               (getDirWithFilter)
 import           BuildTypes
-
-type PackageName = Text
 
 get :: PackageName -> IO (Maybe QueueItem)
 get p = do
@@ -53,7 +52,7 @@ list :: IO [QueueItem]
 list
    =  fmap (sortBy (comparing $ (negate . fromEnum . qPriority &&& qModified) &&& qPackageName))
    .  fmap catMaybes
-   .  mapM get
+   .  mapM (get . PackageName)
   =<< getDirWithFilter (not . ("." `isPrefixOf`)) "queue"
 
 add :: PackageName -> Priority -> IO ()
@@ -78,7 +77,7 @@ remove pkg = do
   maybe (return False) ((>> return True) . removeFile . path . qPackageName) mq
 
 path :: PackageName -> FilePath
-path = ("queue" </>) . unpack
+path = ("queue" </>) . toString
 
 data Priority
   = Low
@@ -90,7 +89,7 @@ instance FromJSON   Priority where parseJSON = gparseJson
 instance JSONSchema Priority where schema    = gSchema
 
 data QueueItem = QueueItem
-  { qPackageName :: Text
+  { qPackageName :: PackageName
   , qModified    :: UTCTime
   , qPriority    :: Priority
   } deriving (Eq, Generic, Show)
@@ -102,7 +101,7 @@ queueItemSettings :: Settings
 queueItemSettings = Settings { stripPrefix = Just "q" }
 
 data Create = Create
-  { cPackageName :: Text
+  { cPackageName :: PackageName
   , cPriority    :: Priority
   } deriving (Eq, Generic, Show)
 instance ToJSON     Create where toJSON    = gtoJsonWithSettings    createSettings

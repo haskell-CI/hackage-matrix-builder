@@ -5,12 +5,12 @@ import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Aeson
 import qualified Data.ByteString.Lazy as L
-import           Data.Text            (unpack)
+import           Data.String.ToString
 import           Rest
 import qualified Rest.Resource        as R
 import           System.Directory
+import           System.FilePath
 
-import           Api.Package          (PackageIdentifier (..), WithPackage)
 import           Api.Types
 
 data ReportIdentifier = Latest
@@ -33,9 +33,9 @@ get = mkConstHandler jsonO handler
       ident <- ask
       case ident of
         Latest -> byName pn
-    byName :: PackageIdentifier -> ExceptT Reason_ WithReport ReportDataJson
-    byName (Name t) = do
-      let fp = "report/" ++ unpack t ++ ".json"
+    byName :: PackageName -> ExceptT Reason_ WithReport ReportDataJson
+    byName pkgName = do
+      let fp = "report" </> toString pkgName <.> "json"
       exists <- liftIO $ doesFileExist fp
       unless exists $ throwError NotFound
       f <- liftIO $ L.readFile fp

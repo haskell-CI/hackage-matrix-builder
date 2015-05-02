@@ -3,22 +3,20 @@
 module Api.Queue (resource) where
 
 import           Control.Monad.Except
-import           Control.Monad.Reader
-import           Data.Text            (Text, pack)
+import           Data.String
 import           Rest
 import qualified Rest.Resource        as R
 
 import           Api.Root             (Root)
+import           Api.Types            (PackageName, WithPackage)
 import           Api.Utils
 import           Queue                (Create (..), Priority, QueueItem)
 import qualified Queue                as Q
 
-type WithPackage = ReaderT Text Root
-
-resource :: Resource Root WithPackage Text () Void
+resource :: Resource Root WithPackage PackageName () Void
 resource = mkResourceReader
   { R.name   = "queue"
-  , R.schema = withListing () $ named [("name", singleBy pack)]
+  , R.schema = withListing () $ named [("name", singleBy fromString)]
   , R.list   = const list
   , R.get    = Just get
   , R.create = Just create
@@ -29,7 +27,7 @@ resource = mkResourceReader
 get :: Handler WithPackage
 get = mkIdHandler jsonO $ const handler
   where
-    handler :: Text -> ExceptT Reason_ WithPackage QueueItem
+    handler :: PackageName -> ExceptT Reason_ WithPackage QueueItem
     handler pkgName = liftIO (Q.get pkgName) `orThrow` NotFound
 
 list :: ListHandler Root
@@ -49,7 +47,7 @@ create = mkInputHandler jsonI handler
 update :: Handler WithPackage
 update = mkIdHandler (jsonO . jsonI) handler
   where
-    handler :: Priority -> Text -> ExceptT Reason_ WithPackage QueueItem
+    handler :: Priority -> PackageName -> ExceptT Reason_ WithPackage QueueItem
     handler prio pkgName = do
       secure
       liftIO (Q.update pkgName prio) `orThrow` NotFound
@@ -57,7 +55,7 @@ update = mkIdHandler (jsonO . jsonI) handler
 remove :: Handler WithPackage
 remove = mkIdHandler id $ const handler
   where
-    handler :: Text -> ExceptT Reason_ WithPackage ()
+    handler :: PackageName -> ExceptT Reason_ WithPackage ()
     handler pkgName = do
       secure
       void $ liftIO (Q.get pkgName) `orThrow` NotFound

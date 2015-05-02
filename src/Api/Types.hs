@@ -1,22 +1,34 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LambdaCase                 #-}
 module Api.Types where
 
 import           Control.Arrow
+import           Control.Monad.Reader   (ReaderT)
 import           Data.Aeson             (FromJSON (..), ToJSON (..))
 import           Data.JSON.Schema
 import           Data.List              (groupBy)
 import qualified Data.Map.Strict        as Map
+import           Data.String
 import           Data.String.ToString
 import qualified Data.Text              as T
 import           Data.Time
 import           Generics.Generic.Aeson
+import           Rest.Info
+import           Rest.ShowUrl
 
+import           Api.Root               (Root)
 import           BuildReport
 import           BuildTypes
 
+newtype PackageName = PackageName { unPackageName :: Text }
+ deriving (FromJSON, Eq, IsString, JSONSchema, Ord, Show, ToJSON, ToString, ShowUrl)
+instance Info PackageName where
+  describe _ = "identifier"
+type WithPackage = ReaderT PackageName Root
+
 data PackageListItem = PackageListItem
-  { pliName        :: Text
+  { pliName        :: PackageName
   , pliReportStamp :: Maybe UTCTime
   } deriving (Eq, Generic, Ord, Show)
 
@@ -28,7 +40,7 @@ packageListItemSettings :: Settings
 packageListItemSettings = Settings { stripPrefix = Just "pli" }
 
 data ReportTime = ReportTime
-  { rt_packageName :: Text
+  { rt_packageName :: PackageName
   , rt_reportStamp :: UTCTime
   } deriving (Eq, Generic, Ord, Show)
 
@@ -39,10 +51,15 @@ reportTimeSettings :: Settings
 reportTimeSettings = Settings { stripPrefix = Just "rt_" }
 
 data ReportDataJson = ReportDataJson
-  { pkgName     :: String
-  , versions    :: [[[Ver]]]
-  , ghcVersions :: [GVer]
+  { rdj_pkgName     :: PackageName
+  , rdj_versions    :: [[[Ver]]]
+  , rdj_ghcVersions :: [GVer]
   } deriving (Generic, Show)
+instance ToJSON     ReportDataJson where toJSON    = gtoJsonWithSettings reportDataJsonSettings
+instance FromJSON   ReportDataJson where parseJSON = gparseJsonWithSettings reportDataJsonSettings
+instance JSONSchema ReportDataJson where schema    = gSchemaWithSettings reportDataJsonSettings
+reportDataJsonSettings :: Settings
+reportDataJsonSettings = Settings { stripPrefix = Just "rdj_" }
 
 reportDataJson :: ReportData -> ReportDataJson
 reportDataJson = \case
@@ -51,9 +68,9 @@ reportDataJson = \case
     , rdVersions  = b
     , rdGVersions = c
     } -> ReportDataJson
-      { pkgName     = toString a
-      , versions    = map (map (map toVer)) . map (groupBy minorVersionGrouping) . groupBy majorVersionGrouping . Map.toList $ b
-      , ghcVersions = map f . Map.toList $ c
+      { rdj_pkgName     = fromString . toString $ a
+      , rdj_versions    = map (map (map toVer)) . map (groupBy minorVersionGrouping) . groupBy majorVersionGrouping . Map.toList $ b
+      , rdj_ghcVersions = map f . Map.toList $ c
       }
     where
       toVer (x,(y,z)) = Ver
@@ -78,7 +95,7 @@ reportDataJson = \case
         BuildFail t     -> Fail t
         BuildFailDeps l -> FailDeps . map (\((xx,xy),y) -> DepFailure
           { pkgId   = PackageId
-            { pPackageName    = toString xx
+            { pPackageName    = fromString $ toString xx
             , pPackageVersion = pkgVerToV xy
           }
           , message = y
@@ -111,10 +128,6 @@ ghcVerToV g = V
   { segments = ghcVerSegments g
   , name     = ghcVerName     g
   }
-
-instance ToJSON     ReportDataJson where toJSON    = gtoJson
-instance FromJSON   ReportDataJson where parseJSON = gparseJson
-instance JSONSchema ReportDataJson where schema    = gSchema
 
 data V = V
   { segments :: [Word]
@@ -187,7 +200,7 @@ instance FromJSON   Result where parseJSON = gparseJson
 instance JSONSchema Result where schema    = gSchema
 
 data PackageId = PackageId
-  { pPackageName    :: String
+  { pPackageName    :: PackageName
   , pPackageVersion :: V
   } deriving (Generic, Show)
 instance ToJSON     PackageId where toJSON    = gtoJson
