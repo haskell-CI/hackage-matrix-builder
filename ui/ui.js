@@ -23,6 +23,10 @@
     });
 
     $("body").delegate("a", "click", function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.which != 1) {
+        return;
+      }
+
       var currentUri = new Uri(window.location.href);
       var linkUri = new Uri($(this).attr("href"));
 
