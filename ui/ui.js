@@ -380,7 +380,7 @@
     var corner = $("<th>").append($("<a>").attr("href", "https://hackage.haskell.org/package/" + pkgName)
                                           .text(pkgName));
     var headers = p.ghcVersions.map(function (ghcVersion) {
-      var ghcVersionName = ghcVersion.ghcVer.name;
+      var ghcVersionName = ghcVersion.ghcVer;
       return $("<th>").text(ghcVersionName);
     });
     t.append($("<thead>").append($("<tr>").append(corner, headers)));
@@ -395,7 +395,7 @@
         newMinorVersion = true;
         versions.forEach(function (version) {
           iii++;
-          var versionName = version.version.name;
+          var versionName = version.version;
 
           var th = $("<th>")
             .addClass("pkgv")
@@ -411,7 +411,7 @@
           var tds = p.ghcVersions.map(function (ghcVersion, ghcI) {
             var td = $("<td>").addClass("stcell");
             var ghcVersion = ghcVersion;
-            var ghcVersionName = ghcVersion.ghcVer.name;
+            var ghcVersionName = ghcVersion.ghcVer;
             var res = ghcVersion.resultsA[iii];
             td.attr("data-ghc-version", ghcVersionName)
               .attr("data-package-version", versionName);
@@ -479,9 +479,9 @@
     function setupFailDepsTabs (ghcVersion, r) {
       setupTabs
         ( r.map(function (v, i) {
-            return { label    : "GHC-" + ghcVersion + "/" + v.pkgId.pPackageName + "-" + v.pkgId.pPackageVersion.name
+            return { label    : "GHC-" + ghcVersion + "/" + v.packageName + "-" + v.packageVersion
                    , contents : $("<div>").append
-                                  ( packageLink(v.pkgId.pPackageName).text("Go to this package")
+                                  ( packageLink(v.packageName).text("Go to this package")
                                   , $("<pre>").addClass("log-entry").text(v.message)
                                   )
                    };
@@ -495,12 +495,12 @@
         /^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash);
         var ghcVersion     = RegExp.$1;
         var packageVersion = RegExp.$2;
-        var ghcVer = p.ghcVersions.filter(function (v) { return v.ghcVer.name === ghcVersion; })[0];
+        var ghcVer = p.ghcVersions.filter(function (v) { return v.ghcVer === ghcVersion; })[0];
         if (!ghcVer) {
           console.warn("Could not find ghc version: GHC-" + ghcVersion);
           return;
         }
-        var res = ghcVer.resultsA.filter(function (v) { return v.pkgVersion.name === packageVersion; })[0];
+        var res = ghcVer.resultsA.filter(function (v) { return v.packageVersion === packageVersion; })[0];
         if (!res) {
           console.warn("Could not find ghc/package version: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
           return;
