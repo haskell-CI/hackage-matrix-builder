@@ -56,7 +56,7 @@ reportTimeSettings = Settings { stripPrefix = Just "rt_" }
 data ReportDataJson = ReportDataJson
   { rdj_packageName :: PackageName
   , rdj_versions    :: [[[Ver]]]
-  , rdj_ghcVersions :: [GVer]
+  , rdj_ghcVersions :: [GHCResult]
   } deriving (Generic, Show)
 instance ToJSON     ReportDataJson where toJSON    = gtoJsonWithSettings reportDataJsonSettings
 instance FromJSON   ReportDataJson where parseJSON = gparseJsonWithSettings reportDataJsonSettings
@@ -82,14 +82,17 @@ reportDataJson = \case
         , bo            = z
         }
       f :: (GhcVer, (PkgVer, Map PkgVer BuildResult, Map PkgVerPfx (Maybe PkgVer)))
-        -> GVer
-      f (w,(x,y,z)) = GVer
-        { ghcVer     = ghcVerToV w
-        , packageVer = pkgVerToV x
+        -> GHCResult
+      f (w,(x,y,z)) = GHCResult
+        { ghcVersion = Version $ ghcVerName w
+        , packageVer = Version $ tshowPkgVer x
         , resultsA   = map toVersionResult . Map.toList $ y
-        , resultsB   = map (second $ fmap pkgVerToV) . Map.toList $ z
+        , resultsB   = map (second $ fmap (Version . tshowPkgVer)) . Map.toList $ z
         }
-      toVersionResult (v,r) = VersionResult { packageVersion = pkgVerToV v, result = br r }
+      toVersionResult (v,r) = VersionResult
+        { packageVersion = Version $ tshowPkgVer v
+        , result         = br r
+        }
       br :: BuildResult -> Result
       br = \case
         BuildOk         -> Ok
@@ -98,7 +101,7 @@ reportDataJson = \case
         BuildFail t     -> Fail t
         BuildFailDeps l -> FailDeps . map (\((xx,xy),y) -> DepFailure
           { dfPackageName    = fromString $ toString xx
-          , dfPackageVersion = pkgVerToV xy
+          , dfPackageVersion = Version $ tshowPkgVer xy
           , dfMessage        = y
           }) $ l
 
@@ -121,11 +124,8 @@ verMinor v = case unPkgVer v of
   [a,b]   -> [a,b,0]
   a:b:c:_ -> [a,b,c]
 
-pkgVerToV :: PkgVer -> Version
-pkgVerToV = Version . tshowPkgVer
-
-ghcVerToV :: GhcVer -> Version
-ghcVerToV = Version . ghcVerName
+unPkgVer :: PkgVer -> [Word]
+unPkgVer (PkgVer ws) = ws
 
 data Ver = Ver
   { version  :: Version
@@ -137,16 +137,16 @@ instance ToJSON     Ver where toJSON    = gtoJson
 instance FromJSON   Ver where parseJSON = gparseJson
 instance JSONSchema Ver where schema    = gSchema
 
-data GVer = GVer
-  { ghcVer     :: Version
+data GHCResult = GHCResult
+  { ghcVersion :: Version
   , packageVer :: Version
   , resultsA   :: [VersionResult]
   , resultsB   :: [(PkgVerPfx, Maybe Version)]
   } deriving (Generic, Show)
 
-instance ToJSON     GVer where toJSON    = gtoJson
-instance FromJSON   GVer where parseJSON = gparseJson
-instance JSONSchema GVer where schema    = gSchema
+instance ToJSON     GHCResult where toJSON    = gtoJson
+instance FromJSON   GHCResult where parseJSON = gparseJson
+instance JSONSchema GHCResult where schema    = gSchema
 
 ghcVerSegments :: GhcVer -> [Word]
 ghcVerSegments = \case
@@ -165,9 +165,6 @@ ghcVerName = \case
   GHC_7_06 -> "7.6"
   GHC_7_08 -> "7.8"
   GHC_7_10 -> "7.10"
-
-unPkgVer :: PkgVer -> [Word]
-unPkgVer (PkgVer ws) = ws
 
 data VersionResult = VersionResult
   { packageVersion :: Version
