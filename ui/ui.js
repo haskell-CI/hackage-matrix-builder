@@ -170,7 +170,7 @@
           if (currPrio === "low"   ) return "medium";
         })();
 
-        api.Package.byName(pkgName).Report.create(newPrio, loadQueue);
+        api.Queue.saveByName(pkgName, newPrio, loadQueue);
       }
 
       function prioDown (pkgName, currPrio, e) {
@@ -183,20 +183,27 @@
           if (currPrio === "medium") return "low";
         })();
 
-        api.Package.byName(pkgName).Report.create(newPrio, loadQueue);
+        api.Queue.saveByName(pkgName, newPrio, loadQueue);
+      }
+
+      function remove (pkgName, e) {
+        e.preventDefault(); e.stopPropagation();
+
+        api.Queue.byName(pkgName).remove(loadQueue);
       }
 
       cont.find("#queue-list").html("").append
         ( queue.items.map(function (i,x) {
             return $("<tr>").addClass(i.priority).append
-                      ( $("<td>").addClass("package-name").append(packageLink(i.packageName))
+                      ( $("<td>").addClass("num").text(x+1)
+                      , $("<td>").addClass("package-name").append(packageLink(i.packageName))
                       , $("<td>").addClass("priority").addClass(i.priority).text(i.priority)
                       , $("<td>").append
-                          ( $("<a>").addClass("up").text("↑").click(prioUp.bind(null, i.packageName, i.priority))
-                          )
+                          ( $("<a>").addClass("up").text("↑").click(prioUp.bind(null, i.packageName, i.priority)) )
                       , $("<td>").append
-                          ( $("<a>").addClass("down").text("↓").click(prioDown.bind(null, i.packageName, i.priority))
-                          )
+                          ( $("<a>").addClass("down").text("↓").click(prioDown.bind(null, i.packageName, i.priority)) )
+                      , $("<td>").append
+                          ( $("<a>").addClass("remove").text("╳").click(remove.bind(null, i.packageName)) )
                       );
           })
         );
@@ -324,7 +331,7 @@
     $("#queueing .action").click(function () {
       var prio = $("#queueing .prio").val();
       $("#queueing .form").hide();
-      api.Package.byName(pkgName).Report.create(prio, function () {
+      api.Queue.create({ packageName : pkgName, priority : prio }, function () {
         $("#queueing .success").show();
       }, function () {
         $("#queueing .error").show();

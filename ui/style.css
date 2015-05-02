@@ -209,6 +209,9 @@ body {
 #queue-list td {
   padding: 0px 10px 0 0;
 }
+#queue-list .num {
+  text-align: right;
+}
 #queue-list .priority.high {
   color: black;
 }
