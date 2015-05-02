@@ -327,6 +327,9 @@
 
   function setupBuildQueuer (pkgName) {
     cleanupBuildQueuer();
+    api.Queue.byName(pkgName).get(function (q) {
+      $("#queueing .already-queued").show();
+    });
 
     $("#queueing .action").click(function () {
       var prio = $("#queueing .prio").val();
@@ -344,6 +347,7 @@
     $("#queueing .action").off("click");
     $("#queueing .success").hide();
     $("#queueing .error").hide();
+    $("#queueing .already-queued").hide();
   }
 
   function setupTabs (messages) {

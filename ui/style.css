@@ -106,6 +106,10 @@ body {
   overflow: scroll;
 }
 
+#queueing .already-queued {
+  display: none;
+}
+
 /* Right column */
 
 .right {
@@ -134,6 +138,11 @@ body {
 
 .right label {
   font-size: 12px;
+}
+
+.already-queued {
+  font-size: 14px;
+  margin-bottom: 5px;
 }
 
 /** Table **/
