@@ -16,6 +16,7 @@ import           Development.Shake.Classes
 import           Development.Shake.FilePath
 -- import           Development.Shake.Util
 
+import           Control.Concurrent.MVar
 import           Control.DeepSeq
 import           Control.Exception          (evaluate)
 import           Control.Lens               hiding ((<.>))
@@ -36,7 +37,6 @@ import qualified Data.Text                  as T
 import           Data.Text.Encoding         (decodeUtf8)
 import qualified Data.Text.IO               as T
 import           System.Directory           (createDirectory,
-                                             createDirectoryIfMissing,
                                              getAppUserDataDirectory,
                                              getCurrentDirectory)
 import qualified System.Directory           as D
@@ -89,6 +89,9 @@ data HackageEtagQ = HackageEtagQ
 newtype GhcVerQ = GhcVerQ GhcVer
                 deriving (Eq,Show,NFData,Generic,Hashable,Binary)
 
+newtype PkgAutoFlagsQ = PkgAutoFlagsQ PkgId
+                      deriving (Eq,Show,NFData,Generic,Hashable,Binary)
+
 ----------------------------------------------------------------------------
 
 defaultMain :: IO ()
@@ -105,11 +108,35 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
     getXRev <- addOracle $ \(PkgRevQ (pkgn,pkgv)) -> do
         vs <- readXListFile ("report" </> toFP pkgn <.> "idx")
-        let vs' = [ r | (n, v, r, _) <- vs, n == pkgn, v == pkgv ]
+        let vs' = [ r | (n, v, r, _, _) <- vs, n == pkgn, v == pkgv ]
         case vs' of
             []  -> return Nothing
             [r] -> return (Just r)
             _   -> fail "getXRev: internal inconsistency"
+
+    getAutoFlags <- addOracle $ \(PkgAutoFlagsQ (pkgn,pkgv)) -> do
+        vs <- readXListFile ("report" </> toFP pkgn <.> "idx")
+        let fls' = [ fls | (n, v, _, _, fls) <- vs, n == pkgn, v == pkgv ]
+        case fls' of
+            []  -> return Nothing
+            [r] -> return (Just r)
+            _   -> fail "getAutoFlags: internal inconsistency"
+
+    let normPkgIdFlags (pkg,pkgfls) = do
+            aflags <- maybe [] id <$> getAutoFlags (PkgAutoFlagsQ pkg)
+
+            let aflags' = [ f | f <- aflags, pkgFlagName f `notElem` pkgfns ]
+                afns   = map pkgFlagName aflags
+                pkgfns = map pkgFlagName pkgfls
+
+                pkgfls' = pkgfls ++ aflags'
+
+            unless (all (`elem` afns) pkgfns) $
+                fail (unwords $ [show pkg, ":", show pkgfls,"not-in", show aflags])
+
+            -- liftIO $ print (pkg,pkgfls,aflags,aflags')
+
+            return (pkg,pkgfls')
 
     getHackageEtag <- addOracle $ \HackageEtagQ ->
         sreadFile (indexTar <.> "gz" <.> "etag")
@@ -141,7 +168,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
 
         vs <- readXListFile idxfn
 
-        let vs' = [ v | (n, v, _r, _) <- vs, n == pkgn ]
+        let vs' = [ v | (n, v, _r, _, _) <- vs, n == pkgn ]
 
         unless (length vs == length vs') $
             fail "internal error"
@@ -167,7 +194,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         -- TODO
         jwriteFileChanged out ReportData
             { rdPkgName   = pkgn
-            , rdVersions  = Map.fromList [ (v,(r,u)) | (n, v, r, u) <- vs, n == pkgn ]
+            , rdVersions  = Map.fromList [ (v,(r,u/=NormalPref)) | (n, v, r, u, _) <- vs, n == pkgn ]
             , rdGVersions = Map.fromList matrix
             }
 
@@ -197,7 +224,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         vs4 <- readXListFile idxfn
         _ <- getHackageEtag HackageEtagQ
 
-        let pkgvs = [ v | (n,v,_,_) <- vs4, n == pkgn ]
+        let pkgvs = [ v | (n,v,_,_,_) <- vs4, n == pkgn ]
 
         majSols <- forM (sort $ nub $ map majorVer pkgvs) $ \(v1,v2) -> do
             (_,_,rc) <- dryInstall gv pkgn [(pkgn, PkgCstrPfx [v1,v2])]
@@ -222,14 +249,15 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
                 unless (pkgid' == pkgid) $
                     fail (unwords [show pkgid', "/=", show pkgid])
 
-                let pkg0 = (pkgid,pkgflgs)
+                let pkg0  = (pkgid,pkgflgs)
                     xdeps = computeXDeps pkg0 sbcfg
 
                 forM_ xdeps $ \(p1,p1deps) -> do
+                    let deps = [ (x,fromJust $ lookup x xdeps) | x <- p1deps ]
+                    updateXDeps gv p1 deps
                     putLoudT [tshowPkgIdFlags p1, " ==> ", T.unwords (map tshowPkgIdFlags p1deps)]
-                    updateXDeps p1 [ (x,fromJust $ lookup x xdeps) | x <- p1deps ]
 
-                (sout, blog, rc) <- withTempDir $ \tmpdir -> runInstallXdeps tmpdir gv pkg0 xdeps
+                (sout, blog, rc) <- withTempDir $ \tmpdir -> runInstallXdeps tmpdir gv pkg0 xdeps normPkgIdFlags
                 bwriteFileChanged (out -<.> "build_stdout") sout
                 bwriteFileChanged (out -<.> "build_log") blog
 
@@ -256,7 +284,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         -- avoid rebuilding existing sandboxes
         outExists <- liftIO $ D.doesFileExist out
         unless outExists $ do
-            (pkg0,xdeps) <- lookupXDeps sbid
+            (pkg0,xdeps) <- lookupXDeps gv sbid
 
             -- putNormal $ "...with deps: " ++ show (map (tshowPkgId . fst) xdeps)
 
@@ -264,7 +292,7 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
             liftIO $ removeFiles sbdir ["//*"] >> createDirectory sbdir
 
             -- will create 'exit.code' file
-            void $ runInstallXdeps sbdir gv pkg0 xdeps
+            void $ runInstallXdeps sbdir gv pkg0 xdeps normPkgIdFlags
 
     -- phony "clean" $ do
     --     putNormal "Cleaning files..."
@@ -393,21 +421,38 @@ transClosure clo0
                    , b == b'
                    ]
 
-updateXDeps :: PkgIdFlags -> XDeps -> Action ()
-updateXDeps pkg deps = do
-    liftIO $ createDirectoryIfMissing False "deps"
-    swriteFileChanged ("deps" </> toFP (mkSbId pkg (map fst deps)) <.> "xdeps") (pkg,deps)
 
-lookupXDeps :: SbId -> Action (PkgIdFlags,XDeps)
-lookupXDeps sbid = do
-    (pkg,deps) <- sreadFile ("deps" </> toFP sbid <.> "xdeps")
-    unless (mkSbId pkg (map fst deps) == sbid) $
-        fail ("lookupXDeps "++ show sbid ++ ": integrity check failed")
-    return (pkg,deps)
+xdepsDict :: MVar (Map.Map (GhcVer,SbId) (PkgIdFlags,XDeps))
+xdepsDict = unsafePerformIO $ newMVar (Map.empty)
+{-# NOINLINE xdepsDict #-}
+
+updateXDeps :: GhcVer -> PkgIdFlags -> XDeps -> Action ()
+updateXDeps gv pkg xdeps = liftIO $ modifyMVar_ xdepsDict $ \d -> do
+    case Map.lookup (gv,sbid) d of
+        Just (pkg',xdeps') -> do -- NOOP
+            unless (pkg' == pkg) $
+                fail ("updateXDeps "++ show (gv,sbid) ++ ": " ++ show pkg' ++ " /= " ++ show pkg)
+            unless (xdeps' == xdeps) $
+                fail ("updateXDeps "++ show (gv,sbid) ++ ": " ++ show xdeps' ++ " /= " ++ show xdeps)
+            return d
+        Nothing -> evaluate (Map.insert (gv,sbid) (pkg,xdeps) d)
+  where
+    sbid = mkSbId pkg (map fst xdeps)
+
+lookupXDeps :: GhcVer -> SbId -> Action (PkgIdFlags,XDeps)
+lookupXDeps gv sbid = liftIO $ withMVar xdepsDict $ \d -> do
+    case Map.lookup (gv,sbid) d of
+        Nothing -> fail ("lookupXDeps "++ show (gv,sbid) ++ ": entry not found")
+        Just (pkg,deps) -> do
+            unless (mkSbId pkg (map fst deps) == sbid) $
+                fail ("lookupXDeps "++ show (gv,sbid) ++ ": integrity check failed")
+            return (pkg,deps)
+
 
 -- | @cabal install@ with exactly the 'XDeps'-specified build-dependencies
-runInstallXdeps :: FilePath -> GhcVer -> PkgIdFlags -> XDeps -> Action (ByteString, ByteString, SbExitCode)
-runInstallXdeps sbdir gv pkgid xdeps = do
+runInstallXdeps :: FilePath -> GhcVer -> PkgIdFlags -> XDeps -> (PkgIdFlags -> Action PkgIdFlags)
+                   -> Action (ByteString, ByteString, SbExitCode)
+runInstallXdeps sbdir gv pkgid xdeps normPkgIdFlags = do
     putNormalT [ "creating ", T.pack (show gv), " sandbox for ", tshowPkgIdFlags pkgid, "  ("
                , T.unwords (map (tshowPkgIdFlags . fst) xdeps), ") at ", T.pack (show sbdir)
                ]
@@ -443,6 +488,12 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                 command_ [Cwd sbdir, ghcOpt, EchoStdout False, EchoStderr False, Traced "cabal-sandbox-register"]
                     cabalExe [ "sandbox", "hc-pkg", "--", "register", oldcwd </> pkgcfg ]
 
+            -- should be enough to only normalise only the current package goal
+            npkgid <- normPkgIdFlags pkgid
+
+            let xdepcstrsv = concatMap (cstrsFromPkgIdFlags . fst) xdeps
+                xdepcstrs  = xdepcstrsv <> [ (n,PkgCstrInstalled) | (n,_) <- xdepcstrsv ]
+
             -- do the build
             (Exit rc, Stdouterr sout) <- command [Cwd sbdir, ghcOpt, Traced "xcabal-install"] xcabalExe $
                 [ "--require-sandbox", "install"
@@ -456,13 +507,12 @@ runInstallXdeps sbdir gv pkgid xdeps = do
                 , toString (pkgid^._1._1 :: PkgName)
                 ]
                 ++ concat [ [ "--constraint", showPkgCstr c ]
-                          | c <- cstrsFromPkgIdFlags pkgid ++ xdepcstrs ]
+                          | c <- cstrsFromPkgIdFlags npkgid ++ xdepcstrs ]
 
             bwriteFileChanged (sbdir </> "build.stdouterr") sout
 
             blog <- liftIO $ B.readFile (sbdir </> ".cabal-sandbox" </> "logs" </> "build.log")
                 -- TODO: parse build.log
-
 
             when (rc == ExitSuccess) $ do
                 let tpkgid = tshowPkgId (fst pkgid)
@@ -499,9 +549,6 @@ runInstallXdeps sbdir gv pkgid xdeps = do
             return $!! (sout,blog,src)
   where
     mkSbPath p1 p1deps = "sandboxes" </> toFP (mkSbId p1 p1deps) </> toFP gv <.> "d"
-
-    xdepcstrsv = concatMap (cstrsFromPkgIdFlags . fst) xdeps
-    xdepcstrs  = xdepcstrsv <> [ (n,PkgCstrInstalled) | (n,_) <- xdepcstrsv ]
 
     ghcbin = ghcBinPath gv <> "ghc"
 
@@ -574,13 +621,22 @@ jwriteFileChanged fn = bwriteFileChanged fn . BL.toStrict . J.encode
 
 
 -- | ...
-readXListFile :: FilePath -> Action [(PkgName, PkgVer, PkgRev, Bool)]
+readXListFile :: FilePath -> Action [(PkgName, PkgVer, PkgRev, PkgVerStatus, [PkgFlag])]
 readXListFile fn = do
     lns <- treadFileLines fn
     return $!! map (go . T.words) lns
   where
-    go [n0,v0,r0,d0] = (PkgName n0, parsePkgVer' v0, tread r0, tread d0)
+    go (n0:v0:r0:d0:fls) = (PkgName n0, parsePkgVer' v0, tread r0, readPkgPref d0, map readPkgFlag fls)
     go _             = error "readXListFile"
+
+    readPkgPref "N" = NormalPref
+    readPkgPref "U" = UnPreferred
+    readPkgPref t   = error ("readPkgPref "++show t)
+
+    readPkgFlag t = case T.uncons t of
+        Just ('-', n) -> PkgFlagUnset n
+        Just ('+', n) -> PkgFlagSet   n
+        _             -> error ("readPkgFlag " ++ show t)
 
 -- | ...
 splitRepPath :: FilePath -> (PkgName, PkgVer, GhcVer)

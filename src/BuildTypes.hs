@@ -146,7 +146,11 @@ type PkgId   = (PkgName,PkgVer)
 
 data PkgFlag = PkgFlagSet !Text
              | PkgFlagUnset !Text
-             deriving (Show,Read,Eq,Ord,Generic,NFData,FromJSON,ToJSON)
+             deriving (Show,Read,Eq,Ord,Generic,NFData,FromJSON,ToJSON,Hashable,Binary)
+
+pkgFlagName :: PkgFlag -> Text
+pkgFlagName (PkgFlagSet   t) = t
+pkgFlagName (PkgFlagUnset t) = t
 
 type PkgIdFlags = (PkgId,[PkgFlag])
 
@@ -256,6 +260,10 @@ hashDeps :: [PkgIdFlags] -> DepHash
 hashDeps = DepHash . T.decodeUtf8 . B16.encode . SHA256.hash . BC.pack . show
 
 type PkgVerPfx = [Word]
+
+-- | Represents preferred-versions information
+data PkgVerStatus = NormalPref | UnPreferred | Deprecated
+                  deriving (Eq,Show,Read,Generic,NFData,FromJSON,ToJSON)
 
 data PkgCstr = PkgCstrEq  !PkgVer
              | PkgCstrPfx PkgVerPfx  -- ^ @PkgCstrPfx []@ means no constraint at all
