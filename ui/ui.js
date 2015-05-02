@@ -374,12 +374,12 @@
   function renderSingleVersionMatrix (pkgName, p) {
     var t = $("<table>");
 
-    var cols = p.ghcVersions.length;
+    var cols = p.results.length;
     var rows = p.versions.length;
 
     var corner = $("<th>").append($("<a>").attr("href", "https://hackage.haskell.org/package/" + pkgName)
                                           .text(pkgName));
-    var headers = p.ghcVersions.map(function (ghcVersion) {
+    var headers = p.results.map(function (ghcVersion) {
       var ghcVersionName = ghcVersion.ghcVer;
       return $("<th>").text(ghcVersionName);
     });
@@ -408,10 +408,9 @@
                   : null
               );
 
-          var tds = p.ghcVersions.map(function (ghcVersion, ghcI) {
+          var tds = p.results.map(function (ghcVersion, ghcI) {
             var td = $("<td>").addClass("stcell");
-            var ghcVersion = ghcVersion;
-            var ghcVersionName = ghcVersion.ghcVer;
+            var ghcVersionName = ghcVersion.ghcVersion;
             var res = ghcVersion.resultsA[iii];
             td.attr("data-ghc-version", ghcVersionName)
               .attr("data-package-version", versionName);
@@ -495,7 +494,7 @@
         /^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash);
         var ghcVersion     = RegExp.$1;
         var packageVersion = RegExp.$2;
-        var ghcVer = p.ghcVersions.filter(function (v) { return v.ghcVer === ghcVersion; })[0];
+        var ghcVer = p.results.filter(function (v) { return v.ghcVersion === ghcVersion; })[0];
         if (!ghcVer) {
           console.warn("Could not find ghc version: GHC-" + ghcVersion);
           return;

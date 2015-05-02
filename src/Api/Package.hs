@@ -4,7 +4,6 @@
 {-# OPTIONS -fno-warn-orphans #-}
 module Api.Package
   ( resource
---  , reportsByStamp
   ) where
 
 import           Control.Monad.Except
@@ -46,25 +45,19 @@ get = mkConstHandler jsonO handler
     handler :: ExceptT Reason_ WithPackage ()
     handler = return ()
 
-newtype PackageMeta = PackageMeta { meta_name :: PackageName }
-  deriving (Eq, Show)
-
-instance FromJSON PackageMeta where
-  parseJSON = withObject "PackageMeta" $ fmap PackageMeta . (.: "packageName")
-
 list :: ListHandler Root
 list = mkListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [PackageListItem]
+    handler :: Range -> ExceptT Reason_ Root [PackageMeta]
     handler r = do
       reports <- liftIO reportsByStamp
       pkgs <- liftIO (decode <$> L.readFile "packages.json") `orThrow` Busy
-      return . listRange r . f reports . map meta_name $ pkgs
-    f :: [ReportTime] -> [PackageName] -> [PackageListItem]
+      return . listRange r . f reports . map summaryName $ pkgs
+    f :: [ReportMeta] -> [PackageName] -> [PackageMeta]
     f reps pkgs
-      = map (\(pn,rs) -> PackageListItem { pliName = pn, pliReportStamp = rs })
+      = map (\(pn,rs) -> PackageMeta { pmName = pn, pmReport = rs })
       . Map.toList
-      . foldl' (\pm rt -> Map.insert (rt_packageName rt) (Just $ rt_reportStamp rt) pm) pkgMap
+      . foldl' (\pm rt -> Map.insert (rmPackageName rt) (Just $ rmModified rt) pm) pkgMap
       $ reps
       where
         pkgMap :: Map PackageName (Maybe a)
@@ -73,15 +66,21 @@ list = mkListing jsonO handler
 listLatestReport :: ListHandler Root
 listLatestReport = mkListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [ReportTime]
+    handler :: Range -> ExceptT Reason_ Root [ReportMeta]
     handler r = listRange r <$> liftIO reportsByStamp
 
-reportsByStamp :: IO [ReportTime]
+reportsByStamp :: IO [ReportMeta]
 reportsByStamp
-   =  fmap (map toReportTime . sortBy (flip $ comparing snd)) $ filesByStamp (".json" `isSuffixOf`) "report"
+   =  fmap (map toReportMeta . sortBy (flip $ comparing snd)) $ filesByStamp (".json" `isSuffixOf`) "report"
   where
-    toReportTime :: (Text, UTCTime) -> ReportTime
-    toReportTime (a,b) = ReportTime
-      { rt_packageName = PackageName . T.reverse . T.drop 5 . T.reverse $ a
-      , rt_reportStamp = b
+    toReportMeta :: (Text, UTCTime) -> ReportMeta
+    toReportMeta (a,b) = ReportMeta
+      { rmPackageName = PackageName . T.reverse . T.drop 5 . T.reverse $ a
+      , rmModified    = b
       }
+
+newtype PackageSummary = PackageSummary { summaryName :: PackageName }
+  deriving (Eq, Show)
+
+instance FromJSON PackageSummary where
+  parseJSON = withObject "PackageMeta" $ fmap PackageSummary . (.: "packageName")

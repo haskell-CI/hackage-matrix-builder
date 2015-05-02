@@ -6,6 +6,7 @@ module Api.Utils
   , filesByStamp
   , getDirWithFilter
   , secure
+  , strip
   ) where
 
 import           Control.Arrow
@@ -15,6 +16,7 @@ import           Data.List.Split         (splitOn)
 import qualified Data.Map                as Map
 import           Data.Text               (Text, pack)
 import           Data.Time
+import           Generics.Generic.Aeson
 import           Happstack.Server.Auth   (basicAuth)
 import           Happstack.Server.Monads
 import           Rest
@@ -44,3 +46,6 @@ secure = do
     _ -> do
       liftIO $ hPutStrLn stderr "Failure reading auth file"
       throwError Busy
+
+strip :: String -> Settings
+strip = Settings . Just

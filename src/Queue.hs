@@ -30,7 +30,7 @@ import           System.Directory
 import           System.FilePath         ((</>))
 
 import           Api.Types               (PackageName (..))
-import           Api.Utils               (getDirWithFilter)
+import           Api.Utils
 import           BuildTypes
 
 get :: PackageName -> IO (Maybe QueueItem)
@@ -94,18 +94,14 @@ data QueueItem = QueueItem
   , qPriority    :: Priority
   } deriving (Eq, Generic, Show)
 
-instance ToJSON     QueueItem where toJSON    = gtoJsonWithSettings    queueItemSettings
-instance FromJSON   QueueItem where parseJSON = gparseJsonWithSettings queueItemSettings
-instance JSONSchema QueueItem where schema    = gSchemaWithSettings    queueItemSettings
-queueItemSettings :: Settings
-queueItemSettings = Settings { stripPrefix = Just "q" }
+instance ToJSON     QueueItem where toJSON    = gtoJsonWithSettings    $ strip "q"
+instance FromJSON   QueueItem where parseJSON = gparseJsonWithSettings $ strip "q"
+instance JSONSchema QueueItem where schema    = gSchemaWithSettings    $ strip "q"
 
 data Create = Create
   { cPackageName :: PackageName
   , cPriority    :: Priority
   } deriving (Eq, Generic, Show)
-instance ToJSON     Create where toJSON    = gtoJsonWithSettings    createSettings
-instance FromJSON   Create where parseJSON = gparseJsonWithSettings createSettings
-instance JSONSchema Create where schema    = gSchemaWithSettings    createSettings
-createSettings :: Settings
-createSettings = Settings { stripPrefix = Just "c" }
+instance ToJSON     Create where toJSON    = gtoJsonWithSettings    $ strip "c"
+instance FromJSON   Create where parseJSON = gparseJsonWithSettings $ strip "c"
+instance JSONSchema Create where schema    = gSchemaWithSettings    $ strip "c"

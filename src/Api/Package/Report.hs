@@ -27,16 +27,16 @@ resource = mkResourceReader
 get :: Handler WithReport
 get = mkConstHandler jsonO handler
   where
-    handler :: ExceptT Reason_ WithReport ReportDataJson
+    handler :: ExceptT Reason_ WithReport Report
     handler = do
       pn <- lift . lift $ ask
       ident <- ask
       case ident of
         Latest -> byName pn
-    byName :: PackageName -> ExceptT Reason_ WithReport ReportDataJson
+    byName :: PackageName -> ExceptT Reason_ WithReport Report
     byName pkgName = do
       let fp = "report" </> toString pkgName <.> "json"
       exists <- liftIO $ doesFileExist fp
       unless exists $ throwError NotFound
       f <- liftIO $ L.readFile fp
-      maybe (throwError Busy) (return . reportDataJson) . decode $ f
+      maybe (throwError Busy) (return . toReport) . decode $ f
