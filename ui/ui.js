@@ -379,9 +379,8 @@
 
     var corner = $("<th>").append($("<a>").attr("href", "https://hackage.haskell.org/package/" + pkgName)
                                           .text(pkgName));
-    var headers = p.results.map(function (ghcVersion) {
-      var ghcVersionName = ghcVersion.ghcVer;
-      return $("<th>").text(ghcVersionName);
+    var headers = p.results.map(function (result) {
+      return $("<th>").text(result.ghcFullVersion);
     });
     t.append($("<thead>").append($("<tr>").append(corner, headers)));
 
