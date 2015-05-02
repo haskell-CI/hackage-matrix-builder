@@ -30,7 +30,8 @@
       var currentUri = new Uri(window.location.href);
       var linkUri = new Uri($(this).attr("href"));
 
-      if ( (currentUri.host() !== linkUri.host() && linkUri.host())
+      if ( !$(this).attr("href")
+        || (currentUri.host() !== linkUri.host() && linkUri.host())
         || ((currentUri.path() === linkUri.path() || !linkUri.path()) && linkUri.anchor())
          ) {
         return true;
@@ -140,29 +141,66 @@
       setTimeout(renderLatest, 0);
     });
 
-    api.Queue.list(function (queue) {
-      api.Package.listLatestReports(ok.bind(null, queue), fail("Package.listLatestReports"), { count : 10 });
-    }, fail("Queue.list"));
+    api.Package.listLatestReports(renderReports, fail("Package.listLatestReports"), { count : 10 });
+    function loadQueue () {
+      api.Queue.list(renderQueue, fail("Queue.list"));
+    }
+    loadQueue();
 
-    function ok (queue, res) {
-
-      cont.find("#queue-list").html("").append
-        ( queue.items.map(function (i,x) {
-            return $("<tr>").append
-                      ( $("<td>").addClass("package-name").append(packageLink(i.packageName))
-                      , $("<td>").addClass("priority").addClass(i.priority).text(i.priority)
-                      );
-          })
-        );
-
+    function renderReports (reports) {
       cont.find("#build-list").html("").append
-        ( res.items.map(function (i) {
+        ( reports.items.map(function (i) {
             return $("<li>").append
               ( packageLink(i.packageName)
               , $("<small>").text(" - built " + formatDate(i.reportStamp))
               );
           })
         );
+    }
+
+    function renderQueue (queue) {
+
+      function prioUp (pkgName, currPrio, e) {
+        e.preventDefault(); e.stopPropagation();
+
+        if (currPrio === "high") return;
+
+        var newPrio = (function () {
+          if (currPrio === "medium") return "high";
+          if (currPrio === "low"   ) return "medium";
+        })();
+
+        api.Package.byName(pkgName).Report.create(newPrio, loadQueue);
+      }
+
+      function prioDown (pkgName, currPrio, e) {
+        e.preventDefault(); e.stopPropagation();
+
+        if (currPrio === "low") return;
+
+        var newPrio = (function () {
+          if (currPrio === "high"  ) return "medium";
+          if (currPrio === "medium") return "low";
+        })();
+
+        api.Package.byName(pkgName).Report.create(newPrio, loadQueue);
+      }
+
+      cont.find("#queue-list").html("").append
+        ( queue.items.map(function (i,x) {
+            return $("<tr>").addClass(i.priority).append
+                      ( $("<td>").addClass("package-name").append(packageLink(i.packageName))
+                      , $("<td>").addClass("priority").addClass(i.priority).text(i.priority)
+                      , $("<td>").append
+                          ( $("<a>").addClass("up").text("↑").click(prioUp.bind(null, i.packageName, i.priority))
+                          )
+                      , $("<td>").append
+                          ( $("<a>").addClass("down").text("↓").click(prioDown.bind(null, i.packageName, i.priority))
+                          )
+                      );
+          })
+        );
+
       cont.show();
     }
   }
