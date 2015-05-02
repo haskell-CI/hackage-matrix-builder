@@ -118,12 +118,12 @@
       pkgList.append
         ( window.allPackages.filter(function (v) {
               return v[0].toUpperCase() === selectedPrefix
-                 && (!showOnlyReports || window.allPackagesMore[v].lastReport);
+                 && (!showOnlyReports || window.allPackagesMore[v].report);
           }).map(function (v) {
-            var more = window.allPackagesMore[v].lastReport;
+            var date = window.allPackagesMore[v].report;
             return $("<li>").append
               ( packageLink(v)
-              , more && $("<small>").text(" - last built: " + formatDate(more))
+              , date && $("<small>").text(" - last built: " + formatDate(date))
               );
           })
         );
@@ -152,7 +152,7 @@
         ( reports.items.map(function (i) {
             return $("<li>").append
               ( packageLink(i.packageName)
-              , $("<small>").text(" - built " + formatDate(i.reportStamp))
+              , $("<small>").text(" - built " + formatDate(i.modified))
               );
           })
         );
@@ -254,7 +254,7 @@
         api.Package.list(function (l) {
           l.items.forEach(function (v) {
             window.allPackages.push(v.name);
-            window.allPackagesMore[v.name] = { name : v.name, lastReport : v.reportStamp };
+            window.allPackagesMore[v.name] = { name : v.name, report : v.report };
           });
           responses++;
           checkDone();
