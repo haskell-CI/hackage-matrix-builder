@@ -170,10 +170,13 @@ body {
   font-family: Helvetica, sans-serif;
 }
 
-#page-package th.pkgv {
+#page-package .pkgv {
   text-align: left;
   background-color: #eeeeee;
   font-family: Helvetica, sans-serif;
+}
+#page-package .pkgv .revision.newer-revision {
+  color: orange;
 }
 
 #page-package tr.first-minor { border-top: 3px solid black; }

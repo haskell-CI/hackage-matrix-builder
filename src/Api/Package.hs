@@ -1,26 +1,35 @@
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
-{-# OPTIONS -fno-warn-orphans #-}
 module Api.Package
   ( resource
+  , validatePackage
+  , loadPackageSummary
   ) where
 
 import           Control.Monad.Except
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import qualified Data.ByteString.Lazy as L
 import           Data.List
+import           Data.List.Split
 import qualified Data.Map.Strict      as Map
+import           Data.Maybe
 import           Data.Ord
 import           Data.String
+import           Data.String.ToString
 import qualified Data.Text            as T
 import           Data.Time
 import           Rest
 import qualified Rest.Resource        as R
+import           Safe
+import           System.IO
+import           System.Process
 
 import           Api.Root             (Root)
 import           Api.Types
 import           Api.Utils
+import           Builder              (xcabalExe)
 import           BuildTypes
 
 data Listing
@@ -40,10 +49,36 @@ resource = mkResourceReader
   }
 
 get :: Handler WithPackage
-get = mkConstHandler jsonO handler
+get = mkIdHandler jsonO $ const handler
   where
-    handler :: ExceptT Reason_ WithPackage ()
-    handler = return ()
+    handler :: PackageName -> ExceptT Reason_ WithPackage Package
+    handler pkgName = do
+      validatePackage pkgName
+      (ex,out,err) <- liftIO $ readProcessWithExitCode xcabalExe ["xlist", toString pkgName] ""
+      case ex of
+        ExitFailure e -> do
+          liftIO $ hPutStrLn stderr $ "xcabal xlist failed with " ++ show e ++ ", stderr: " ++ err
+          throwError Busy
+        ExitSuccess -> maybe (throwError Busy) return $ parseXcabal out
+
+parseXcabal :: String -> Maybe Package
+parseXcabal s = do
+  pkgName <- return . fromString =<< headMay . splitOn " " =<< headMay rows
+  return Package
+    { pName     = pkgName
+    , pVersions = versions
+    }
+  where
+    rows = lines s
+    versions = catMaybes $ map (f . splitOn " ") rows
+    f :: [String] -> Maybe VersionInfo
+    f = \case
+      [_,v,r,p] -> Just VersionInfo
+        { version     = fromString v
+        , revision    = fromMaybe (error "Bad revision") $ revisionFromString r
+        , unpreferred = readNote "Bad unpreferred" p
+        }
+      _ -> Nothing
 
 list :: ListHandler Root
 list = mkListing jsonO handler
@@ -51,8 +86,8 @@ list = mkListing jsonO handler
     handler :: Range -> ExceptT Reason_ Root [PackageMeta]
     handler r = do
       reports <- liftIO reportsByStamp
-      pkgs <- liftIO (decode <$> L.readFile "packages.json") `orThrow` Busy
-      return . listRange r . f reports . map summaryName $ pkgs
+      pkgs <- liftIO loadPackageSummary `orThrow` Busy
+      return . listRange r . f reports $ pkgs
     f :: [ReportMeta] -> [PackageName] -> [PackageMeta]
     f reps pkgs
       = map (\(pn,rs) -> PackageMeta { pmName = pn, pmReport = rs })
@@ -78,6 +113,14 @@ reportsByStamp
       { rmPackageName = PackageName . T.reverse . T.drop 5 . T.reverse $ a
       , rmModified    = b
       }
+
+validatePackage :: MonadIO m => PackageName -> ExceptT Reason_ m ()
+validatePackage pkgName = do
+ s <- liftIO loadPackageSummary `orThrow` NotFound
+ maybe (throwError NotFound) (const $ return ()) . find (== pkgName) $ s
+
+loadPackageSummary :: IO (Maybe [PackageName])
+loadPackageSummary = fmap (map summaryName) . decode <$> L.readFile "packages.json"
 
 newtype PackageSummary = PackageSummary { summaryName :: PackageName }
   deriving (Eq, Show)

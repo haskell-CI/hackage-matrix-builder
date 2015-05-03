@@ -13,6 +13,8 @@ import           Api.Utils
 import           Queue                (Create (..), Priority, QueueItem)
 import qualified Queue                as Q
 
+import           Api.Package          (validatePackage)
+
 resource :: Resource Root WithPackage PackageName () Void
 resource = mkResourceReader
   { R.name   = "queue"
@@ -42,6 +44,7 @@ create = mkInputHandler jsonI handler
     handler :: Create -> ExceptT Reason_ Root ()
     handler c = do
       secure
+      validatePackage (cPackageName c)
       liftIO $ Q.add (cPackageName c) (cPriority c)
 
 update :: Handler WithPackage

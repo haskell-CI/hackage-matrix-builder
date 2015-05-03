@@ -22,6 +22,7 @@ defaultMain = do
   simpleHTTP nullConf { port = 3000 } $ do
     (rsp,_) <- runRoot serverData $ getFilter router
     return rsp
+  waitForTermination
 
 assertFile :: FilePath -> String -> IO ()
 assertFile fp contents = do

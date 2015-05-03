@@ -5,7 +5,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Builder (defaultMain) where
+module Builder (defaultMain, xcabalExe) where
 
 import           BuildReport
 import           BuildTypes
@@ -40,8 +40,8 @@ import           System.Directory           (createDirectory,
                                              getAppUserDataDirectory,
                                              getCurrentDirectory)
 import qualified System.Directory           as D
-import           System.IO
-import           System.IO.Unsafe
+import           System.IO                  (IOMode (ReadMode), withFile)
+import           System.IO.Unsafe           (unsafePerformIO)
 import qualified Text.Parsec                as P
 import qualified Text.Parsec.Text           as P
 import           Text.Read                  (readMaybe)

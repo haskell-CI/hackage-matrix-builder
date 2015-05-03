@@ -73,7 +73,8 @@ library
     rest-gen           >=0.17 && <0.18,
     rest-happstack     >=0.2  && <0.3,
     rest-stringmap     >=0.2  && <0.3,
-    parsec              >=3.1  && <3.2,
+    parsec             >=3.1  && <3.2,
+    process            >=1.2  && <1.3,
     safe               >=0.3  && <0.4,
     shake              >=0.15 && <0.16,
     split              >=0.2  && <0.3,
@@ -118,4 +119,3 @@ executable web-gen
   build-depends:
     base                   >=4.8 && <4.9,
     hackage-matrix-builder
-

@@ -298,19 +298,23 @@
       renderNotFound(pkgName);
       return;
     }
-    api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName), renderPackage.bind(null, pkgName, null));
+    api.Package.byName(pkgName).get(function (pkg) {
+      api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName, pkg), renderPackage.bind(null, pkgName, pkg, null));
+    }, renderPackage.bind(null, pkgName, null, null, null));
   }
 
   function packageUri (pkgName) {
     return new Uri("/package/" + pkgName);
   }
 
-  function renderPackage (pkgName, p) {
+  function renderPackage (pkgName, pkg, report) {
     hidePages();
     $("#page-package .package-name").text(pkgName);
     $("#package").html("");
-    if (p) {
-      renderSingleVersionMatrix(pkgName, p);
+    if (pkg && report) {
+      var ghcs = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10"];
+      renderTable(pkgName, pkg, report, ghcs);
+      renderSingleVersionMatrix(pkgName, pkg, report, ghcs);
       $(".package-header").show();
       $(".logs-header").show();
       $("#package-not-built").hide();
@@ -371,100 +375,139 @@
     $("#tabs-container").html("");
   }
 
-  function renderSingleVersionMatrix (pkgName, p) {
+  function renderTable (pkgName, pkg, _, ghcVersions) {
+
+    var cols = ghcVersions.length;
+    var rows = pkg.versions.length;
+
     var t = $("<table>");
 
-    var cols = p.results.length;
-    var rows = p.versions.length;
-
-    var corner = $("<th>").append($("<a>").attr("href", "https://hackage.haskell.org/package/" + pkgName)
-                                          .text(pkgName));
-    var headers = p.results.map(function (result) {
-      return $("<th>").text(result.ghcFullVersion);
+    var corner = $("<th>").append
+      ( $("<a>").attr("href", "https://hackage.haskell.org/package/" + pkgName)
+                .text(pkgName)
+      );
+    var headers = ghcVersions.map(function (ghcVersion) {
+      return $("<th>").text(ghcVersion);
     });
     t.append($("<thead>").append($("<tr>").append(corner, headers)));
 
     var trs = [];
-    var iii = -1;
-    var newMajorVersion = false;
-    var newMinorVersion = false;
-    p.versions.forEach(function (minors) {
-      newMajorVersion = true;
-      minors.forEach(function (versions) {
-        newMinorVersion = true;
-        versions.forEach(function (version) {
-          iii++;
-          var versionName = version.version;
+    for (var row = 0; row < rows; row++) {
+      var v = pkg.versions[row];
 
-          var th = $("<th>")
-            .addClass("pkgv")
-            .append
-              ( $("<a>").text("Δ").attr("href", "http://hdiff.luite.com/cgit/" + pkgName + "/commit?id=" + versionName)
-              , " "
-              , $("<a>").attr("href", "https://hackage.haskell.org/package/" + pkgName + "-" + versionName + "/" + pkgName + ".cabal/edit").text(versionName)
-              , version.revision
-                  ? $("<sup>").append($("<a>").text("(" + version.revision +  ")").attr( "href", "https://hackage.haskell.org/package/" + pkgName + "-" + versionName + "/revisions"))
-                  : null
-              );
+      var versionName = v.version;
+      var revision    = v.revision;
+      var unpreferred = v.unpreferred;
 
-          var tds = p.results.map(function (ghcVersion, ghcI) {
-            var td = $("<td>").addClass("stcell");
-            var ghcVersionName = ghcVersion.ghcVersion;
-            var res = ghcVersion.resultsA[iii];
-            td.attr("data-ghc-version", ghcVersionName)
-              .attr("data-package-version", versionName);
-            var r;
-            if (res.result.ok) {
-              td.text("OK")
-                .addClass("pass-build");
-            } else if (res.result.noIp) {
-              td.text("OK (no-ip)")
-                .addClass("pass-no-ip");
-            } else if (r = res.result.fail) {
-              (function (r) {
-                td.text("FAIL (pkg)")
-                  .addClass("fail-build")
-                  .click(function (e) {
-                    var ghcVersion = $(e.target).attr("data-ghc-version");
-                    var packageVersion = $(e.target).attr("data-package-version");
-                    setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
-                    setupFailTabs(ghcVersion, pkgName, packageVersion, r);
-                  });
-              })(r);
-            } else if (r = res.result.failDeps) {
-              (function () {
-                td.text("FAIL (" + r.length + " deps)")
-                  .addClass("fail-dep-build")
-                  .click(function (e) {
-                    var ghcVersion = $(e.target).attr("data-ghc-version");
-                    var packageVersion = $(e.target).attr("data-package-version");
-                    setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
-                    setupFailDepsTabs(ghcVersion, r);
-                  });
-              })(r);
-            } else if (res.result.nop) {
-              td.text("OK (boot)")
-                .addClass("pass-no-op");
-            } else {
-              console.warn("unhandled result: ", res.result);
-              td.addClass("fail-unknown");
-            }
-            return td;
-          });
-          var tr = $("<tr>").addClass("solver-row").append(th).append(tds);
-          if (newMajorVersion) {
-            tr.addClass("first-major");
-            newMajorVersion = false;
-          }
-          if (newMinorVersion) {
-            tr.addClass("first-minor");
-            newMinorVersion = false;
-          }
-          trs.push(tr);
-        });
+      var th = $("<th>")
+        .addClass("pkgv")
+        .append
+          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName))
+          , " "
+          , $("<a>").attr("href", hackageUrl(pkgName, versionName)).text(versionName)
+          , revision
+              ? $("<sup>").append
+                  ( $("<a>").text("(" + revision +  ")")
+                            .attr("href", revisionsUrl(pkgName, versionName))
+                            .attr("data-revision", revision)
+                            .attr("data-version", versionName)
+                            .addClass("revision")
+                  )
+              : null
+          );
+
+      var tds = ghcVersions.map(function (ghcVersionName, ghcI) {
+        return $("<td>").addClass("stcell")
+                        .addClass("fail-unknown")
+                        .attr("data-ghc-version", ghcVersionName)
+                        .attr("data-package-version", versionName);
+      });
+
+      var tr = $("<tr>").addClass("solver-row").append(th).append(tds);
+      if (newMajor(pkg.versions[row-1], pkg.versions[row])) {
+        tr.addClass("first-major");
+      }
+      if (newMinor(pkg.versions[row-1], pkg.versions[row])) {
+        tr.addClass("first-minor");
+      }
+      trs.push(tr);
+    }
+    $("#package").append(t.append(trs));
+
+    function newMajor (a,b) {
+      if (!a) return true;
+      var x = a.version.split(".");
+      var y = b.version.split(".");
+      return x[0] !== y[0] || (x[1] || "0") !== (y[1] || "0");
+    }
+    function newMinor (a,b) {
+      if (!a) return true;
+      var x = a.version.split(".");
+      var y = b.version.split(".");
+      return newMajor(a,b) || (x[2] || "0") !== (y[2] || "0");
+    }
+  }
+
+  function renderSingleVersionMatrix (pkgName, pkg, report, ghcs) {
+
+    report.results.forEach(function (ghcResult, i) {
+      var ghcVersionName = ghcResult.ghcVersion;
+      var ghcFullVersionName = ghcResult.ghcFullVersion;
+      ghcResult.resultsA.forEach(function (versionResult, j) {
+        var versionName = versionResult.packageVersion;
+        var revision    = versionResult.packageRevision;
+        var res         = versionResult.result;
+
+        var th = $("#package .pkgv .revision[data-version='" + versionName + "']");
+        var newestRevision = parseInt(th.attr("data-revision"), 10);
+        console.log(revision, newestRevision);
+        if (revision !== newestRevision) {
+          th.addClass("newer-revision");
+        }
+
+        var td = $("#package td[data-ghc-version='" + ghcVersionName + "'][data-package-version='" + versionName + "']");
+        if (!td[0]) {
+          console.warn("Could not find cell for GHC-" + ghcVersionName + ", " + packageName + "-" + versionName);
+        }
+        td.removeClass("fail-unknown");
+        var r;
+        if (res.ok) {
+          td.text("OK")
+            .addClass("pass-build");
+        } else if (res.noIp) {
+          td.text("OK (no-ip)")
+            .addClass("pass-no-ip");
+        } else if (r = res.fail) {
+          (function (r) {
+            td.text("FAIL (pkg)")
+              .addClass("fail-build")
+              .click(function (e) {
+                var ghcVersion = $(e.target).attr("data-ghc-version");
+                var packageVersion = $(e.target).attr("data-package-version");
+                setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+                setupFailTabs(ghcVersion, pkgName, packageVersion, r);
+              });
+          })(r);
+        } else if (r = res.failDeps) {
+          (function () {
+            td.text("FAIL (" + r.length + " deps)")
+              .addClass("fail-dep-build")
+              .click(function (e) {
+                var ghcVersion = $(e.target).attr("data-ghc-version");
+                var packageVersion = $(e.target).attr("data-package-version");
+                setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+                setupFailDepsTabs(ghcVersion, r);
+              });
+          })(r);
+        } else if (res.nop) {
+          td.text("OK (boot)")
+            .addClass("pass-no-op");
+        } else {
+          console.warn("unhandled result: ", res);
+          td.addClass("fail-unknown");
+        }
       });
     });
-    $("#package").append(t.append(trs));
 
     function setupFailTabs (ghcVersion, pkgName, packageVersion, r) {
       setupTabs
@@ -493,7 +536,7 @@
         /^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash);
         var ghcVersion     = RegExp.$1;
         var packageVersion = RegExp.$2;
-        var ghcVer = p.results.filter(function (v) { return v.ghcVersion === ghcVersion; })[0];
+        var ghcVer = report.results.filter(function (v) { return v.ghcVersion === ghcVersion; })[0];
         if (!ghcVer) {
           console.warn("Could not find ghc version: GHC-" + ghcVersion);
           return;
@@ -503,12 +546,11 @@
           console.warn("Could not find ghc/package version: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
           return;
         }
-        var r;
-        if (r = res.result.fail) {
-          setupFailTabs(ghcVersion, pkgName, packageVersion, r);
+        if (res.result.fail) {
+          setupFailTabs(ghcVersion, pkgName, packageVersion, res.result.fail);
         }
-        else if (r = res.result.failDeps) {
-          setupFailDepsTabs(ghcVersion, r);
+        else if (res.result.failDeps) {
+          setupFailDepsTabs(ghcVersion, res.result.failDeps);
         } else {
           console.warn("No build failure found for: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
         }
@@ -519,6 +561,16 @@
   function formatDate (d) {
     d = new Date(d);
     return d.toLocaleString().replace("T", " ");
+  }
+
+  function hdiffUrl (pkgName, versionName) {
+    return "http://hdiff.luite.com/cgit/" + pkgName + "/commit?id=" + versionName;
+  }
+  function hackageUrl (pkgName, versionName) {
+    return "https://hackage.haskell.org/package/" + pkgName + "-" + versionName + "/" + pkgName + ".cabal/edit";
+  }
+  function revisionsUrl (pkgName, versionName) {
+    return "https://hackage.haskell.org/package/" + pkgName + "-" + versionName + "/revisions";
   }
 
 })();

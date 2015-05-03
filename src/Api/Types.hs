@@ -8,7 +8,6 @@ import           Control.Arrow
 import           Control.Monad.Reader   (ReaderT)
 import           Data.Aeson             (FromJSON (..), ToJSON (..))
 import           Data.JSON.Schema
-import           Data.List              (groupBy)
 import qualified Data.Map.Strict        as Map
 import           Data.String
 import           Data.String.ToString
@@ -16,6 +15,7 @@ import           Data.Time
 import           Generics.Generic.Aeson
 import           Rest.Info
 import           Rest.ShowUrl
+import           Safe
 
 import           Api.Root               (Root)
 import           Api.Utils
@@ -30,10 +30,13 @@ instance Info PackageName where
 type WithPackage = ReaderT PackageName Root
 
 newtype VersionName = VersionName { unVersionName :: Text }
-  deriving (Eq, FromJSON, JSONSchema, Ord, Show, ToJSON)
+  deriving (Eq, FromJSON, IsString, JSONSchema, Ord, Show, ToJSON)
 
 newtype Revision = Revision { unRevision :: Word }
   deriving (Eq, FromJSON, JSONSchema, Ord, Show, ToJSON)
+
+revisionFromString :: String -> Maybe Revision
+revisionFromString = fmap Revision . readMay
 
 data PackageMeta = PackageMeta
   { pmName   :: PackageName
@@ -53,7 +56,6 @@ instance JSONSchema ReportMeta where schema    = gSchemaWithSettings    $ strip 
 
 data Report = Report
   { rPackageName :: PackageName
-  , rVersions    :: [[[VersionInfo]]]
   , rResults     :: [GHCResult]
   } deriving (Eq, Generic, Show)
 instance ToJSON     Report where toJSON    = gtoJsonWithSettings    $ strip "r"
@@ -63,29 +65,26 @@ instance JSONSchema Report where schema    = gSchemaWithSettings    $ strip "r"
 toReport :: ReportData -> Report
 toReport rd = Report
   { rPackageName = fromString . toString . rdPkgName $ rd
-  , rVersions    = map (map (map toVersionInfo)) . map (groupBy minorVersionGrouping) . groupBy majorVersionGrouping . Map.toList . rdVersions $ rd
-  , rResults = map f . Map.toList . rdGVersions $ rd
+  , rResults = map (f $ rdVersions rd) . Map.toList . rdGVersions $ rd
   }
   where
-    toVersionInfo (x,(y,z)) = VersionInfo
-      { version       = VersionName $ tshowPkgVer x
-      , revision      = Revision y
-      , unpreferred   = z
-      }
-    f :: (GhcVer, (PkgVer, Map PkgVer BuildResult, Map PkgVerPfx (Maybe PkgVer)))
+    f :: Map PkgVer (PkgRev, Bool)
+      -> (GhcVer, (PkgVer, Map PkgVer BuildResult, Map PkgVerPfx (Maybe PkgVer)))
       -> GHCResult
-    f (w,(x,y,z)) = GHCResult
+    f revs (w,(x,y,z)) = GHCResult
       { ghcVersion     = ghcVersionName w
       , ghcFullVersion = VersionName $ tshowPkgVer x
-      , resultsA       = map toVersionResult . Map.toList $ y
+      , resultsA       = map (toVersionResult revs) . Map.toList $ y
       , resultsB       = map (second $ fmap (VersionName . tshowPkgVer)) . Map.toList $ z
       }
-    toVersionResult (v,r) = VersionResult
-      { packageVersion = VersionName $ tshowPkgVer v
-      , result         = br r
+    toVersionResult :: Map PkgVer (PkgRev, Bool) -> (PkgVer,BuildResult) -> VersionResult
+    toVersionResult revs (v,r) = VersionResult
+      { packageVersion  = VersionName $ tshowPkgVer v
+      , packageRevision = Revision . maybe 0 fst $ Map.lookup v revs
+      , result          = toResult r
       }
-    br :: BuildResult -> Result
-    br = \case
+    toResult :: BuildResult -> Result
+    toResult = \case
       BuildOk         -> Ok
       BuildNop        -> Nop
       BuildNoIp       -> NoIp
@@ -148,8 +147,9 @@ ghcVersionName = VersionName . \case
   GHC_7_10 -> "7.10"
 
 data VersionResult = VersionResult
-  { packageVersion :: VersionName
-  , result         :: Result
+  { packageVersion  :: VersionName
+  , packageRevision :: Revision
+  , result          :: Result
   } deriving (Eq, Generic, Show)
 instance ToJSON     VersionResult where toJSON    = gtoJson
 instance FromJSON   VersionResult where parseJSON = gparseJson
@@ -174,3 +174,12 @@ data DepFailure = DepFailure
 instance ToJSON     DepFailure where toJSON    = gtoJsonWithSettings    $ strip "df"
 instance FromJSON   DepFailure where parseJSON = gparseJsonWithSettings $ strip "df"
 instance JSONSchema DepFailure where schema    = gSchemaWithSettings    $ strip "df"
+
+data Package = Package
+  { pName     :: PackageName
+  , pVersions :: [VersionInfo]
+  } deriving (Eq, Generic ,Show)
+
+instance ToJSON     Package where toJSON    = gtoJsonWithSettings    $ strip "p"
+instance FromJSON   Package where parseJSON = gparseJsonWithSettings $ strip "p"
+instance JSONSchema Package where schema    = gSchemaWithSettings    $ strip "p"

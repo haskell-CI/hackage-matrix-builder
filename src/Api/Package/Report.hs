@@ -11,6 +11,7 @@ import qualified Rest.Resource        as R
 import           System.Directory
 import           System.FilePath
 
+import           Api.Package          (validatePackage)
 import           Api.Types
 
 data ReportIdentifier = Latest
@@ -35,6 +36,7 @@ get = mkConstHandler jsonO handler
         Latest -> byName pn
     byName :: PackageName -> ExceptT Reason_ WithReport Report
     byName pkgName = do
+      validatePackage pkgName
       let fp = "report" </> toString pkgName <.> "json"
       exists <- liftIO $ doesFileExist fp
       unless exists $ throwError NotFound
