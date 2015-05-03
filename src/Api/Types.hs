@@ -121,13 +121,22 @@ minorVersionGrouping (a,_) (b,_) = verMinor a == verMinor b
     unPkgVer (PkgVer ws) = ws
 
 data VersionInfo = VersionInfo
-  { version     :: VersionName
-  , revision    :: Revision
-  , unpreferred :: Bool
+  { version    :: VersionName
+  , revision   :: Revision
+  , preference :: Preference
   } deriving (Eq, Generic, Show)
 instance ToJSON     VersionInfo where toJSON    = gtoJson
 instance FromJSON   VersionInfo where parseJSON = gparseJson
 instance JSONSchema VersionInfo where schema    = gSchema
+
+data Preference
+  = Normal
+  | UnPreferred
+  | Deprecated
+  deriving (Eq, Generic, Show)
+instance ToJSON     Preference where toJSON    = gtoJson
+instance FromJSON   Preference where parseJSON = gparseJson
+instance JSONSchema Preference where schema    = gSchema
 
 data GHCResult = GHCResult
   { ghcVersion     :: VersionName

@@ -12,12 +12,11 @@ import           Control.Monad.Except
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import qualified Data.ByteString.Lazy as L
 import           Data.List
-import           Data.List.Split
 import qualified Data.Map.Strict      as Map
-import           Data.Maybe
 import           Data.Ord
 import           Data.String
 import           Data.String.ToString
+import           Data.Text            (pack)
 import qualified Data.Text            as T
 import           Data.Time
 import           Rest
@@ -29,8 +28,9 @@ import           System.Process
 import           Api.Root             (Root)
 import           Api.Types
 import           Api.Utils
-import           Builder              (xcabalExe)
-import           BuildTypes
+import           Builder              (parseXList, xcabalExe)
+import           BuildTypes           hiding (PkgVerStatus (..))
+import qualified BuildTypes           as BT
 
 data Listing
   = All
@@ -63,22 +63,23 @@ get = mkIdHandler jsonO $ const handler
 
 parseXcabal :: String -> Maybe Package
 parseXcabal s = do
-  pkgName <- return . fromString =<< headMay . splitOn " " =<< headMay rows
+  let elems = parseXList . map pack . lines $ s
+  (pn,_,_,_,_) <- headMay elems
   return Package
-    { pName     = pkgName
-    , pVersions = versions
+    { pName     = fromString . toString $ pn
+    , pVersions = map versions elems
     }
   where
-    rows = lines s
-    versions = catMaybes $ map (f . splitOn " ") rows
-    f :: [String] -> Maybe VersionInfo
-    f = \case
-      _:v:r:p:_ -> Just VersionInfo
-        { version     = fromString v
-        , revision    = fromMaybe (error "Bad revision") $ revisionFromString r
-        , unpreferred = p == "N"
+    versions :: (PkgName, PkgVer, PkgRev, BT.PkgVerStatus, [PkgFlag]) -> VersionInfo
+    versions = \case
+      (_pkgName, pkgVer, pkgRev, pkgVerStatus, _pkgflags) -> VersionInfo
+        { version    = VersionName . tshowPkgVer $ pkgVer
+        , revision   = Revision pkgRev
+        , preference = case pkgVerStatus of
+           BT.NormalPref  -> Normal
+           BT.UnPreferred -> UnPreferred
+           BT.Deprecated  -> Deprecated
         }
-      _ -> Nothing
 
 list :: ListHandler Root
 list = mkListing jsonO handler

@@ -5,7 +5,7 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 
-module Builder (defaultMain, xcabalExe) where
+module Builder (defaultMain, xcabalExe, parseXList) where
 
 import           BuildReport
 import           BuildTypes
@@ -636,7 +636,11 @@ jwriteFileChanged fn = bwriteFileChanged fn . BL.toStrict . J.encode
 readXListFile :: FilePath -> Action [(PkgName, PkgVer, PkgRev, PkgVerStatus, [PkgFlag])]
 readXListFile fn = do
     lns <- treadFileLines fn
-    return $!! map (go . T.words) lns
+    return $!! parseXList lns
+
+-- | ...
+parseXList :: [Text] -> [(PkgName, PkgVer, PkgRev, PkgVerStatus, [PkgFlag])]
+parseXList = map (go . T.words)
   where
     go (n0:v0:r0:d0:fls) = (PkgName n0, parsePkgVer' v0, tread r0, readPkgPref d0, map readPkgFlag fls)
     go _             = error "readXListFile"
