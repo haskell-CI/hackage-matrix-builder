@@ -13,24 +13,19 @@ import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import qualified Data.ByteString.Lazy as L
 import           Data.List
 import qualified Data.Map.Strict      as Map
+import           Data.Maybe
 import           Data.Ord
+import qualified Data.Set             as Set
 import           Data.String
-import           Data.String.ToString
-import           Data.Text            (pack)
 import qualified Data.Text            as T
 import           Data.Time
 import           Rest
 import qualified Rest.Resource        as R
-import           Safe
-import           System.IO
-import           System.Process
 
 import           Api.Root             (Root)
 import           Api.Types
 import           Api.Utils
-import           Builder              (parseXList, xcabalExe)
 import           BuildTypes           hiding (PkgVerStatus (..))
-import qualified BuildTypes           as BT
 
 data Listing
   = All
@@ -54,32 +49,7 @@ get = mkIdHandler jsonO $ const handler
     handler :: PackageName -> ExceptT Reason_ WithPackage Package
     handler pkgName = do
       validatePackage pkgName
-      (ex,sout,serr) <- liftIO $ readProcessWithExitCode xcabalExe ["xlist", toString pkgName] ""
-      case ex of
-        ExitFailure e -> do
-          liftIO $ hPutStrLn stderr $ "xcabal xlist failed with " ++ show e ++ ", stderr: " ++ serr
-          throwError Busy
-        ExitSuccess -> maybe (throwError Busy) return $ parseXcabal sout
-
-parseXcabal :: String -> Maybe Package
-parseXcabal s = do
-  let elems = parseXList . map pack . lines $ s
-  (pn,_,_,_,_) <- headMay elems
-  return Package
-    { pName     = fromString . toString $ pn
-    , pVersions = map versions elems
-    }
-  where
-    versions :: (PkgName, PkgVer, PkgRev, BT.PkgVerStatus, [PkgFlag]) -> VersionInfo
-    versions = \case
-      (_pkgName, pkgVer, pkgRev, pkgVerStatus, _pkgflags) -> VersionInfo
-        { version    = VersionName . tshowPkgVer $ pkgVer
-        , revision   = Revision pkgRev
-        , preference = case pkgVerStatus of
-           BT.NormalPref  -> Normal
-           BT.UnPreferred -> UnPreferred
-           BT.Deprecated  -> Deprecated
-        }
+      liftIO (xcabalPackage pkgName) `orThrow` Busy
 
 list :: ListHandler Root
 list = mkListing jsonO handler
@@ -117,8 +87,11 @@ reportsByStamp
 
 validatePackage :: MonadIO m => PackageName -> ExceptT Reason_ m ()
 validatePackage pkgName = do
- s <- liftIO loadPackageSummary `orThrow` NotFound
+ s <- liftIO loadPackageNames
  maybe (throwError NotFound) (const $ return ()) . find (== pkgName) $ s
+
+loadPackageNames :: IO (Set PackageName)
+loadPackageNames = fromMaybe Set.empty . decode <$> L.readFile "packageNames.json"
 
 loadPackageSummary :: IO (Maybe [PackageName])
 loadPackageSummary = fmap (map summaryName) . decode <$> L.readFile "packages.json"

@@ -29,7 +29,7 @@ import           Generics.Generic.Aeson
 import           System.Directory
 import           System.FilePath         ((</>))
 
-import           Api.Types               (PackageName (..))
+import           Api.Types               (PackageName (..), strip)
 import           Api.Utils
 import           BuildTypes
 

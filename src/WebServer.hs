@@ -1,6 +1,10 @@
 module WebServer (defaultMain) where
 
 import           Control.Monad.Except
+import           Data.Aeson
+import qualified Data.ByteString.Lazy         as L
+import           Data.List
+import           Data.Maybe
 import           Happstack.Server.Compression
 import           Happstack.Server.FileServe
 import           Happstack.Server.SimpleHTTP
@@ -8,6 +12,7 @@ import           Rest.Run                     (apiToHandler)
 import           System.Directory
 
 import           Api                          (api)
+import qualified Api.Package                  as P
 import           Api.Root
 
 defaultMain :: IO ()
@@ -16,6 +21,11 @@ defaultMain = do
   assertFile "ui/config.js" "var appConfig = { apiHost : '' };\n"
   assertFile "packages.json" "[]"
   createDirectoryIfMissing False "queue"
+
+  pns <- doesFileExist "packageNames.json"
+  unless pns $ do
+    putStrLn $ "Writing defaults to packageNames.json"
+    L.writeFile "packageNames.json" . encode . sort . fromMaybe [] =<< P.loadPackageSummary
 
   putStrLn "Starting server on port 3000"
   let serverData = ServerData

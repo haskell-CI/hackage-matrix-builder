@@ -18,7 +18,7 @@ import           Rest.ShowUrl
 import           Safe
 
 import           Api.Root               (Root)
-import           Api.Utils
+-- import           Api.Utils              ()
 import           BuildReport
 import           BuildTypes
 
@@ -196,3 +196,7 @@ data Package = Package
 instance ToJSON     Package where toJSON    = gtoJsonWithSettings    $ strip "p"
 instance FromJSON   Package where parseJSON = gparseJsonWithSettings $ strip "p"
 instance JSONSchema Package where schema    = gSchemaWithSettings    $ strip "p"
+
+
+strip :: String -> Settings
+strip = Settings . Just
