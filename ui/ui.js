@@ -51,7 +51,7 @@
       return;
     }
     if (!isPopping) {
-      setPath(uri.path());
+      window.history.pushState(null, "", uri.toString());
     }
 
     if (uri.path() === "/") {
@@ -80,10 +80,6 @@
 
   function hidePages () {
     $(".page").hide();
-  }
-
-  function packageLink (pkgName) {
-    return $("<a>").attr("href", packageUri(pkgName).toString()).text(pkgName);
   }
 
   function renderPackages () {
@@ -231,10 +227,6 @@
     $("#page-home").show();
   }
 
-  function setPath (path)
-  {
-    window.history.pushState(null, "", path);
-  }
   function setHash (hash)
   {
     var uri = new Uri(window.location.href);
@@ -303,10 +295,6 @@
     api.Package.byName(pkgName).get(function (pkg) {
       api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName, pkg), renderPackage.bind(null, pkgName, pkg, null));
     }, renderPackage.bind(null, pkgName, null, null, null));
-  }
-
-  function packageUri (pkgName) {
-    return new Uri("/package/" + pkgName);
   }
 
   function renderPackage (pkgName, pkg, report) {
@@ -462,14 +450,13 @@
 
         var th = $("#package .pkgv .revision[data-version='" + versionName + "']");
         var newestRevision = parseInt(th.attr("data-revision"), 10);
-        console.log(revision, newestRevision);
         if (revision !== newestRevision) {
           th.addClass("newer-revision");
         }
 
         var td = $("#package td[data-ghc-version='" + ghcVersionName + "'][data-package-version='" + versionName + "']");
         if (!td[0]) {
-          console.warn("Could not find cell for GHC-" + ghcVersionName + ", " + packageName + "-" + versionName);
+          console.warn("Could not find cell for " + cellHash(ghcVersionName, packageName, versionName));
         }
         td.removeClass("fail-unknown");
         var r;
@@ -486,7 +473,7 @@
               .click(function (e) {
                 var ghcVersion = $(e.target).attr("data-ghc-version");
                 var packageVersion = $(e.target).attr("data-package-version");
-                setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+                setHash(cellHash(ghcVersion, pkgName, packageVersion));
                 setupFailTabs(ghcVersion, pkgName, packageVersion, r);
               });
           })(r);
@@ -497,7 +484,7 @@
               .click(function (e) {
                 var ghcVersion = $(e.target).attr("data-ghc-version");
                 var packageVersion = $(e.target).attr("data-package-version");
-                setHash("GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+                setHash(cellHash(ghcVersion, pkgName, packageVersion));
                 setupFailDepsTabs(ghcVersion, r);
               });
           })(r);
@@ -513,7 +500,7 @@
 
     function setupFailTabs (ghcVersion, pkgName, packageVersion, r) {
       setupTabs
-        ( [{ label    : "GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion
+        ( [{ label    : cellHash(ghcVersion, pkgName, packageVersion)
            , contents : $("<pre>").addClass("log-entry").text(r)
           }]
         );
@@ -522,9 +509,9 @@
     function setupFailDepsTabs (ghcVersion, r) {
       setupTabs
         ( r.map(function (v, i) {
-            return { label    : "GHC-" + ghcVersion + "/" + v.packageName + "-" + v.packageVersion
+            return { label    : cellHash(ghcVersion, v.packageName, v.packageVersion)
                    , contents : $("<div>").append
-                                  ( packageLink(v.packageName).text("Go to this package")
+                                  ( packageLink(v.packageName, ghcVersion, v.packageVersion).text("Go to this package")
                                   , $("<pre>").addClass("log-entry").text(v.message)
                                   )
                    };
@@ -573,6 +560,19 @@
   }
   function revisionsUrl (pkgName, versionName) {
     return "https://hackage.haskell.org/package/" + pkgName + "-" + versionName + "/revisions";
+  }
+  function cellHash (ghcVersion, pkgName, pkgVersion) {
+    return "GHC-" + ghcVersion + "/" + pkgName + "-" + pkgVersion;
+  }
+  function packageUri (pkgName, ghcVersion, pkgVersion) {
+    var u = new Uri("/package/" + pkgName);
+    if (ghcVersion && pkgVersion) {
+      u.anchor(cellHash(ghcVersion, pkgName, pkgVersion));
+    }
+    return u;
+  }
+  function packageLink (pkgName, ghcVersion, pkgVersion) {
+    return $("<a>").attr("href", packageUri(pkgName, ghcVersion, pkgVersion).toString()).text(pkgName);
   }
 
 })();
