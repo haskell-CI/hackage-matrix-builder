@@ -4,6 +4,8 @@
   var apiRootUrl = ((appConfig && appConfig.apiHost) || "") + "/api";
   var api = new MatrixApi(apiRootUrl, apiRootUrl);
 
+  window.ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10"];
+
   function fail (msg) {
     return function () {
       console.warn("request failed", msg, arguments);
@@ -312,15 +314,15 @@
     $("#page-package .package-name").text(pkgName);
     $("#package").html("");
     if (pkg && report) {
-      var ghcs = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10"];
-      renderTable(pkgName, pkg, report, ghcs);
-      renderSingleVersionMatrix(pkgName, pkg, report, ghcs);
+      renderTable(pkgName, pkg, window.ghcVersions);
+      renderSingleVersionMatrix(pkgName, pkg, report, window.ghcVersions);
       $(".package-header").show();
       $(".logs-header").show();
       $("#package-not-built").hide();
     } else {
       $(".package-header").hide();
       $(".logs-header").hide();
+      renderTable(pkgName, pkg, window.ghcVersions);
       $("#package-not-built").show();
     }
     setupBuildQueuer(pkgName);
@@ -375,7 +377,7 @@
     $("#tabs-container").html("");
   }
 
-  function renderTable (pkgName, pkg, _, ghcVersions) {
+  function renderTable (pkgName, pkg, ghcVersions) {
 
     var cols = ghcVersions.length;
     var rows = pkg.versions.length;

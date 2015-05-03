@@ -179,6 +179,10 @@ body {
   color: orange;
 }
 
+#page-package #package-not-built {
+  margin-bottom: 20px;
+}
+
 #page-package tr.first-minor { border-top: 3px solid black; }
 #page-package tr.first-major { border-top: 5px solid black; }
 
