@@ -31,7 +31,7 @@ data ReportData = ReportData
                                   )
     } deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
--- TODO: Unify this with 'Status' somehow
+-- TODO: Unify this with 'BuildResult' somehow
 data Status
     = PassBuild !Text
     | PassNoIp

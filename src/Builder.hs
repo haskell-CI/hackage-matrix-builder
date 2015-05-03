@@ -62,6 +62,11 @@ cabalExe = "/opt/cabal/1.22/bin/cabal"
 xcabalExe :: FilePath
 xcabalExe = "xcabal"
 
+-- | Backjump limit for cabal solver (passed via @--max-backjumps@).
+-- 'Nothing' denotes @--max-backjumps=-1@.
+maxBackjumps :: Maybe Word
+maxBackjumps = Just 10000
+
 -- | Path where to find @ghc@ and @ghc-pkg@.
 ghcBinPath :: GhcVer -> FilePath
 ghcBinPath v = "/opt/ghc/" ++ v' ++ "/bin/"
@@ -242,8 +247,10 @@ defaultMain = shakeArgs shakeOptions {- shakeFiles="_build/" -} $ do
         iplan <- sreadFile (out -<.> ".iplan")
 
         res <- case iplan of
-            AlreadyInstalled _ -> return BuildNop
-            NoInstallPlan _ _  -> return BuildNoIp
+            AlreadyInstalled _             -> return BuildNop
+            NoInstallPlan Nothing _        -> return BuildNoIp
+            NoInstallPlan (Just bjs) _     -> return (BuildNoIpBjLimit bjs)
+            NoInstallPlanError _ sout serr -> return (BuildNoIpFail (decodeUtf8 sout) (decodeUtf8 serr))
 
             InstallPlan pkgid' pkgflgs sbcfg _ -> do
                 unless (pkgid' == pkgid) $
@@ -314,7 +321,7 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
         , "-v2"
         , "--global"
         , "--with-ghc", ghcbin
-        , "--max-backjumps=-1"
+        , "--max-backjumps="++(maybe "-1" show maxBackjumps)
         , "--force-reinstalls"
         , "--dry"
         , "--reorder-goals"
@@ -323,11 +330,16 @@ dryInstall gv pkgname constraints = do -- withTempDir $ \tmpdir -> do
 
     let !res = case rc of
             ExitSuccess -> go sout serr
-            ExitFailure n -> NoInstallPlan (fromIntegral n) (sout<>serr)
+            ExitFailure 1
+                | B.isInfixOf "Backjump limit reached" serr                 -> NoInstallPlan (Just maxbj) serr
+                | B.isInfixOf "Dependency tree exhaustively searched." serr -> NoInstallPlan Nothing serr
+            ExitFailure n -> NoInstallPlanError (fromIntegral n) sout serr
 
     return $!! (sout,serr,res)
   where
     ghcbin = ghcBinPath gv <> "ghc"
+
+    maxbj = fromMaybe maxBound maxBackjumps
 
     go sout serr = case soutlines of
         (_:"In order, the following would be installed:":depls) ->

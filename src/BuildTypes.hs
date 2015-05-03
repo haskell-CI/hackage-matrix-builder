@@ -210,11 +210,12 @@ data IPType = IPNewPkg | IPNewVer | IPReInst
             deriving (Show,Read,Eq,Generic,NFData)
 
 data DryResult
-    = AlreadyInstalled !PkgId           -- ^ target already installed, nothing to do
-    | InstallPlan      !PkgId [PkgFlag] [(PkgId,[PkgFlag],[PkgId],IPType)] [PkgId]  -- ^ install-plan for target, required
-                                               -- sub-targets, and reinstall-affected
-                                               -- packages
-    | NoInstallPlan    !Int !ByteString -- ^ failed to find valid install plan
+    = AlreadyInstalled !PkgId -- ^ target already installed, nothing to do
+    | InstallPlan      !PkgId [PkgFlag] [(PkgId,[PkgFlag],[PkgId],IPType)] [PkgId]
+      -- ^ install-plan for target, required sub-targets, and
+      -- reinstall-affected packages
+    | NoInstallPlan (Maybe Word) !ByteString -- ^ failed to find valid install plan
+    | NoInstallPlanError !Int !ByteString !ByteString -- ^ abnormal output
     deriving (Show,Read,Generic,NFData)
 
 type SolverData = (SolveResult, [((Word,Word),SolveResult)])
@@ -223,18 +224,25 @@ data SolveResult
     = SolveNoOp !PkgVer
     | SolveInstall !PkgVer
     | SolveNoInstall
+    | SolveNoInstallBjLim !Word
+    | SolveError
     deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
 
 solveResultToPkgVer :: SolveResult -> Maybe PkgVer
-solveResultToPkgVer (SolveNoOp v)    = Just v
-solveResultToPkgVer (SolveInstall v) = Just v
-solveResultToPkgVer SolveNoInstall   = Nothing
+solveResultToPkgVer = \case
+    SolveNoOp v           -> Just v
+    SolveInstall v        -> Just v
+    SolveNoInstall        -> Nothing
+    SolveNoInstallBjLim _ -> Nothing
+    SolveError            -> Nothing
 
 dryToSolveResult :: DryResult -> SolveResult
 dryToSolveResult = \case
-    AlreadyInstalled pid -> SolveNoOp (snd pid)
-    InstallPlan pid _ _ _  -> SolveInstall (snd pid)
-    NoInstallPlan _ _    -> SolveNoInstall
+    AlreadyInstalled pid       -> SolveNoOp (snd pid)
+    InstallPlan pid _ _ _      -> SolveInstall (snd pid)
+    NoInstallPlan Nothing _    -> SolveNoInstall
+    NoInstallPlan (Just bjs) _ -> SolveNoInstallBjLim bjs
+    NoInstallPlanError _ _ _   -> SolveError
 
 data SbExitCode
     = SbExitOk
@@ -248,6 +256,8 @@ data BuildResult
     = BuildOk
     | BuildNop
     | BuildNoIp
+    | BuildNoIpBjLimit !Word -- ^ no install-plan found due to max-backjumps limit
+    | BuildNoIpFail !Text !Text -- ^ cabal failed w/ abnormal status
     | BuildFail !Text -- build-output
     | BuildFailDeps [(PkgId,Text)] -- failed deps & associated build-outputs
     deriving (Show,Read,Generic,NFData,FromJSON,ToJSON)
