@@ -85,11 +85,13 @@ toReport rd = Report
       }
     toResult :: BuildResult -> Result
     toResult = \case
-      BuildOk         -> Ok
-      BuildNop        -> Nop
-      BuildNoIp       -> NoIp
-      BuildFail t     -> Fail t
-      BuildFailDeps l -> FailDeps . map (\((xx,xy),y) -> DepFailure
+      BuildOk            -> Ok
+      BuildNop           -> Nop
+      BuildNoIp          -> NoIp
+      BuildNoIpBjLimit a -> NoIpBjLimit a
+      BuildNoIpFail a b  -> NoIpFail a b
+      BuildFail t        -> Fail t
+      BuildFailDeps l    -> FailDeps . map (\((xx,xy),y) -> DepFailure
         { dfPackageName    = fromString $ toString xx
         , dfPackageVersion = VersionName $ tshowPkgVer xy
         , dfMessage        = y
@@ -159,6 +161,8 @@ data Result
   = Ok
   | Nop
   | NoIp
+  | NoIpBjLimit Word
+  | NoIpFail { err :: Text, out :: Text }
   | Fail Text
   | FailDeps [DepFailure]
   deriving (Eq, Generic, Show)

@@ -307,7 +307,7 @@
       $(".package-header").show();
       $(".logs-header").show();
       $("#package-not-built").hide();
-    } else {
+    } else if (pkg) {
       $(".package-header").hide();
       $(".logs-header").hide();
       renderTable(pkgName, pkg, window.ghcVersions);
@@ -466,6 +466,20 @@
         } else if (res.noIp) {
           td.text("OK (no-ip)")
             .addClass("pass-no-ip");
+        } else if (r = res.noIpBjLimit) {
+          td.text("FAIL (BJ " + r + ")")
+            .addClass("fail-bj");
+        } else if (r = res.noIpFail) {
+          (function (r) {
+            td.text("FAIL (no-ip)")
+              .addClass("fail-no-ip")
+              .click(function (e) {
+                var ghcVersion = $(e.target).attr("data-ghc-version");
+                var packageVersion = $(e.target).attr("data-package-version");
+                setHash(cellHash(ghcVersion, pkgName, packageVersion));
+                setupFailTabs(ghcVersion, pkgName, packageVersion, r.err + "\n" + r.out);
+              });
+          })(r);
         } else if (r = res.fail) {
           (function (r) {
             td.text("FAIL (pkg)")

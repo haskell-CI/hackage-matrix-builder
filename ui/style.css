@@ -188,12 +188,14 @@ body {
 
 #page-package td.pass-build { background-color: #00ff00; }
 #page-package td.pass-no-ip { background-color: #007700; }
+#page-package td.fail-no-ip { background-color: gray; }
+#page-package td.fail-bj { background-color: orange; }
 #page-package td.pass-no-op { background-color: #00cc00; }
 #page-package td.fail-build { background-color: #ff0000; }
 #page-package td.fail-dep-build { background-color: #770000; }
 #page-package td.fail-unknown { background-color: #000000; }
 
-#page-package .fail-build:hover, .fail-dep-build:hover { cursor: pointer; }
+#page-package .fail-no-ip, .fail-build:hover, .fail-dep-build:hover { cursor: pointer; }
 
 #page-package td.stcell {
   text-align: center;
@@ -201,7 +203,10 @@ body {
 
 /** Legend **/
 
-.legend-table .text {
+#legend-table td.stcell {
+  font-size: 14px;
+}
+#legend-table .text {
   text-align: left;
   padding-left: 5px;
 }

@@ -54,12 +54,12 @@ get = mkIdHandler jsonO $ const handler
     handler :: PackageName -> ExceptT Reason_ WithPackage Package
     handler pkgName = do
       validatePackage pkgName
-      (ex,out,err) <- liftIO $ readProcessWithExitCode xcabalExe ["xlist", toString pkgName] ""
+      (ex,sout,serr) <- liftIO $ readProcessWithExitCode xcabalExe ["xlist", toString pkgName] ""
       case ex of
         ExitFailure e -> do
-          liftIO $ hPutStrLn stderr $ "xcabal xlist failed with " ++ show e ++ ", stderr: " ++ err
+          liftIO $ hPutStrLn stderr $ "xcabal xlist failed with " ++ show e ++ ", stderr: " ++ serr
           throwError Busy
-        ExitSuccess -> maybe (throwError Busy) return $ parseXcabal out
+        ExitSuccess -> maybe (throwError Busy) return $ parseXcabal sout
 
 parseXcabal :: String -> Maybe Package
 parseXcabal s = do
@@ -73,10 +73,10 @@ parseXcabal s = do
     versions = catMaybes $ map (f . splitOn " ") rows
     f :: [String] -> Maybe VersionInfo
     f = \case
-      [_,v,r,p] -> Just VersionInfo
+      _:v:r:p:_ -> Just VersionInfo
         { version     = fromString v
         , revision    = fromMaybe (error "Bad revision") $ revisionFromString r
-        , unpreferred = readNote "Bad unpreferred" p
+        , unpreferred = p == "N"
         }
       _ -> Nothing
 
