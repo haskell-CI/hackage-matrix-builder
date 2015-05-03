@@ -19,7 +19,11 @@ defaultMain = do
 
   putStrLn "Starting server on port 3000"
   let serverData = ServerData
-  simpleHTTP nullConf { port = 3000 } $ do
+
+
+  let conf = nullConf { port = 3000 }
+  s <- bindIPv4 "127.0.0.1" (port conf)
+  simpleHTTPWithSocket s conf $ do
     (rsp,_) <- runRoot serverData $ getFilter router
     return rsp
   waitForTermination
