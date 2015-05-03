@@ -42,7 +42,7 @@ secure = do
   login <- liftIO . fmap (splitOn "/") . readFile $ "auth"
   case login of
     [u,p] -> do
-      lift $ basicAuth "localhost" (Map.fromList [(u, p)]) $ return ()
+      lift $ basicAuth "127.0.0.1" (Map.fromList [(u, p)]) $ return ()
     _ -> do
       liftIO $ hPutStrLn stderr "Failure reading auth file"
       throwError Busy
