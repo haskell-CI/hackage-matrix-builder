@@ -97,29 +97,6 @@ toReport rd = Report
         , dfMessage        = y
         }) $ l
 
-majorVersionGrouping :: (PkgVer, a) -> (PkgVer, a) -> Bool
-majorVersionGrouping (a,_) (b,_) = verMajor a == verMajor b
-  where
-    verMajor :: PkgVer -> PkgVerPfx
-    verMajor v = case unPkgVer v of
-      []    -> []
-      [x]   -> [x,0]
-      x:y:_ -> [x,y]
-    unPkgVer :: PkgVer -> [Word]
-    unPkgVer (PkgVer ws) = ws
-
-minorVersionGrouping :: (PkgVer, a) -> (PkgVer, a) -> Bool
-minorVersionGrouping (a,_) (b,_) = verMinor a == verMinor b
-  where
-    verMinor :: PkgVer -> PkgVerPfx
-    verMinor v = case unPkgVer v of
-      []      -> []
-      [x]     -> [x,0,0]
-      [x,y]   -> [x,y,0]
-      x:y:z:_ -> [x,y,z]
-    unPkgVer :: PkgVer -> [Word]
-    unPkgVer (PkgVer ws) = ws
-
 data VersionInfo = VersionInfo
   { version    :: VersionName
   , revision   :: Revision
@@ -192,11 +169,9 @@ data Package = Package
   { pName     :: PackageName
   , pVersions :: [VersionInfo]
   } deriving (Eq, Generic ,Show)
-
 instance ToJSON     Package where toJSON    = gtoJsonWithSettings    $ strip "p"
 instance FromJSON   Package where parseJSON = gparseJsonWithSettings $ strip "p"
 instance JSONSchema Package where schema    = gSchemaWithSettings    $ strip "p"
-
 
 strip :: String -> Settings
 strip = Settings . Just
