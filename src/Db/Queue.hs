@@ -1,0 +1,63 @@
+{-# LANGUAGE EmptyDataDecls             #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+module Db.Queue where
+
+import           Control.Monad.Trans
+import           Data.Time
+import           Database.Esqueleto
+import           Database.Persist.TH
+import           Safe
+
+import           Api.Types           (PackageName (..))
+import           Types.Queue         (Priority (..))
+
+share [mkPersist sqlSettings, mkMigrate "migrateQueue"] [persistLowerCase|
+Queue
+    packageName PackageName
+    priority    Priority
+    created     UTCTime default=CURRENT_TIME
+    modified    UTCTime default=CURRENT_TIME
+    deriving Show
+|]
+
+byName :: MonadIO m => PackageName -> SqlPersistT m (Maybe (Entity Queue))
+byName p = fmap headMay $
+  select $ from $ \q -> do
+    where_ $ q ^. QueuePackageName ==. val p
+    limit 1
+    return q
+
+list :: MonadIO m => SqlPersistT m [Entity Queue]
+list =
+  select $ from $ \q -> do
+    orderBy [desc (q ^. QueuePriority), asc (q ^. QueueCreated)]
+    return q
+
+add :: MonadIO m => PackageName -> Priority -> Maybe UTCTime -> SqlPersistT m ()
+add pkg prio mtime = do
+  t <- maybe (liftIO getCurrentTime) return mtime
+  insert_ Queue
+    { queuePackageName = pkg
+    , queuePriority    = prio
+    , queueCreated     = t
+    , queueModified    = t
+    }
+
+setPriority :: MonadIO m => PackageName -> Priority -> SqlPersistT m ()
+setPriority pkg prio =
+  update $ \q -> do
+    set q [QueuePriority =. val prio]
+    where_ $ q ^. QueuePackageName ==. val pkg
+
+remove :: MonadIO m => PackageName -> SqlPersistT m ()
+remove pkg =
+  delete $ from $ \(q :: SqlExpr (Entity Queue)) ->
+    where_ $ q ^. QueuePackageName ==. val pkg

@@ -23,7 +23,7 @@ import           BuildReport
 import           BuildTypes
 
 newtype PackageName = PackageName { unPackageName :: Text }
- deriving (FromJSON, Eq, IsString, JSONSchema, Ord, Show, ToJSON, ToString, ShowUrl)
+ deriving (FromJSON, Eq, IsString, JSONSchema, Ord, Show, ToJSON, ToString, Read, ShowUrl)
 instance Info PackageName where
   describe _ = "identifier"
 

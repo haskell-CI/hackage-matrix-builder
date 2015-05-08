@@ -1,35 +1,55 @@
+{-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 module WebServer (defaultMain) where
 
 import           Control.Monad.Except
+import           Control.Monad.Reader
 import           Data.Aeson
+import           Data.Aeson.Utils
+import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
 import           Data.List
 import           Data.Maybe
+import           Data.String.Conversions
+import           Data.String.ToString
+import           Data.Time
+import           Database.Persist.Sqlite      (SqlBackend, runMigration,
+                                               runSqlite)
 import           Happstack.Server.Compression
 import           Happstack.Server.FileServe
 import           Happstack.Server.SimpleHTTP
 import           Rest.Run                     (apiToHandler)
 import           System.Directory
+import           System.FilePath
 
 import           Api                          (api)
 import qualified Api.Package                  as P
 import           Api.Root
+import           Api.Types                    (PackageName (..))
+import qualified Db.Queue                     as Q
+import qualified Types.Queue                  as Q
 
 defaultMain :: IO ()
 defaultMain = do
+  let sqliteCfg = "db.sqlite"
   assertFile "auth" "trustee/1234"
   assertFile "ui/config.js" "var appConfig = { apiHost : '' };\n"
   assertFile "packages.json" "[]"
-  createDirectoryIfMissing False "queue"
 
   pns <- doesFileExist "packageNames.json"
   unless pns $ do
     putStrLn $ "Writing defaults to packageNames.json"
     L.writeFile "packageNames.json" . encode . sort . fromMaybe [] =<< P.loadPackageSummary
 
-  putStrLn "Starting server on port 3000"
-  let serverData = ServerData
+  let serverData = ServerData { sqliteConf = sqliteCfg }
 
+  putStrLn "Migrating sqlite database"
+  runSqlite sqliteCfg $ runMigration Q.migrateQueue
+  runSqlite sqliteCfg tryMigrateQueue
+
+  putStrLn "Starting server on port 3000"
 
   let conf = nullConf { port = 3000 }
   s <- bindIPv4 "127.0.0.1" (port conf)
@@ -37,6 +57,39 @@ defaultMain = do
     (rsp,_) <- runRoot serverData $ getFilter router
     return rsp
   waitForTermination
+
+tryMigrateQueue :: MonadIO m => ReaderT SqlBackend m ()
+tryMigrateQueue = do
+  ex <- liftIO $ doesDirectoryExist "queue"
+  when ex $ do
+    liftIO $ putStrLn "Migrating queue to sqlite"
+    items <- liftIO $ list
+    forM_ items $ \(pkg,prio,modi) -> do
+      liftIO . putStrLn $ "Migrating queue item: " ++ show (pkg,prio,modi)
+      Q.add pkg prio (Just modi)
+      liftIO $ removeFile (pth pkg)
+    liftIO $ putStrLn "Deleting queue directory"
+    liftIO $ removeDirectory "queue"
+  where
+    pth :: PackageName -> FilePath
+    pth = ("queue" </>) . toString
+    list :: IO [(PackageName,Q.Priority,UTCTime)]
+    list
+      =  fmap catMaybes
+      .  mapM (get . PackageName . cs)
+     =<< getDirWithFilter (not . ("." `isPrefixOf`)) "queue"
+    get :: PackageName -> IO (Maybe (PackageName,Q.Priority,UTCTime))
+    get p = do
+      let fp = pth p
+      de <- doesFileExist fp
+      if de
+        then do
+          ts   <- getModificationTime fp
+          prio <- fromMaybe Q.Medium . decodeV . cs <$> S.readFile fp
+          return $ Just (p,prio,ts)
+        else return Nothing
+    getDirWithFilter :: MonadIO m => (FilePath -> Bool) -> FilePath -> m [String]
+    getDirWithFilter p = liftIO . fmap (filter p) . getDirectoryContents
 
 assertFile :: FilePath -> String -> IO ()
 assertFile fp contents = do

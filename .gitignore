@@ -16,3 +16,6 @@
 /ui/config.js
 /packages.json
 /packageNames.json
+/db.sqlite
+/db.sqlite-shm
+/db.sqlite-wal
