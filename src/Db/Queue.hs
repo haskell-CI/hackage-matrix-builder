@@ -3,6 +3,7 @@
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE NoMonomorphismRestriction  #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE QuasiQuotes                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -10,14 +11,13 @@
 {-# LANGUAGE TypeFamilies               #-}
 module Db.Queue where
 
-import           Control.Monad.Trans
+import           Control.Monad.Reader
 import           Data.Time
 import           Database.Esqueleto
 import           Database.Persist.TH
-import           Safe
 
-import           Api.Types           (PackageName (..))
-import           Types.Queue         (Priority (..))
+import           Api.Types            (PackageName (..))
+import           Types.Queue          (Priority (..))
 
 share [mkPersist sqlSettings, mkMigrate "migrateQueue"] [persistLowerCase|
 Queue
@@ -25,15 +25,12 @@ Queue
     priority    Priority
     created     UTCTime default=CURRENT_TIME
     modified    UTCTime default=CURRENT_TIME
+    UniquePackageName packageName
     deriving Show
 |]
 
 byName :: MonadIO m => PackageName -> SqlPersistT m (Maybe (Entity Queue))
-byName p = fmap headMay $
-  select $ from $ \q -> do
-    where_ $ q ^. QueuePackageName ==. val p
-    limit 1
-    return q
+byName = getBy . UniquePackageName
 
 list :: MonadIO m => SqlPersistT m [Entity Queue]
 list =

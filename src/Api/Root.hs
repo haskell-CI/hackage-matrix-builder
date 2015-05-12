@@ -24,7 +24,8 @@ import           Happstack.Server.Monads      ()
 import           Rest.Driver.Happstack        ()
 import           Rest.Driver.Perform          (Rest)
 
-import           Config
+import           Config                       (Config (sqliteDb),
+                                               MonadConfig (..))
 
 data ServerData = ServerData { config :: Config }
   deriving Show
@@ -47,8 +48,8 @@ newtype Root a = Root { unRoot :: ReaderT ServerData (ServerPartT IO) a }
     )
 
 instance HasRqData Root where
-  askRqEnv = Root (lift askRqEnv)
-  rqDataError = Root . lift . rqDataError
+  askRqEnv                        = Root (lift askRqEnv)
+  rqDataError                     = Root . lift . rqDataError
   localRqEnv f (Root (ReaderT m)) = Root (ReaderT (localRqEnv f . m))
 
 runRoot :: ServerData -> Root a -> ServerPartT IO a
@@ -62,11 +63,11 @@ instance MonadBaseControl IO Root where
 instance MonadConfig Root where
   asksConfig = asks . (. config)
 
-class MonadIO m => Db m where
+class (MonadIO m, MonadConfig m) => Db m where
   runDb :: SqlPersistT (NoLoggingT (ResourceT IO)) a -> m a
 
 instance Db Root where
-  runDb m = liftIO . flip runSqlite m =<< asks (cs . sqliteDb . config)
+  runDb m = liftIO . flip runSqlite m =<< asksConfig  (cs . sqliteDb)
 
 instance Db m => Db (ExceptT e m) where
   runDb = lift . runDb
