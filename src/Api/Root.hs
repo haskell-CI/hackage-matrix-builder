@@ -18,6 +18,7 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Resource
+import           Data.String.Conversions
 import           Database.Persist.Sqlite
 import           Happstack.Server
 import           Happstack.Server.Monads      ()
@@ -75,7 +76,7 @@ class MonadIO m => Db m where
   runDb :: SqlPersistT (NoLoggingT (ResourceT IO)) a -> m a
 
 instance Db Root where
-  runDb m = liftIO . flip runSqlite m =<< asks (sqliteDb . config)
+  runDb m = liftIO . flip runSqlite m =<< asks (cs . sqliteDb . config)
 
 instance Db m => Db (ExceptT e m) where
   runDb = lift . runDb

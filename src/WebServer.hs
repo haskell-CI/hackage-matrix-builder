@@ -2,6 +2,7 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TemplateHaskell           #-}
 module WebServer (defaultMain) where
 
 import           Control.Monad.Except
@@ -13,16 +14,15 @@ import qualified Data.ByteString.Lazy         as L
 import           Data.List
 import           Data.Maybe
 import           Data.String.Conversions
-import           Data.String.ToString
 import           Data.Time
 import           Database.Persist.Sqlite      (SqlBackend, runMigration,
                                                runSqlite)
 import           Happstack.Server.Compression
 import           Happstack.Server.FileServe
 import           Happstack.Server.SimpleHTTP
+import           Path
 import           Rest.Run                     (apiToHandler)
-import           System.Directory
-import           System.FilePath
+import           Safe
 
 import           Api                          (api)
 import qualified Api.Package                  as P
@@ -37,18 +37,18 @@ defaultMain = do
   cfg <- defaultConfig
   let serverData = ServerData { config = cfg }
 
-  assertFile (cs $ authFile cfg) . cs $ authUser cfg <> "/" <> authPass cfg
-  assertFile (cs $ uiConfigFile cfg) "var appConfig = { apiHost : '' };\n"
-  assertFile (cs $ packagesJson cfg) "[]"
+  assertFile (authFile cfg) . cs $ authUser cfg <> "/" <> authPass cfg
+  assertFile (uiConfigFile cfg) "var appConfig = { apiHost : '' };\n"
+  assertFile (packagesJson cfg) "[]"
 
-  pns <- doesFileExist "packageNames.json"
+  pns <- doesFileExistP (packageNamesJson cfg)
   unless pns $ do
     putStrLn $ "Writing defaults to packageNames.json"
     L.writeFile (cs $ packageNamesJson cfg) . encode . sort . fromMaybe [] =<< P.loadPackageSummary
 
   putStrLn "Migrating sqlite database"
-  runSqlite (sqliteDb cfg) $ runMigration Q.migrateQueue
-  runSqlite (sqliteDb cfg) tryMigrateQueue
+  runSqlite (cs $ sqliteDb cfg) $ runMigration Q.migrateQueue
+  runSqlite (cs $ sqliteDb cfg) tryMigrateQueue
 
   putStrLn "Starting server on port 3000"
 
@@ -61,43 +61,44 @@ defaultMain = do
 
 tryMigrateQueue :: MonadIO m => ReaderT SqlBackend m ()
 tryMigrateQueue = do
-  ex <- liftIO $ doesDirectoryExist "queue"
+  ex <- liftIO $ doesDirectoryExistP queueDir
   when ex $ do
     liftIO $ putStrLn "Migrating queue to sqlite"
     items <- liftIO $ list
     forM_ items $ \(pkg,prio,modi) -> do
       liftIO . putStrLn $ "Migrating queue item: " ++ show (pkg,prio,modi)
       Q.add pkg prio (Just modi)
-      liftIO $ removeFile (pth pkg)
+      liftIO $ removeFileP (pth pkg)
     liftIO $ putStrLn "Deleting queue directory"
-    liftIO $ removeDirectory "queue"
+    liftIO $ removeDirectoryP queueDir
   where
-    pth :: PackageName -> FilePath
-    pth = ("queue" </>) . toString
+    queueDir = $(mkRelDir "queue")
+    pth :: PackageName -> Path Rel File
+    pth = ($(mkRelDir "queue") </>) . fromJustNote "Package name is not valid as a path" . parseRelFile . cs
     list :: IO [(PackageName,Q.Priority,UTCTime)]
     list
       =  fmap catMaybes
       .  mapM (get . PackageName . cs)
-     =<< getDirWithFilter (not . ("." `isPrefixOf`)) "queue"
+     =<< getDirWithFilter (not . ("." `isPrefixOf`)) $(mkRelDir "queue")
     get :: PackageName -> IO (Maybe (PackageName,Q.Priority,UTCTime))
     get p = do
       let fp = pth p
-      de <- doesFileExist fp
+      de <- doesFileExistP fp
       if de
         then do
-          ts   <- getModificationTime fp
-          prio <- fromMaybe Q.Medium . decodeV . cs <$> S.readFile fp
+          ts   <- getModificationTimeP fp
+          prio <- fromMaybe Q.Medium . decodeV . cs <$> S.readFile (cs fp)
           return $ Just (p,prio,ts)
         else return Nothing
-    getDirWithFilter :: MonadIO m => (FilePath -> Bool) -> FilePath -> m [String]
-    getDirWithFilter p = liftIO . fmap (filter p) . getDirectoryContents
+    getDirWithFilter :: MonadIO m => (FilePath -> Bool) -> Path b Dir -> m [FilePath]
+    getDirWithFilter p = liftIO . fmap (filter p) . getDirectoryContentsP
 
-assertFile :: FilePath -> String -> IO ()
+assertFile :: Path Rel File -> String -> IO ()
 assertFile fp contents = do
-  ex <- doesFileExist fp
+  ex <- doesFileExistP fp
   unless ex $ do
-    putStrLn $ "Writing defaults to " ++ fp
-    writeFile fp contents
+    putStrLn $ "Writing defaults to " ++ cs fp
+    writeFileP fp contents
 
 router :: Root Response
 router = void compressedResponseFilter >> msum

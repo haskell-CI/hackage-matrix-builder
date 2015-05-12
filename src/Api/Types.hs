@@ -1,15 +1,20 @@
 {-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 module Api.Types where
 
 import           Control.Arrow
-import           Control.Monad.Reader   (ReaderT)
-import           Data.Aeson             (FromJSON (..), ToJSON (..))
+import           Control.Monad.Reader    (ReaderT)
+import           Data.Aeson              (FromJSON (..), ToJSON (..))
 import           Data.JSON.Schema
-import qualified Data.Map.Strict        as Map
+import qualified Data.Map.Strict         as Map
 import           Data.String
+import           Data.String.Conversions
 import           Data.String.ToString
 import           Data.Time
 import           Generics.Generic.Aeson
@@ -17,15 +22,17 @@ import           Rest.Info
 import           Rest.ShowUrl
 import           Safe
 
-import           Api.Root               (Root)
--- import           Api.Utils              ()
+import           Api.Root                (Root)
 import           BuildReport
 import           BuildTypes
 
 newtype PackageName = PackageName { unPackageName :: Text }
- deriving (FromJSON, Eq, IsString, JSONSchema, Ord, Show, ToJSON, ToString, Read, ShowUrl)
+ deriving (FromJSON, Eq, IsString, JSONSchema, Ord, Show, ToJSON, Read, ShowUrl)
 instance Info PackageName where
   describe _ = "identifier"
+
+instance ConvertibleStrings PackageName Text where convertString = unPackageName
+instance ConvertibleStrings PackageName String where convertString = cs . unPackageName
 
 type WithPackage = ReaderT PackageName Root
 

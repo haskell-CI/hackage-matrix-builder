@@ -9,6 +9,7 @@ module Api.Package
   ) where
 
 import           Control.Monad.Except
+import           Control.Monad.Reader
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import qualified Data.ByteString.Lazy as L
 import           Data.List
@@ -22,10 +23,11 @@ import           Data.Time
 import           Rest
 import qualified Rest.Resource        as R
 
-import           Api.Root             (Root)
+import           Api.Root
 import           Api.Types
 import           Api.Utils
 import           BuildTypes           hiding (PkgVerStatus (..))
+import           Config
 
 data Listing
   = All
@@ -56,7 +58,7 @@ list = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [PackageMeta]
     handler r = do
-      reports <- liftIO reportsByStamp
+      reports <- reportsByStamp
       pkgs <- liftIO loadPackageSummary `orThrow` Busy
       return . listRange r . f reports $ pkgs
     f :: [ReportMeta] -> [PackageName] -> [PackageMeta]
@@ -73,11 +75,13 @@ listLatestReport :: ListHandler Root
 listLatestReport = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [ReportMeta]
-    handler r = listRange r <$> liftIO reportsByStamp
+    handler r = listRange r <$> reportsByStamp
 
-reportsByStamp :: IO [ReportMeta]
+reportsByStamp :: MonadRoot m => m [ReportMeta]
 reportsByStamp
-   =  fmap (map toReportMeta . sortBy (flip $ comparing snd)) $ filesByStamp (".json" `isSuffixOf`) "report"
+   =  fmap (map toReportMeta . sortBy (flip $ comparing snd))
+   .  liftIO . filesByStamp (".json" `isSuffixOf`)
+  =<< liftRoot (asks $ reportDir . config)
   where
     toReportMeta :: (Text, UTCTime) -> ReportMeta
     toReportMeta (a,b) = ReportMeta
