@@ -16,6 +16,7 @@ import           Api.Package             (validatePackage)
 import           Api.Types
 import           Api.Utils
 import           Config
+import           Paths
 
 data ReportIdentifier = Latest
 

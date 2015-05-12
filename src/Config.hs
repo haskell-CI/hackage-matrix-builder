@@ -1,30 +1,29 @@
-{-# OPTIONS -fno-warn-orphans #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE TemplateHaskell       #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell   #-}
 module Config where
 
-import           Control.Monad.Catch
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import qualified Data.ByteString.Lazy    as L
-import           Data.String.Conversions
-import           Data.Text               (Text)
-import           Data.Time               (UTCTime)
+import           Data.Text            (Text)
 import           Path
-import           System.Directory
-import qualified System.FilePath         as FP
 
+import           Paths                ()
 
 class Monad m => MonadConfig m where
   asksConfig :: (Config -> a) -> m a
 
+instance MonadConfig ((->) Config) where
+  asksConfig = id
+
 instance MonadConfig m => MonadConfig (ExceptT e m) where
   asksConfig = lift . asksConfig
 
-instance MonadConfig m => MonadConfig (ReaderT r m) where
+instance {-# Overlappable #-} MonadConfig m => MonadConfig (ReaderT r m) where
   asksConfig = lift . asksConfig
+
+instance {-# Overlapping #-} Monad m => MonadConfig (ReaderT Config m) where
+  asksConfig = asks
 
 data Config = Config
   { sqliteDb          :: Path Rel File
@@ -54,33 +53,3 @@ defaultConfig = return Config
   , webServerHostName = "127.0.0.1"
   , reportDir         = $(mkRelDir "report")
   }
-
-instance ConvertibleStrings (Path b t) Text   where convertString = cs . toFilePath
-instance ConvertibleStrings (Path b t) [Char] where convertString = toFilePath
-
-removeFileP :: Path a File -> IO ()
-removeFileP = removeFile . toFilePath
-
-writeFileP :: Path a File -> String -> IO ()
-writeFileP = writeFile . toFilePath
-
-getDirectoryContentsP :: Path a Dir -> IO [FilePath]
-getDirectoryContentsP = getDirectoryContents . toFilePath
-
-removeDirectoryP :: Path a Dir -> IO ()
-removeDirectoryP = removeDirectory . toFilePath
-
-doesFileExistP :: Path a File -> IO Bool
-doesFileExistP = doesFileExist . toFilePath
-
-doesDirectoryExistP :: Path a Dir -> IO Bool
-doesDirectoryExistP = doesDirectoryExist . toFilePath
-
-getModificationTimeP :: Path a b -> IO UTCTime
-getModificationTimeP = getModificationTime . toFilePath
-
-lazyReadFileP :: Path a File -> IO LazyByteString
-lazyReadFileP = L.readFile . toFilePath
-
-(<.>) :: MonadThrow m => Path Rel File -> String -> m (Path Rel File)
-f <.> e = parseRelFile $ toFilePath f FP.<.> e

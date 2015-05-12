@@ -33,7 +33,7 @@ import           Api.Types
 import           Builder                 (parseXList, xcabalExe)
 import           BuildTypes              hiding (PkgVerStatus (..))
 import qualified BuildTypes              as BT
-import           Config
+import           Paths
 
 
 listRange :: Range -> [a] -> [a]
@@ -58,13 +58,6 @@ secure = do
     _ -> do
       liftIO $ hPutStrLn stderr "Failure reading auth file"
       throwError Busy
-
-tryReadFile :: Path a File -> IO (Maybe LazyByteString)
-tryReadFile fp = do
-  exists <- doesFileExistP fp
-  if not exists
-    then return Nothing
-    else Just <$> lazyReadFileP fp
 
 xcabalPackage :: PackageName -> IO (Maybe Package)
 xcabalPackage pkgName = do

@@ -3,12 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeFamilies               #-}
-module Api.Root
-  ( ServerData (..)
-  , Root (..)
-  , runRoot
-  , Db (..)
-  ) where
+module Api.Root where
 
 import           Control.Applicative
 import           Control.Monad.Base
@@ -74,3 +69,15 @@ instance Db m => Db (ExceptT e m) where
 
 instance Db m => Db (ReaderT r m) where
   runDb = lift . runDb
+
+class (MonadConfig m, Db m) => MonadRoot m where
+  liftRoot :: Root a -> m a
+
+instance MonadRoot Root where
+  liftRoot = id
+
+instance MonadRoot m => MonadRoot (ExceptT e m) where
+  liftRoot = lift . liftRoot
+
+instance MonadRoot m => MonadRoot (ReaderT r m) where
+  liftRoot = lift . liftRoot

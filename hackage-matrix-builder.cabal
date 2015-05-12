@@ -49,6 +49,7 @@ library
     Generate
     Queue
     QueueCli
+    Paths
     Types.Queue
     WebServer
 

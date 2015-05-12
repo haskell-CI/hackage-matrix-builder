@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts          #-}
+{-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
@@ -10,7 +11,6 @@ import           Control.Monad.Reader
 import           Data.Aeson
 import           Data.Aeson.Utils
 import qualified Data.ByteString              as S
-import qualified Data.ByteString.Lazy         as L
 import           Data.List
 import           Data.Maybe
 import           Data.String.Conversions
@@ -30,6 +30,7 @@ import           Api.Root
 import           Api.Types                    (PackageName (..))
 import           Config
 import qualified Db.Queue                     as Q
+import           Paths
 import qualified Types.Queue                  as Q
 
 defaultMain :: IO ()
@@ -44,7 +45,7 @@ defaultMain = do
   pns <- doesFileExistP (packageNamesJson cfg)
   unless pns $ do
     putStrLn $ "Writing defaults to packageNames.json"
-    L.writeFile (cs $ packageNamesJson cfg) . encode . sort . fromMaybe [] =<< P.loadPackageSummary
+    lazyWriteFileP (packageNamesJson cfg) . encode . sort . fromMaybe [] =<< runReaderT P.loadPackageSummary cfg
 
   putStrLn "Migrating sqlite database"
   runSqlite (cs $ sqliteDb cfg) $ runMigration Q.migrateQueue
