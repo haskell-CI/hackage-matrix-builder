@@ -7,11 +7,12 @@ import           Data.String.ToString
 import           Database.Persist        (Entity (Entity))
 import           Database.Persist.Sqlite (runSqlite)
 
+import Config (sqliteDb, defaultConfig)
 import qualified Queue
 
 defaultMain :: IO ()
 defaultMain = do
-    let sqliteCfg = "db.sqlite"
+    sqliteCfg <- sqliteDb <$> defaultConfig
     runSqlite sqliteCfg $ do
       q <- Queue.list
       liftIO $ case q of

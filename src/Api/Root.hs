@@ -6,6 +6,7 @@
 module Api.Root
   ( ServerData (..)
   , Root (..)
+  , MonadRoot (..)
   , runRoot
   , Db (..)
   ) where
@@ -17,14 +18,15 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Resource
-import           Data.Text                    (Text)
 import           Database.Persist.Sqlite
 import           Happstack.Server
 import           Happstack.Server.Monads      ()
 import           Rest.Driver.Happstack        ()
 import           Rest.Driver.Perform          (Rest)
 
-data ServerData = ServerData { sqliteConf :: Text }
+import           Config                       (Config, sqliteDb)
+
+data ServerData = ServerData { config :: Config }
   deriving Show
 
 newtype Root a = Root { unRoot :: ReaderT ServerData (ServerPartT IO) a }
@@ -57,11 +59,23 @@ instance MonadBaseControl IO Root where
   liftBaseWith f = Root (liftBaseWith (\run -> f (liftM StMRoot . run . unRoot)))
   restoreM = Root . restoreM . unStMRoot
 
+class MonadIO m => MonadRoot m where
+  liftRoot :: Root a -> m a
+
+instance MonadRoot Root where
+  liftRoot = id
+
+instance MonadRoot m => MonadRoot (ExceptT e m) where
+  liftRoot = lift . liftRoot
+
+instance MonadRoot m => MonadRoot (ReaderT r m) where
+  liftRoot = lift . liftRoot
+
 class MonadIO m => Db m where
   runDb :: SqlPersistT (NoLoggingT (ResourceT IO)) a -> m a
 
 instance Db Root where
-  runDb m = liftIO . flip runSqlite m =<< asks sqliteConf
+  runDb m = liftIO . flip runSqlite m =<< asks (sqliteDb . config)
 
 instance Db m => Db (ExceptT e m) where
   runDb = lift . runDb

@@ -1,12 +1,14 @@
 module Generate (defaultMain, jsMain) where
 
 
-import qualified Rest.Gen           as Gen
-import qualified Rest.Gen.Config    as Gen
+import           Data.String.Conversions
+import qualified Rest.Gen                as Gen
+import qualified Rest.Gen.Config         as Gen
 import           Rest.Gen.Types
 import           System.Environment
 
-import           Api                (api)
+import           Api                     (api)
+import           Config
 
 defaultMain :: IO ()
 defaultMain = do
@@ -17,4 +19,6 @@ defaultMain = do
     [(ModuleName "Data.Text.Internal", ModuleName "Data.Text")]
 
 jsMain :: IO ()
-jsMain = withArgs ["--javascript", "--target=ui/api.js"] defaultMain
+jsMain = do
+  jsPath <- jsClientTarget <$> defaultConfig
+  withArgs ["--javascript", "--target=" ++ cs jsPath] defaultMain

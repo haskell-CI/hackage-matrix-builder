@@ -28,31 +28,32 @@ import           Api                          (api)
 import qualified Api.Package                  as P
 import           Api.Root
 import           Api.Types                    (PackageName (..))
+import           Config
 import qualified Db.Queue                     as Q
 import qualified Types.Queue                  as Q
 
 defaultMain :: IO ()
 defaultMain = do
-  let sqliteCfg = "db.sqlite"
-  assertFile "auth" "trustee/1234"
-  assertFile "ui/config.js" "var appConfig = { apiHost : '' };\n"
-  assertFile "packages.json" "[]"
+  cfg <- defaultConfig
+  let serverData = ServerData { config = cfg }
+
+  assertFile (cs $ authFile cfg) . cs $ authUser cfg <> "/" <> authPass cfg
+  assertFile (cs $ uiConfigFile cfg) "var appConfig = { apiHost : '' };\n"
+  assertFile (cs $ packagesJson cfg) "[]"
 
   pns <- doesFileExist "packageNames.json"
   unless pns $ do
     putStrLn $ "Writing defaults to packageNames.json"
-    L.writeFile "packageNames.json" . encode . sort . fromMaybe [] =<< P.loadPackageSummary
-
-  let serverData = ServerData { sqliteConf = sqliteCfg }
+    L.writeFile (cs $ packageNamesJson cfg) . encode . sort . fromMaybe [] =<< P.loadPackageSummary
 
   putStrLn "Migrating sqlite database"
-  runSqlite sqliteCfg $ runMigration Q.migrateQueue
-  runSqlite sqliteCfg tryMigrateQueue
+  runSqlite (sqliteDb cfg) $ runMigration Q.migrateQueue
+  runSqlite (sqliteDb cfg) tryMigrateQueue
 
   putStrLn "Starting server on port 3000"
 
-  let conf = nullConf { port = 3000 }
-  s <- bindIPv4 "127.0.0.1" (port conf)
+  let conf = nullConf { port = webServerPort cfg }
+  s <- bindIPv4 (cs $ webServerHostName cfg) (port conf)
   simpleHTTPWithSocket s conf $ do
     (rsp,_) <- runRoot serverData $ getFilter router
     return rsp
@@ -93,7 +94,7 @@ tryMigrateQueue = do
 
 assertFile :: FilePath -> String -> IO ()
 assertFile fp contents = do
-  ex <- doesFileExist "ui/config.js"
+  ex <- doesFileExist fp
   unless ex $ do
     putStrLn $ "Writing defaults to " ++ fp
     writeFile fp contents

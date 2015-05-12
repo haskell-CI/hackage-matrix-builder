@@ -1,17 +1,22 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 module Api.Package.Report (resource) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Aeson
+import           Data.String.Conversions
 import           Data.String.ToString
 import           Rest
-import qualified Rest.Resource        as R
+import qualified Rest.Resource           as R
 import           System.FilePath
 
-import           Api.Package          (validatePackage)
+import           Api.Package             (validatePackage)
+import           Api.Root
 import           Api.Types
 import           Api.Utils
+import           Config
 
 data ReportIdentifier = Latest
 
@@ -36,7 +41,9 @@ get = mkConstHandler jsonO handler
     byName :: PackageName -> ExceptT Reason_ WithReport Report
     byName pkgName = do
       validatePackage pkgName
-      liftIO (get_ pkgName) `orThrow` NotFound
+      liftRoot (readReport pkgName) `orThrow` NotFound
 
-get_ :: PackageName -> IO (Maybe Report)
-get_ pkgName = (fmap toReport . decode =<<) <$> tryReadFile ("report" </> toString pkgName <.> "json")
+readReport :: (MonadIO m, MonadReader ServerData m) => PackageName -> m (Maybe Report)
+readReport pkgName = do
+  repDir <- asks $ reportDir . config
+  (fmap toReport . decode =<<) <$> liftIO (tryReadFile (cs repDir </> toString pkgName <.> "json"))

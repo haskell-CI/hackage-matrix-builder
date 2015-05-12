@@ -44,6 +44,7 @@ library
     BuildReport
     BuildTypes
     Builder
+    Config
     Db.Queue
     Generate
     Queue
