@@ -6,7 +6,6 @@
 module Api.Root
   ( ServerData (..)
   , Root (..)
-  , MonadRoot (..)
   , runRoot
   , Db (..)
   ) where
@@ -25,7 +24,7 @@ import           Happstack.Server.Monads      ()
 import           Rest.Driver.Happstack        ()
 import           Rest.Driver.Perform          (Rest)
 
-import           Config                       (Config, sqliteDb)
+import           Config
 
 data ServerData = ServerData { config :: Config }
   deriving Show
@@ -60,17 +59,8 @@ instance MonadBaseControl IO Root where
   liftBaseWith f = Root (liftBaseWith (\run -> f (liftM StMRoot . run . unRoot)))
   restoreM = Root . restoreM . unStMRoot
 
-class MonadIO m => MonadRoot m where
-  liftRoot :: Root a -> m a
-
-instance MonadRoot Root where
-  liftRoot = id
-
-instance MonadRoot m => MonadRoot (ExceptT e m) where
-  liftRoot = lift . liftRoot
-
-instance MonadRoot m => MonadRoot (ReaderT r m) where
-  liftRoot = lift . liftRoot
+instance MonadConfig Root where
+  asksConfig = asks . (. config)
 
 class MonadIO m => Db m where
   runDb :: SqlPersistT (NoLoggingT (ResourceT IO)) a -> m a

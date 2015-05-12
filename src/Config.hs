@@ -6,6 +6,8 @@
 module Config where
 
 import           Control.Monad.Catch
+import           Control.Monad.Except
+import           Control.Monad.Reader
 import qualified Data.ByteString.Lazy    as L
 import           Data.String.Conversions
 import           Data.Text               (Text)
@@ -13,6 +15,16 @@ import           Data.Time               (UTCTime)
 import           Path
 import           System.Directory
 import qualified System.FilePath         as FP
+
+
+class Monad m => MonadConfig m where
+  asksConfig :: (Config -> a) -> m a
+
+instance MonadConfig m => MonadConfig (ExceptT e m) where
+  asksConfig = lift . asksConfig
+
+instance MonadConfig m => MonadConfig (ReaderT r m) where
+  asksConfig = lift . asksConfig
 
 data Config = Config
   { sqliteDb          :: Path Rel File

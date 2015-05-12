@@ -9,7 +9,6 @@ module Api.Package
   ) where
 
 import           Control.Monad.Except
-import           Control.Monad.Reader
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import qualified Data.ByteString.Lazy as L
 import           Data.List
@@ -77,11 +76,11 @@ listLatestReport = mkListing jsonO handler
     handler :: Range -> ExceptT Reason_ Root [ReportMeta]
     handler r = listRange r <$> reportsByStamp
 
-reportsByStamp :: MonadRoot m => m [ReportMeta]
+reportsByStamp :: (MonadIO m, MonadConfig m) => m [ReportMeta]
 reportsByStamp
    =  fmap (map toReportMeta . sortBy (flip $ comparing snd))
    .  liftIO . filesByStamp (".json" `isSuffixOf`)
-  =<< liftRoot (asks $ reportDir . config)
+  =<< asksConfig reportDir
   where
     toReportMeta :: (Text, UTCTime) -> ReportMeta
     toReportMeta (a,b) = ReportMeta

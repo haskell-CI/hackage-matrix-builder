@@ -13,7 +13,6 @@ import           Rest
 import qualified Rest.Resource           as R
 
 import           Api.Package             (validatePackage)
-import           Api.Root
 import           Api.Types
 import           Api.Utils
 import           Config
@@ -41,14 +40,14 @@ get = mkConstHandler jsonO handler
     byName :: PackageName -> ExceptT Reason_ WithReport Report
     byName pkgName = do
       validatePackage pkgName
-      liftRoot (readReport pkgName) `orThrow` NotFound
+      readReport pkgName `orThrow` NotFound
 
-readReport :: forall m. MonadRoot m => PackageName -> m (Maybe Report)
+readReport :: (MonadIO m, MonadConfig m) => PackageName -> m (Maybe Report)
 readReport pkgName
    =  fmap (fmap toReport . (decode =<<))
-   . liftIO
+   .  liftIO
    .  (\repDir -> tryReadFile
              <=< fmap (repDir </>) . (<.> "json")
              <=< parseRelFile . cs $ pkgName
       )
-  <=< liftRoot . asks $ reportDir . config
+  =<< asksConfig reportDir
