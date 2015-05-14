@@ -139,7 +139,7 @@
       setTimeout(renderLatest, 0);
     });
 
-    api.Package.listLatestReports(renderReports, fail("Package.listLatestReports"), { count : 10 });
+    api.Package.listLatestReports(renderReports, fail("Package.listLatestReports"), { count : 100 });
     function loadQueue () {
       api.Queue.list(renderQueue, fail("Queue.list"));
     }

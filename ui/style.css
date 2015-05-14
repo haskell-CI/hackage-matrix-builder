@@ -24,7 +24,7 @@ body {
 .page {
   display: none;
   margin-top: 100px;
-  margin-left: 200px;
+  margin-left: 25px;
 }
 
 #page-package {
@@ -252,6 +252,16 @@ body {
 }
 #queue-list .low .down {
   visibility: hidden;
+}
+
+#page-latest .main-content { width: 900px; }
+#page-latest .main-left {
+  width: 400px;
+  float: left;
+}
+#page-latest .main-right {
+  width: 400px;
+  float: right;
 }
 
 /** jQuery UI tweaks **/
