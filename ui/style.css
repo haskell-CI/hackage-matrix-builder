@@ -265,3 +265,4 @@ body .ui-widget-content a:hover { text-decoration: underline; }
 body .ui-widget-content { background: none; background-color: #FAFAFF; }
 body .ui-widget-header .ui-state-default { background: #E6E6F9; }
 body .ui-widget-header .ui-state-active { background: #FAFAFF; }
+body .ui-tabs-nav.ui-widget-header { height: 40px; }
