@@ -303,6 +303,7 @@
     $("#package").html("");
     if (pkg && report) {
       renderTable(pkgName, pkg, window.ghcVersions);
+      $("#page-package .last-build").text("Last build: " + formatDate(report.modified));
       renderSingleVersionMatrix(pkgName, pkg, report, window.ghcVersions);
       $(".package-header").show();
       $(".logs-header").show();

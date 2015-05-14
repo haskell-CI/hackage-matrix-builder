@@ -63,16 +63,18 @@ instance JSONSchema ReportMeta where schema    = gSchemaWithSettings    $ strip 
 
 data Report = Report
   { rPackageName :: PackageName
+  , rModified    :: UTCTime
   , rResults     :: [GHCResult]
   } deriving (Eq, Generic, Show)
 instance ToJSON     Report where toJSON    = gtoJsonWithSettings    $ strip "r"
 instance FromJSON   Report where parseJSON = gparseJsonWithSettings $ strip "r"
 instance JSONSchema Report where schema    = gSchemaWithSettings    $ strip "r"
 
-toReport :: ReportData -> Report
-toReport rd = Report
+toReport :: UTCTime -> ReportData -> Report
+toReport md rd = Report
   { rPackageName = fromString . toString . rdPkgName $ rd
-  , rResults = map (f $ rdVersions rd) . Map.toList . rdGVersions $ rd
+  , rModified    = md
+  , rResults     = map (f $ rdVersions rd) . Map.toList . rdGVersions $ rd
   }
   where
     f :: Map PkgVer (PkgRev, Bool)

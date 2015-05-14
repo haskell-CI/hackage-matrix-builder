@@ -14,7 +14,6 @@ import qualified Rest.Resource           as R
 
 import           Api.Package             (validatePackage)
 import           Api.Types
-import           Api.Utils
 import           Config
 import           Paths
 
@@ -44,11 +43,11 @@ get = mkConstHandler jsonO handler
       readReport pkgName `orThrow` NotFound
 
 readReport :: (MonadIO m, MonadConfig m) => PackageName -> m (Maybe Report)
-readReport pkgName
-   =  fmap (fmap toReport . (decode =<<))
-   .  liftIO
-   .  (\repDir -> tryReadFile
-             <=< fmap (repDir </>) . (<.> "json")
-             <=< parseRelFile . cs $ pkgName
-      )
-  =<< asksConfig reportDir
+readReport pkgName =
+  fmap ((\(t,c) -> toReport t <$> decode c) =<<)
+    .  liftIO
+    .  (\repDir -> tryReadFileWithModifiedTime
+              <=< fmap (repDir </>) . (<.> "json")
+              <=< parseRelFile . cs $ pkgName
+       )
+   =<< asksConfig reportDir

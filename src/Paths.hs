@@ -52,3 +52,11 @@ tryReadFile fp = do
   if not exists
     then return Nothing
     else Just <$> lazyReadFileP fp
+
+tryReadFileWithModifiedTime :: Path a File -> IO (Maybe (UTCTime, LazyByteString))
+tryReadFileWithModifiedTime fp = do
+  exists <- doesFileExistP fp
+  if not exists
+    then return Nothing
+    else fmap Just $ (,) <$> getModificationTimeP fp
+                         <*> lazyReadFileP fp
