@@ -101,6 +101,10 @@ body {
 
 /* Package page */
 
+#tabs-container {
+  max-width: 800px;
+}
+
 #tabs-container .log-entry {
   height: 400px;
   overflow: scroll;
