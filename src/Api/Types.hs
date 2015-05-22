@@ -184,3 +184,30 @@ instance JSONSchema Package where schema    = gSchemaWithSettings    $ strip "p"
 
 strip :: String -> Settings
 strip = Settings . Just
+
+newtype Username = Username { unUsername :: Text }
+  deriving (Eq, FromJSON, Show, ToJSON)
+
+instance ConvertibleStrings Username Text   where convertString = unUsername
+instance ConvertibleStrings Text Username   where convertString = Username
+instance ConvertibleStrings Username String where convertString = cs . unUsername
+instance ConvertibleStrings String Username where convertString = Username . cs
+
+data User = User
+  { uName     :: Text
+  , uPackages :: [PackageName]
+  } deriving (Eq, Generic, Show)
+
+instance ToJSON     User where toJSON    = gtoJsonWithSettings    $ strip "u"
+instance FromJSON   User where parseJSON = gparseJsonWithSettings $ strip "u"
+instance JSONSchema User where schema    = gSchemaWithSettings    $ strip "u"
+
+data HackageUserRep = HackageUserRep
+  { hugroups   :: [Text]
+  , huusername :: Text
+  , huuserid   :: Int
+  } deriving (Eq, Generic, Show)
+
+instance ToJSON     HackageUserRep where toJSON    = gtoJsonWithSettings    $ strip "hu"
+instance FromJSON   HackageUserRep where parseJSON = gparseJsonWithSettings $ strip "hu"
+instance JSONSchema HackageUserRep where schema    = gSchemaWithSettings    $ strip "hu"

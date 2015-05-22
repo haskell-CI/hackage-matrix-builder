@@ -40,6 +40,7 @@ library
     Api.Queue
     Api.Root
     Api.Types
+    Api.User
     Api.Utils
     BuildReport
     BuildTypes
@@ -67,10 +68,12 @@ library
     deepseq            >=1.4  && <1.5,
     directory          >=1.2  && <1.3,
     esqueleto          >=2.2  && <2.3,
+    exceptions         >=0.8  && <0.9,
     filepath           >=1.4  && <1.5,
     generic-aeson      >=0.2  && <0.3,
     happstack-server   >=7.4  && <7.5,
     hashable           >=1.2  && <1.3,
+    http-conduit       >=2.1  && <2.2,
     json-schema        >=0.7  && <0.8,
     lens               >=4.9  && <4.10,
     monad-control      >=0.3  && <0.4,

@@ -6,14 +6,17 @@ import qualified Api.Package        as Package
 import qualified Api.Package.Report as Package.Report
 import qualified Api.Queue          as Queue
 import           Api.Root           (Root)
+import qualified Api.User           as User
 
 api :: Api Root
 api = [(mkVersion 1 0 0, Some1 router)]
   where
     router :: Router Root Root
     router =
-      root -/ route package --/ route report
-           -/ route queue
+      root -/ route queue
+           -/ route package --/ route report
+           -/ route user
     package = Package.resource
-    report  = Package.Report.resource
     queue   = Queue.resource
+    report  = Package.Report.resource
+    user    = User.resource
