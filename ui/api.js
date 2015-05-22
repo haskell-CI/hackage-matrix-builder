@@ -306,5 +306,30 @@ MatrixApi.prototype.Queue.prototype.remove =
   {
     return MatrixApi.ajaxCall("DELETE", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
   };
+MatrixApi.prototype.User =
+  function User (url, secureUrl, modifyRequest)
+  {
+    if (this instanceof User)
+    {
+      MatrixApi.setContext(this, url, secureUrl, modifyRequest);
+    }
+    else
+    {
+      return User.access(url, secureUrl, modifyRequest);
+    }
+  };
+MatrixApi.prototype.User.apiObjectType = "resourceDir";
+MatrixApi.prototype.User.byName =
+  function (string)
+  {
+    var postfix = 'name/' + encodeURIComponent(string) + '/';
+    var accessor = new this(this.contextUrl + postfix, this.secureContextUrl + postfix, this.modifyRequest);
+    accessor.get =
+      function (success, error, params, callOpts)
+      {
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+      };
+    return accessor;
+  };
 
 })(this);
