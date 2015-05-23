@@ -2,6 +2,7 @@
 
 body,h1,h2,h3,h4,h5,h6,a {
   font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
 }
 h2 { font-size: 24px; font-weight: 400; }
 
@@ -18,21 +19,6 @@ body {
   margin: 0;
   background-color: #FDFDFF;
 }
-
-/* Pages */
-
-.page {
-  display: none;
-  margin-top: 100px;
-  margin-left: 25px;
-}
-
-#page-package {
-  margin-top: 15px;
-  margin-left: 75px;
-}
-
-#content { padding: 30px; }
 
 .error { color: red; }
 
@@ -58,6 +44,7 @@ body {
 }
 
 #menu .item a {
+  font-size: 20px;
   color: #d1cddc;
 }
 #menu .item a:hover {
@@ -99,6 +86,95 @@ body {
   font-size: 18px;
 }
 
+/* Main container */
+
+#container
+{
+}
+
+/* Pages */
+
+.page {
+  display: none;
+  width: 1200px;
+  margin: auto;
+  margin-top: 20px;
+}
+.page:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* Left column */
+
+.leftcol {
+  float: left;
+  padding: 0;
+  width: 750px;
+}
+.leftcol:after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* Left split */
+.leftcol.col-2 .leftcol-2-left {
+  width: 370px;
+  float: left;
+}
+.leftcol.col-2 .leftcol-2-right {
+  width: 370px;
+  float: right;
+}
+
+/* Right column */
+
+.rightcol {
+  float: right;
+  padding: 0;
+  width: 425px;
+}
+
+/* Main content */
+
+.main-header {
+  margin: 0;
+}
+.main-header-subtext {
+  margin-bottom: 20px;
+}
+
+/* Right column menus */
+
+.rightcol .sub {
+  background-color: #f4f1e2;
+  margin-bottom: 10px;
+  padding: 20px;
+}
+
+.rightcol .header {
+  margin-top: 0;
+}
+
+.rightcol #build-queuer-container {
+  width: 300px;
+}
+
+.rightcol input[type=button], .rightcol in[type=submit] {
+  font-size: 20px;
+}
+
+.rightcol label {
+  font-size: 12px;
+}
+
+.already-queued {
+  font-size: 14px;
+  margin-bottom: 5px;
+}
+
 /* Package page */
 
 #tabs-container {
@@ -112,41 +188,6 @@ body {
 
 #queueing .already-queued {
   display: none;
-}
-
-/* Right column */
-
-.right {
-  float: right;
-  padding: 0;
-  width: 425px;
-}
-
-.right .sub {
-  background-color: #f4f1e2;
-  margin-bottom: 10px;
-  padding: 20px;
-}
-
-.right .header {
-  margin-top: 0;
-}
-
-.right #build-queuer-container {
-  width: 300px;
-}
-
-.right input[type=button], .right input[type=submit] {
-  font-size: 20px;
-}
-
-.right label {
-  font-size: 12px;
-}
-
-.already-queued {
-  font-size: 14px;
-  margin-bottom: 5px;
 }
 
 /** Table **/
@@ -256,16 +297,6 @@ body {
 }
 #queue-list .low .down {
   visibility: hidden;
-}
-
-#page-latest .main-content { width: 900px; }
-#page-latest .main-left {
-  width: 400px;
-  float: left;
-}
-#page-latest .main-right {
-  width: 400px;
-  float: right;
 }
 
 /** jQuery UI tweaks **/

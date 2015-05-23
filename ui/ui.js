@@ -93,8 +93,8 @@
     var content = page.find(".content");
     var pkgList = page.find(".packages").html("");
     var onlyReports = page.find(".user-only-reports");
-    var usernameSubtext = page.find(".username-subtext");
-    page.find(".username").text(name);
+    var usernameSubtext = page.find(".main-header-subtext");
+    page.find(".main-header").text(name);
     api.User.byName(name).get(gotUser, userNotFound);
     function userNotFound () {
       usernameSubtext.addClass("error").text("The user could not be found.");
@@ -351,11 +351,11 @@
 
   function renderPackage (pkgName, pkg, report) {
     hidePages();
-    $("#page-package .package-name").text(pkgName);
+    $("#page-package .main-header").text(pkgName);
     $("#package").html("");
     if (pkg && report) {
       renderTable(pkgName, pkg, window.ghcVersions);
-      $("#page-package .last-build").text("Last build: " + formatDate(report.modified));
+      $("#page-package .main-header-subtext.last-build").text("Last build: " + formatDate(report.modified));
       renderSingleVersionMatrix(pkgName, pkg, report, window.ghcVersions);
       $(".package-header").show();
       $(".logs-header").show();
@@ -509,7 +509,7 @@
 
         var td = $("#package td[data-ghc-version='" + ghcVersionName + "'][data-package-version='" + versionName + "']");
         if (!td[0]) {
-          console.warn("Could not find cell for " + cellHash(ghcVersionName, packageName, versionName));
+          console.warn("Could not find cell for " + cellHash(ghcVersionName, pkgName, versionName));
         }
         td.removeClass("fail-unknown");
         var r;
