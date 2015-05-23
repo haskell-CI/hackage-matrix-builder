@@ -59,10 +59,16 @@ instance MonadConfig Root where
   asksConfig = asks . (. config)
 
 class (MonadIO m, MonadConfig m) => Db m where
-  runDb :: SqlPersistT (NoLoggingT (ResourceT IO)) a -> m a
+  runDb :: SqlPersistT (LoggingT (ResourceT IO)) a -> m a
 
 instance Db Root where
-  runDb m = liftIO . flip runSqlite m =<< asksConfig  (cs . sqliteDb)
+  runDb m = liftIO . flip runSqliteWithLogging m =<< asksConfig  (cs . sqliteDb)
+    where
+      runSqliteWithLogging connstr
+        = runResourceT
+        . runStderrLoggingT
+        . withSqliteConn connstr
+        . runSqlConn
 
 instance Db m => Db (ExceptT e m) where
   runDb = lift . runDb
