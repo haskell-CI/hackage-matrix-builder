@@ -107,9 +107,10 @@ router = void compressedResponseFilter >> msum
       setHeaderM "Content-Disposition" "*"
       toResponse <$> apiToHandler api
   , serveDirectory DisableBrowsing ["index.html"] "ui"
-  , dir "package" serveIndex
-  , dir "latest" serveIndex
+  , dir "package"  serveIndex
+  , dir "latest"   serveIndex
   , dir "packages" serveIndex
+  , dir "user"     serveIndex
   ]
   where
     serveIndex = serveFile (asContentType "text/html") "ui/index.html"

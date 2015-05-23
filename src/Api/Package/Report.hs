@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Api.Package.Report (resource) where
+module Api.Package.Report (resource, readReport) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader

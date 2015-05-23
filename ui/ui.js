@@ -70,6 +70,11 @@
       return;
     }
 
+    if (/^\/user\/([^\/]+)/.test(uri.path())) {
+      renderUser(RegExp.$1);
+      return;
+    }
+
     if (uri.path() === "/packages") {
       renderPackages();
       return;
@@ -82,12 +87,58 @@
     $(".page").hide();
   }
 
+  function renderUser (name) {
+    hidePages();
+    var page = $("#page-user");
+    var content = page.find(".content");
+    var pkgList = page.find(".packages").html("");
+    var onlyReports = page.find(".user-only-reports");
+    var usernameSubtext = page.find(".username-subtext");
+    page.find(".username").text(name);
+    api.User.byName(name).get(gotUser, userNotFound);
+    function userNotFound () {
+      usernameSubtext.addClass("error").text("The user could not be found.");
+      content.hide();
+      page.show();
+    }
+    function gotUser (u) {
+      usernameSubtext.removeClass("error").text("Displaying packages maintained by this user.");
+      function renderPackageList () {
+        pkgList.html("");
+        var showOnlyReports = onlyReports.is(":checked");
+        pkgList.html("");
+        pkgList.append
+          ( u.packages.filter(function (v) {
+              return !showOnlyReports || (window.allPackagesMore[v] && window.allPackagesMore[v].report);
+            }).map(function (v) {
+              var date = (function () {
+              if (!window.allPackagesMore[v]) {
+                console.warn("packages.json might be out of date, could not find package: " + v);
+                return;
+              } else {
+                return window.allPackagesMore[v].report;
+              }
+              })();
+              return $("<li>").append
+                ( packageLink(v)
+                , date && $("<small>").text(" - last built: " + formatDate(date))
+                );
+            })
+          );
+      }
+      onlyReports.change(renderPackageList);
+      renderPackageList();
+      content.show();
+      page.show();
+    }
+  }
+
   function renderPackages () {
     hidePages();
     var page = $("#page-packages");
     var headers = page.find(".headers").html("");
     var pkgList = page.find(".packages").html("");
-    var onlyReports = page.find("#packages-only-reports");
+    var onlyReports = page.find(".packages-only-reports");
     var headers = [];
     var selectedPrefix = "A";
     for (var i = 65; i <= 90; i++) {
@@ -125,6 +176,7 @@
               );
           })
         );
+
     }
     showPrefix();
     page.show();

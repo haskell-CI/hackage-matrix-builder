@@ -215,7 +215,7 @@ body {
   padding-left: 5px;
 }
 
-/** Packages **/
+/** Packages & User **/
 
 #page-packages .headers {
   list-style-type: none;
@@ -225,9 +225,13 @@ body {
   font-size: 20px;
   float: left;
 }
-#page-packages #packages-only-reports {
+#page-packages .packages-only-reports, #page-users .packages-only-reports {
   margin-left: 50px;
 }
+
+#page-user .content { float: left; min-width: 800px }
+#page-user .username { margin-bottom: 0; }
+#page-user .username-subtext { margin-bottom: 20px; }
 
 /** Latest **/
 

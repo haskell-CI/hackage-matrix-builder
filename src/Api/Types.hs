@@ -186,7 +186,7 @@ strip :: String -> Settings
 strip = Settings . Just
 
 newtype Username = Username { unUsername :: Text }
-  deriving (Eq, FromJSON, Show, ToJSON)
+  deriving (Eq, FromJSON, Show, ToJSON, JSONSchema)
 
 instance ConvertibleStrings Username Text   where convertString = unUsername
 instance ConvertibleStrings Text Username   where convertString = Username
@@ -194,7 +194,7 @@ instance ConvertibleStrings Username String where convertString = cs . unUsernam
 instance ConvertibleStrings String Username where convertString = Username . cs
 
 data User = User
-  { uName     :: Text
+  { uName     :: Username
   , uPackages :: [PackageName]
   } deriving (Eq, Generic, Show)
 
