@@ -17,10 +17,13 @@ import           Database.Esqueleto
 import           Database.Persist.TH
 
 import           Api.Types            (PackageName (..))
+import           Db.UUID
 import           Types.Queue          (Priority (..))
 
 share [mkPersist sqlSettings, mkMigrate "migrateQueue"] [persistLowerCase|
 Queue
+    myId UUID
+    Primary myId
     packageName PackageName
     priority    Priority
     created     UTCTime default=CURRENT_TIME
@@ -41,8 +44,10 @@ list =
 add :: MonadIO m => PackageName -> Priority -> Maybe UTCTime -> SqlPersistT m ()
 add pkg prio mtime = do
   t <- maybe (liftIO getCurrentTime) return mtime
+  u <- liftIO nextRandom
   insert_ Queue
-    { queuePackageName = pkg
+    { queueMyId        = u
+    , queuePackageName = pkg
     , queuePriority    = prio
     , queueCreated     = t
     , queueModified    = t
