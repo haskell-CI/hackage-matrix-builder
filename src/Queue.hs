@@ -33,7 +33,6 @@ queueItemToView' q = QueueItem
   , qPriority    = queuePriority q
   }
 
-
 data QueueItem = QueueItem
   { qPackageName :: PackageName
   , qCreated     :: UTCTime

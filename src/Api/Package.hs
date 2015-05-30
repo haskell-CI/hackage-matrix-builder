@@ -10,6 +10,7 @@ module Api.Package
 
 import           Control.Monad.Except
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
+import           Data.Bool
 import           Data.List
 import qualified Data.Map.Strict      as Map
 import           Data.Maybe
@@ -58,8 +59,8 @@ list = mkListing jsonO handler
     handler :: Range -> ExceptT Reason_ Root [PackageMeta]
     handler r = do
       reports <- reportsByStamp
-      pkgs <- loadPackageSummary `orThrow` Busy
-      return . listRange r . f reports $ pkgs
+      pkgs <- loadPackageSummary
+      return . listRange r . f reports . Set.toList $ pkgs
     f :: [ReportMeta] -> [PackageName] -> [PackageMeta]
     f reps pkgs
       = map (\(pn,rs) -> PackageMeta { pmName = pn, pmReport = rs })
@@ -89,15 +90,11 @@ reportsByStamp
       }
 
 validatePackage :: MonadRoot m => PackageName -> ExceptT Reason_ m ()
-validatePackage pkgName = do
- s <- loadPackageNames
- maybe (throwError NotFound) (const $ return ()) . find (== pkgName) $ s
+validatePackage pkgName =
+  bool (throwError NotFound) (return ()) . (pkgName `elem`) =<< loadPackageSummary
 
-loadPackageNames :: (MonadIO m, MonadConfig m) => m (Set PackageName)
-loadPackageNames = fmap (fromMaybe Set.empty . decode) . liftIO . lazyReadFileP =<< asksConfig packageNamesJson
-
-loadPackageSummary :: (MonadIO m, MonadConfig m) => m (Maybe [PackageName])
-loadPackageSummary = (\v -> fmap (fmap (map summaryName) . decode) . liftIO . lazyReadFileP $ v) =<< asksConfig packagesJson
+loadPackageSummary :: (MonadIO m, MonadConfig m) => m (Set PackageName)
+loadPackageSummary = fmap (Set.fromList . fromMaybe []) . (\v -> fmap (fmap (map summaryName) . decode) . liftIO . lazyReadFileP $ v) =<< asksConfig packagesJson
 
 newtype PackageSummary = PackageSummary { summaryName :: PackageName }
   deriving (Eq, Show)

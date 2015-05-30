@@ -8,7 +8,6 @@ module WebServer (defaultMain) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
-import           Data.Aeson
 import           Data.Aeson.Utils
 import qualified Data.ByteString              as S
 import           Data.List
@@ -25,7 +24,6 @@ import           Rest.Run                     (apiToHandler)
 import           Safe
 
 import           Api                          (api)
-import qualified Api.Package                  as P
 import           Api.Root
 import           Api.Types                    (PackageName (..))
 import           Config
@@ -41,11 +39,6 @@ defaultMain = do
   assertFile (authFile cfg) . cs $ authUser cfg <> "/" <> authPass cfg
   assertFile (uiConfigFile cfg) "var appConfig = { apiHost : '' };\n"
   assertFile (packagesJson cfg) "[]"
-
-  pns <- doesFileExistP (packageNamesJson cfg)
-  unless pns $ do
-    putStrLn $ "Writing defaults to packageNames.json"
-    lazyWriteFileP (packageNamesJson cfg) . encode . sort . fromMaybe [] =<< runReaderT P.loadPackageSummary cfg
 
   putStrLn "Migrating sqlite database"
   runSqlite (cs $ sqliteDb cfg) $ runMigration Q.migrateQueue

@@ -376,6 +376,9 @@
     cleanupBuildQueuer();
     api.Queue.byName(pkgName).get(function (q) {
       $("#queueing .already-queued").show();
+    }, function (r) {
+      if (r.responseJSON.notFound) return;
+      fail("Queue.byName.get")(arguments);
     });
 
     $("#queueing .action").click(function () {

@@ -44,11 +44,8 @@ create = mkInputHandler jsonI handler
     handler :: Create -> ExceptT Reason_ Root ()
     handler c = do
       secure
-      liftIO $ print 1
       validatePackage (cPackageName c)
-      res <- runDb $ Q.add (cPackageName c) (cPriority c) Nothing
-      liftIO $ print res
-      return ()
+      runDb $ Q.add (cPackageName c) (cPriority c) Nothing
 
 update :: Handler WithPackage
 update = mkIdHandler (jsonO . jsonI) handler

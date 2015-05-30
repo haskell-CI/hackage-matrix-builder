@@ -41,7 +41,7 @@ data Config = Config
 
 defaultConfig :: IO Config
 defaultConfig = return Config
-  { sqliteDb          = $(mkRelFile "db.sqlit")
+  { sqliteDb          = $(mkRelFile "db.sqlite")
   , jsClientTarget    = $(mkRelFile "ui/api.js")
   , authFile          = $(mkRelFile "auth")
   , authUser          = "trustee"
