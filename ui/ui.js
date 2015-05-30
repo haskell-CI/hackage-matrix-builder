@@ -444,11 +444,12 @@
       var versionName = v.version;
       var revision    = v.revision;
       var unpreferred = v.unpreferred;
+      var prevVersionNameMay = pkg.versions[row-1] && pkg.versions[row-1].version;
 
       var th = $("<th>")
         .addClass("pkgv")
         .append
-          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName))
+          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName, prevVersionNameMay))
           , " "
           , $("<a>").attr("href", hackageUrl(pkgName, versionName)).text(versionName)
           , revision
@@ -622,8 +623,15 @@
     return d.toLocaleString().replace("T", " ");
   }
 
-  function hdiffUrl (pkgName, versionName) {
-    return "http://hdiff.luite.com/cgit/" + pkgName + "/commit?id=" + versionName;
+  function hdiffUrl (pkgName, versionName, prevVersionName) {
+    if (prevVersionName) {
+      return "http://hdiff.luite.com/cgit/" + pkgName + "/diff"
+        + "?id=" + versionName
+        + "&id2=" + prevVersionName;
+    } else {
+      return "http://hdiff.luite.com/cgit/" + pkgName + "/commit?id=" + versionName
+    }
+    return "http://hdiff.luite.com/cgit/" + pkgName + "/diff?id=" + versionName
   }
   function hackageUrl (pkgName, versionName) {
     return "https://hackage.haskell.org/package/" + pkgName + "-" + versionName + "/" + pkgName + ".cabal/edit";
