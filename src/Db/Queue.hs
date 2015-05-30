@@ -41,12 +41,15 @@ list =
 add :: MonadIO m => PackageName -> Priority -> Maybe UTCTime -> SqlPersistT m ()
 add pkg prio mtime = do
   t <- maybe (liftIO getCurrentTime) return mtime
-  insert_ Queue
-    { queuePackageName = pkg
-    , queuePriority    = prio
-    , queueCreated     = t
-    , queueModified    = t
-    }
+  mq <- byName pkg
+  case mq of
+    Nothing -> insert_ Queue
+      { queuePackageName = pkg
+      , queuePriority    = prio
+      , queueCreated     = t
+      , queueModified    = t
+      }
+    Just{} -> setPriority pkg prio
 
 setPriority :: MonadIO m => PackageName -> Priority -> SqlPersistT m ()
 setPriority pkg prio =

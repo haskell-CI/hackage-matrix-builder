@@ -53,6 +53,7 @@ update = mkIdHandler (jsonO . jsonI) handler
     handler :: Priority -> PackageName -> ExceptT Reason_ WithPackage QueueItem
     handler prio pkgName = do
       secure
+      validatePackage pkgName
       (`orThrow` NotFound) . fmap (fmap queueItemToView) . runDb $ do
         Q.setPriority pkgName prio
         Q.byName pkgName
