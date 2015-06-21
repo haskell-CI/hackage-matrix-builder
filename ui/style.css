@@ -22,6 +22,20 @@ body {
 
 .error { color: red; }
 
+/* Tags (global styling) */
+.tag-item {
+  margin-left: 5px;
+  border: 1px solid gray;
+  border-radius: 3px;
+  background-color: gray;
+  color: white;
+  padding: 0 3px;
+  font-size: 12px;
+}
+.tag-item.active {
+  background-color: black;
+}
+
 /* Menu */
 
 #menu {

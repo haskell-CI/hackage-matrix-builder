@@ -29,8 +29,7 @@ import           Api.Utils
 import           BuildTypes           hiding (PkgVerStatus (..))
 import           Config
 import           Paths
-import           Tag                  (TagName)
-import qualified Tag                  as Tag
+import           Tag
 
 data Listing
   = All
@@ -64,10 +63,16 @@ list = mkListing jsonO handler
     handler r = do
       reports <- reportsByStamp
       pkgs <- loadPackageSummary
-      return . listRange r . f reports . Set.toList $ pkgs
-    f :: [ReportMeta] -> [PackageName] -> [PackageMeta]
-    f reps pkgs
-      = map (\(pn,rs) -> PackageMeta { pmName = pn, pmReport = rs })
+      ts <- loadTags
+      return . listRange r . f ts reports . Set.toList $ pkgs
+    f :: Tags -> [ReportMeta] -> [PackageName] -> [PackageMeta]
+    f ts reps pkgs
+      = map (\(pn,rs) -> PackageMeta
+                           { pmName = pn
+                           , pmReport = rs
+                           , pmTags = Tag.lookupByPackage pn ts
+                           }
+            )
       . Map.toList
       . foldl' (\pm rt -> Map.insert (rmPackageName rt) (Just $ rmModified rt) pm) pkgMap
       $ reps

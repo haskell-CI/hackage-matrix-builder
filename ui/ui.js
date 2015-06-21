@@ -135,15 +135,36 @@
 
   function renderPackages () {
     hidePages();
-    var page = $("#page-packages");
-    var headers = page.find(".headers").html("");
-    var pkgList = page.find(".packages").html("");
-    var onlyReports = page.find(".packages-only-reports");
-    var headers = [];
+    var page           = $("#page-packages");
+    var tags           = page.find("tag-filter").html("");
+    var headers        = page.find(".headers").html("");
+    var pkgList        = page.find(".packages").html("");
+    var tagFilters     = [];
+    var onlyReports    = page.find(".packages-only-reports");
+    var headers        = [];
     var selectedPrefix = "A";
     for (var i = 65; i <= 90; i++) {
       headers.push(String.fromCharCode(i));
     }
+    tags.removeClass("active");
+    page.find(".tag-filter").html("").append
+      ( window.allTags
+          .filter(function (t) { return t.packages.length; })
+          .map(function (t) {
+            return renderTag(t.name).click(function (e) {
+              var tagName = $(e.target).attr("data-tag-name");
+              var tagIndex = tagFilters.indexOf(tagName);
+              if (tagIndex >= 0) {
+                tagFilters.splice(tagIndex, 1);
+                $(e.target).removeClass("active");
+              } else {
+                tagFilters.push(tagName);
+                $(e.target).addClass("active");
+              }
+              showPrefix();
+            })
+          })
+      );
     page.find(".headers").append
       ( headers.map(function (v) {
           return $("<li>").append
@@ -163,15 +184,22 @@
     onlyReports.change(showPrefix);
     function showPrefix () {
       var showOnlyReports = onlyReports.is(":checked");
+      var filterByTags = !!tagFilters.length;
+      console.log(filterByTags, tagFilters);
       pkgList.html("");
       pkgList.append
-        ( window.allPackages.filter(function (v) {
-              return v[0].toUpperCase() === selectedPrefix
-                 && (!showOnlyReports || window.allPackagesMore[v].report);
+        ( window.allPackages.filter(
+          function (v) {
+            return (
+              filterByTags
+                ? (window.allPackagesMore[v].tags.filter(function (t) { return tagFilters.indexOf(t) >= 0; }).length > 0)
+                : v[0].toUpperCase() === selectedPrefix
+              ) && (!showOnlyReports || window.allPackagesMore[v].report);
           }).map(function (v) {
             var date = window.allPackagesMore[v].report;
             return $("<li>").append
               ( packageLink(v)
+              , window.allPackagesMore[v].tags.map(renderTag)
               , date && $("<small>").text(" - last built: " + formatDate(date))
               );
           })
@@ -292,27 +320,37 @@
   function main () {
 
     // Preload package metadata for all packages
-    window.allPackages = [];
+    window.allPackages     = [];
     window.allPackagesMore = {};
+    window.allTags         = [];
     var responses = 0;
+    api.Tag.list(function (l) {
+      window.allTags = l.items;
+      responses++;
+      checkDone();
+    }, function () {
+      fail("Tag.list").apply(null, arguments);
+      responses++;
+      checkDone();
+    }, { count : 1000 });
     for (var i = 0; i < 10; i++) {
       (function (i) {
         api.Package.list(function (l) {
           l.items.forEach(function (v) {
             window.allPackages.push(v.name);
-            window.allPackagesMore[v.name] = { name : v.name, report : v.report };
+            window.allPackagesMore[v.name] = { name : v.name, report : v.report, tags : v.tags };
           });
           responses++;
           checkDone();
         }, function () {
-          fail("Package.list: " + i);
+          fail("Package.list: " + i).apply(null, arguments);
           responses++;
           checkDone();
         }, { count : 1000, offset : i*1000 });
       })(i);
     }
     function checkDone () {
-      if (responses < 10) {
+      if (responses < 11) {
         return;
       }
       setupRouting();
@@ -379,7 +417,7 @@
       $("#queueing .already-queued").show();
     }, function (r) {
       if (r && r.responseJSON && r.responseJSON.notFound) return;
-      fail("Queue.byName(" + pkgName + ").get").call(null, arguments);
+      fail("Queue.byName(" + pkgName + ").get").apply(null, arguments);
     });
 
     $("#queueing .action").click(function () {
@@ -409,7 +447,7 @@
       api.Tag.byName(tagName).remove(pkgName, function () {
         setupTagger(pkgName);
       }, function () {
-        fail("api.Tag.removeByName(" + tagName + ", " + pkgName + ")").call(null, arguments);
+        fail("api.Tag.removeByName(" + tagName + ", " + pkgName + ")").apply(null, arguments);
         $("#tagging .error").show();
       });
     }
@@ -703,6 +741,10 @@
   }
   function packageLink (pkgName, ghcVersion, pkgVersion) {
     return $("<a>").attr("href", packageUri(pkgName, ghcVersion, pkgVersion).toString()).text(pkgName);
+  }
+
+  function renderTag (tagName) {
+    return $("<a>").addClass("tag-item").attr("data-tag-name", tagName).text(tagName);
   }
 
 })();

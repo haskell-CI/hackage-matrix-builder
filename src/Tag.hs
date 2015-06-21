@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-module Tag where
+module Tag (module Tag, TagName (..)) where
 
 import           Control.Monad.Reader
 import           Data.Aeson
@@ -20,18 +20,16 @@ import           Generics.Generic.Aeson
 import           Api.Types               (PackageName)
 import           BuildTypes              hiding (PkgVerStatus (..))
 import           Config
+import           Identifiers             (TagName (..))
 import           Paths
-
-newtype TagName = TagName { unTagName :: Text }
-  deriving (Eq, FromJSON, JSONSchema, Ord, Read, Show, ToJSON)
 
 data Tag = Tag
   { name     :: TagName
   , packages :: Set PackageName
   } deriving (Eq, Generic, Show)
 
-instance ToJSON Tag     where toJSON    = gtoJson
-instance FromJSON Tag   where parseJSON = gparseJson
+instance ToJSON     Tag where toJSON    = gtoJson
+instance FromJSON   Tag where parseJSON = gparseJson
 instance JSONSchema Tag where schema    = gSchema
 
 newtype Tags = Tags { unTags :: Map TagName (Set PackageName) }
@@ -49,11 +47,9 @@ instance FromJSON Tags where
 instance ToJSON Tags where
   toJSON = toJSON . M.mapKeys unTagName . unTags
 
-readTags :: (MonadConfig m, MonadIO m) => m Tags
-readTags = do
-  fp <- asksConfig tagsFile
-  c <- liftIO $ SB.readFile (toFilePath fp)
-  fmap (fromMaybe (Tags M.empty) . decode . cs) $ return c
+loadTags :: (MonadConfig m, MonadIO m) => m Tags
+loadTags = do
+  fmap (fromMaybe (Tags M.empty) . decode . cs) . liftIO . SB.readFile . toFilePath =<< asksConfig tagsFile
 
 writeTags :: (MonadConfig m, MonadIO m) => Tags -> m ()
 writeTags tags = do
@@ -61,23 +57,26 @@ writeTags tags = do
   liftIO . lazyWriteFileP p . encode $ tags
 
 byName :: (MonadConfig m, MonadIO m) => TagName -> m (Maybe Tag)
-byName t = fmap (Tag t) . M.lookup t . unTags <$> readTags
+byName t = fmap (Tag t) . M.lookup t . unTags <$> loadTags
 
 byPackage :: (MonadConfig m, MonadIO m) => PackageName -> m (Set TagName)
-byPackage p = S.fromList . M.keys . M.filter (p `S.member`) . unTags <$> readTags
+byPackage p = lookupByPackage p <$> loadTags
+
+lookupByPackage :: PackageName -> Tags -> Set TagName
+lookupByPackage p = S.fromList . M.keys . M.filter (p `S.member`) . unTags
 
 toList :: (MonadConfig m, MonadIO m) => m [Tag]
-toList = sortBy (comparing name) . map (uncurry Tag) . M.toList . unTags <$> readTags
+toList = sortBy (comparing name) . map (uncurry Tag) . M.toList . unTags <$> loadTags
 
 normalizeTagName :: Text -> TagName
 normalizeTagName = TagName . T.replace " " "-" . T.replace "_" "-"
 
 addTaggedPackage :: (MonadConfig m, MonadIO m) => PackageName -> TagName -> m ()
-addTaggedPackage p t = writeTags . (<> singleton t p) =<< readTags
+addTaggedPackage p t = writeTags . (<> singleton t p) =<< loadTags
 
 removeTaggedPackage :: (MonadConfig m, MonadIO m) => PackageName -> TagName -> m Bool
 removeTaggedPackage p t = do
-  tags <- readTags
+  tags <- loadTags
   case M.lookup t . unTags $ tags of
     Nothing -> return False
     Just s -> do
@@ -87,6 +86,3 @@ removeTaggedPackage p t = do
               else M.insert t (S.delete p s)
       writeTags . Tags . modifier . unTags $ tags
       return True
-
-withTags :: (MonadConfig m, MonadIO m) => (Tags -> Tags) -> m ()
-withTags f = writeTags . f =<< readTags

@@ -47,6 +47,7 @@ library
     Builder
     Config
     Generate
+    Identifiers
     Queue
     QueueCli
     Paths

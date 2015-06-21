@@ -6,10 +6,9 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
-module Api.Types where
+module Api.Types (module Api.Types, PackageName (..), WithPackage, VersionName (..), Revision (..)) where
 
 import           Control.Arrow
-import           Control.Monad.Reader    (ReaderT)
 import           Data.Aeson              (FromJSON (..), ToJSON (..))
 import           Data.JSON.Schema
 import qualified Data.Map.Strict         as Map
@@ -18,36 +17,17 @@ import           Data.String.Conversions
 import           Data.String.ToString
 import           Data.Time
 import           Generics.Generic.Aeson
-import           Rest.Info
-import           Rest.ShowUrl
-import           Safe
 
-import           Api.Root                (Root)
 import           BuildReport
 import           BuildTypes
-
-newtype PackageName = PackageName { unPackageName :: Text }
- deriving (FromJSON, Eq, IsString, JSONSchema, Ord, Show, ToJSON, Read, ShowUrl)
-instance Info PackageName where
-  describe _ = "identifier"
-
-instance ConvertibleStrings PackageName Text where convertString = unPackageName
-instance ConvertibleStrings PackageName String where convertString = cs . unPackageName
-
-type WithPackage = ReaderT PackageName Root
-
-newtype VersionName = VersionName { unVersionName :: Text }
-  deriving (Eq, FromJSON, IsString, JSONSchema, Ord, Show, ToJSON)
-
-newtype Revision = Revision { unRevision :: Word }
-  deriving (Eq, FromJSON, JSONSchema, Ord, Show, ToJSON)
-
-revisionFromString :: String -> Maybe Revision
-revisionFromString = fmap Revision . readMay
+import           Identifiers             (PackageName (..), Revision (..),
+                                          TagName, VersionName (..),
+                                          WithPackage)
 
 data PackageMeta = PackageMeta
   { pmName   :: PackageName
   , pmReport :: Maybe UTCTime
+  , pmTags   :: Set TagName
   } deriving (Eq, Generic, Ord, Show)
 instance ToJSON     PackageMeta where toJSON    = gtoJsonWithSettings    $ strip "pm"
 instance FromJSON   PackageMeta where parseJSON = gparseJsonWithSettings $ strip "pm"
