@@ -80,6 +80,7 @@
       window.document.title = title;
     } else {
       window.document.title = title;
+      window.history.replaceState(null, title, uri.toString());
     }
   }
 
