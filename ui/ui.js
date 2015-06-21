@@ -50,37 +50,37 @@
     if (!force && uri.path() === new Uri(window.location.href).path()) {
       return;
     }
-    if (!isPopping) {
-      window.history.pushState(null, "", uri.toString());
-    }
+    var title = null;
+    var pkgName;
 
     if (uri.path() === "/") {
       renderHome();
-      return;
-    }
-
-    var pkgName;
-    if (pkgName = getPackageName(uri)) {
+    } else if (pkgName = getPackageName(uri)) {
+      title = pkgName + " - package";
       selectedPackage(pkgName);
-      return;
-    }
-
-    if (uri.path() === "/latest") {
+    } else if (uri.path() === "/latest") {
+      title = "latest"
       renderLatest();
-      return;
-    }
-
-    if (/^\/user\/([^\/]+)/.test(uri.path())) {
-      renderUser(RegExp.$1);
-      return;
-    }
-
-    if (uri.path() === "/packages") {
+    } else if (/^\/user\/([^\/]+)/.test(uri.path())) {
+      var name = RegExp.$1;
+      title = name + "- users";
+      renderUser(name);
+    } else if (uri.path() === "/packages") {
+      title = "packages";
       renderPackages();
-      return;
+    } else {
+      title = "404'd!";
+      renderNotFound();
     }
 
-    renderNotFound();
+    console.log(isPopping, title);
+    title = (title ? title + " - " : "") + "Hackage Matrix Builder";
+    if (!isPopping) {
+      window.history.pushState(null, title, uri.toString());
+      window.document.title = title;
+    } else {
+      window.document.title = title;
+    }
   }
 
   function hidePages () {
