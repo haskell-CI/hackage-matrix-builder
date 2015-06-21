@@ -161,7 +161,7 @@
           </div>
 
           <div class="sub">
-            <h4 class="header">Administration</h4>
+            <h4 class="header">Queueing</h4>
             <div id="queueing">
               <div class="already-queued">This package is already in the queue. You can change its priority here.</div>
               <div class="form">
@@ -171,13 +171,28 @@
                     <option value="medium" selected="selected">Medium</option>
                     <option value="low">Low</option>
                   </select>
-                  </label>
+                </label>
                 <input class="action" type="button" value="Queue build for this package">
               </div>
-              <div class="error"><div>Failed to queue build, bad password?</div><input type="button" id="action-2" class="action" value="Try again"></div>
+              <div class="error"><div>Failed to queue build, bad password?</div><input type="button" class="action" value="Try again"></div>
               <div class="success">Build queued!</div>
             </div>
           </div>
+
+          <div class="sub">
+            <h4 class="header">Tags</h4>
+            <div id="tagging">
+              <ul class="tags"></ul>
+              <div class="form">
+                <label>Tag
+                  <input type="text" class="tag-name">
+                </label>
+                <input class="action" type="button" value="Add tag">
+              </div>
+              <div class="error"><div>Failed to tag, bad password?</div><input type="button" class="action" value="Try again"></div>
+            </div>
+          </div>
+
         </div>
 
         <div class="leftcol">

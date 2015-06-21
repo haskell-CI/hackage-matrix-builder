@@ -9,6 +9,7 @@ module Api.Package
   ) where
 
 import           Control.Monad.Except
+import           Control.Monad.Reader
 import           Data.Aeson           (FromJSON (..), decode, withObject, (.:))
 import           Data.Bool
 import           Data.List
@@ -28,6 +29,8 @@ import           Api.Utils
 import           BuildTypes           hiding (PkgVerStatus (..))
 import           Config
 import           Paths
+import           Tag                  (TagName)
+import qualified Tag                  as Tag
 
 data Listing
   = All
@@ -35,12 +38,13 @@ data Listing
 
 resource :: Resource Root WithPackage PackageName Listing Void
 resource = mkResourceReader
-  { R.name   = "package"
-  , R.schema = withListing All $ named [ ("name"          , singleBy fromString)
-                                       , ("latest-reports", listing LatestReports)
-                                       ]
-  , R.get    = Just get
-  , R.list   = \case
+  { R.name    = "package"
+  , R.schema  = withListing All $ named [ ("name"          , singleBy fromString)
+                                        , ("latest-reports", listing LatestReports)
+                                        ]
+  , R.get     = Just get
+  , R.actions = [("tags", tags)]
+  , R.list    = \case
      All           -> list
      LatestReports -> listLatestReport
   }
@@ -77,6 +81,12 @@ listLatestReport = mkListing jsonO handler
     handler :: Range -> ExceptT Reason_ Root [ReportMeta]
     handler r = listRange r <$> reportsByStamp
 
+tags :: Handler WithPackage
+tags = mkConstHandler jsonO handler
+  where
+     handler :: ExceptT Reason_ WithPackage (Set TagName)
+     handler = Tag.byPackage =<< ask
+
 reportsByStamp :: (MonadIO m, MonadConfig m) => m [ReportMeta]
 reportsByStamp
    =  fmap (map toReportMeta . sortBy (flip $ comparing snd))
@@ -94,7 +104,11 @@ validatePackage pkgName =
   bool (throwError NotFound) (return ()) . (pkgName `elem`) =<< loadPackageSummary
 
 loadPackageSummary :: (MonadIO m, MonadConfig m) => m (Set PackageName)
-loadPackageSummary = fmap (Set.fromList . fromMaybe []) . (\v -> fmap (fmap (map summaryName) . decode) . liftIO . lazyReadFileP $ v) =<< asksConfig packagesJson
+loadPackageSummary
+  =  fmap (Set.fromList . fromMaybe [])
+  .  fmap (fmap (map summaryName) . decode)
+  .  liftIO . lazyReadFileP
+ =<< asksConfig packagesJson
 
 newtype PackageSummary = PackageSummary { summaryName :: PackageName }
   deriving (Eq, Show)

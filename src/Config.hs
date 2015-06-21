@@ -36,6 +36,7 @@ data Config = Config
   , webServerHostName :: Text
   , reportDir         :: Path Rel Dir
   , queueDir          :: Path Rel Dir
+  , tagsFile          :: Path Rel File
   } deriving Show
 
 defaultConfig :: IO Config
@@ -50,4 +51,5 @@ defaultConfig = return Config
   , webServerHostName = "127.0.0.1"
   , reportDir         = $(mkRelDir "report")
   , queueDir          = $(mkRelDir "queue")
+  , tagsFile          = $(mkRelFile "tags.json")
   }

@@ -27,6 +27,7 @@ defaultMain = do
   assertFile (authFile cfg) . cs $ authUser cfg <> "/" <> authPass cfg
   assertFile (uiConfigFile cfg) "var appConfig = { apiHost : '' };\n"
   assertFile (packagesJson cfg) "[]"
+  assertFile (tagsFile cfg) "{}"
   assertDir  (queueDir cfg)
 
   putStrLn "Starting server on port 3000"

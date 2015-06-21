@@ -190,6 +190,10 @@ body {
   display: none;
 }
 
+#tagging .remove {
+  padding-left: 10px;
+}
+
 /** Table **/
 
 #page-package table {

@@ -73,7 +73,6 @@
       renderNotFound();
     }
 
-    console.log(isPopping, title);
     title = (title ? title + " - " : "") + "Hackage Matrix Builder";
     if (!isPopping) {
       window.history.pushState(null, title, uri.toString());
@@ -368,6 +367,7 @@
       $("#package-not-built").show();
     }
     setupBuildQueuer(pkgName);
+    setupTagger(pkgName);
     cleanupTabs();
     $("#buildreport").show();
     $("#page-package").show();
@@ -379,7 +379,7 @@
       $("#queueing .already-queued").show();
     }, function (r) {
       if (r && r.responseJSON && r.responseJSON.notFound) return;
-      fail("Queue.byName.get")(arguments);
+      fail("Queue.byName(" + pkgName + ").get").call(null, arguments);
     });
 
     $("#queueing .action").click(function () {
@@ -399,6 +399,57 @@
     $("#queueing .success").hide();
     $("#queueing .error").hide();
     $("#queueing .already-queued").hide();
+  }
+
+  function setupTagger (pkgName) {
+    cleanupTagger();
+
+    function removeTag (tagName, pkgName)
+    {
+      api.Tag.byName(tagName).remove(pkgName, function () {
+        setupTagger(pkgName);
+      }, function () {
+        fail("api.Tag.removeByName(" + tagName + ", " + pkgName + ")").call(null, arguments);
+        $("#tagging .error").show();
+      });
+    }
+
+    api.Package.byName(pkgName).tags(function (tags) {
+      $("#tagging .tags").append(
+        tags.map(function (t) {
+          return $("<li>").append
+            ( $("<span>").text(t)
+            ,  $("<a>").addClass("remove").text("╳").click(removeTag.bind(null, t, pkgName))
+            );
+        })
+      );
+
+    }, fail("Package.byName(" + pkgName + ").tags()"));
+
+    $("#tagging").delegate("a", "click", function (e) {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.which != 1) {
+        return;
+      }
+      e.stopPropagation()
+      e.preventDefault();
+
+
+    });
+    $("#tagging .action").click(function () {
+      var tagName = $("#tagging .tag-name").val();
+      api.Tag.saveByName(tagName, pkgName, function () {
+        $("#tagging .tag-name").val("");
+        setupTagger(pkgName);
+      }, function () {
+        $("#tagging .error").show();
+      });
+    });
+  }
+
+  function cleanupTagger () {
+    $("#tagging .action").off("click");
+    $("#tagging .error").hide();
+    $("#tagging .tags").html("");
   }
 
   function setupTabs (messages) {
