@@ -43,6 +43,7 @@ update = mkIdHandler (jsonO . jsonI) handler
   where
     handler :: PackageName -> TagName -> ExceptT Reason_ WithTag ()
     handler p t = do
+      secure
       validatePackage p
       addTaggedPackage p t
 
@@ -51,6 +52,7 @@ remove = mkIdHandler (jsonO . jsonI) handler
   where
     handler :: PackageName -> TagName -> ExceptT Reason_ WithTag ()
     handler p t = do
+      secure
       validatePackage p
       removed <- removeTaggedPackage p t
       unless removed $ throwError NotFound
