@@ -8,11 +8,11 @@ import           Rest
 import qualified Rest.Resource        as R
 
 import           Api.Package          (validatePackage)
-import           Api.Root             (Root, runDb)
+import           Api.Root             (Root)
 import           Api.Types            (PackageName, WithPackage)
 import           Api.Utils
 import           Queue                (Create (..), Priority (..),
-                                       QueueItem (..), queueItemToView)
+                                       QueueItem (..))
 import qualified Queue                as Q
 
 resource :: Resource Root WithPackage PackageName () Void
@@ -30,13 +30,13 @@ get :: Handler WithPackage
 get = mkIdHandler jsonO $ const handler
   where
     handler :: PackageName -> ExceptT Reason_ WithPackage QueueItem
-    handler pkgName = (`orThrow` NotFound) . fmap (fmap queueItemToView) .  runDb $ Q.byName pkgName
+    handler pkgName = (`orThrow` NotFound) . liftIO $ Q.get pkgName
 
 list :: ListHandler Root
 list = mkListing jsonO handler
   where
     handler :: Range -> ExceptT Reason_ Root [QueueItem]
-    handler r = listRange r . fmap queueItemToView <$> runDb Q.list
+    handler r = listRange r <$> liftIO Q.list
 
 create :: Handler Root
 create = mkInputHandler jsonI handler
@@ -45,7 +45,7 @@ create = mkInputHandler jsonI handler
     handler c = do
       secure
       validatePackage (cPackageName c)
-      runDb $ Q.add (cPackageName c) (cPriority c) Nothing
+      liftIO $ Q.add (cPackageName c) (cPriority c)
 
 update :: Handler WithPackage
 update = mkIdHandler (jsonO . jsonI) handler
@@ -54,9 +54,7 @@ update = mkIdHandler (jsonO . jsonI) handler
     handler prio pkgName = do
       secure
       validatePackage pkgName
-      (`orThrow` NotFound) . fmap (fmap queueItemToView) . runDb $ do
-        Q.setPriority pkgName prio
-        Q.byName pkgName
+      (`orThrow` NotFound) . liftIO $ Q.update pkgName prio
 
 remove :: Handler WithPackage
 remove = mkIdHandler id $ const handler
@@ -64,5 +62,5 @@ remove = mkIdHandler id $ const handler
     handler :: PackageName -> ExceptT Reason_ WithPackage ()
     handler pkgName = do
       secure
-      void $ runDb (Q.byName pkgName) `orThrow` NotFound
-      void $ runDb $ Q.remove pkgName
+      void $ liftIO (Q.get pkgName) `orThrow` NotFound
+      void $ liftIO $ Q.remove pkgName

@@ -16,6 +16,9 @@ import qualified System.FilePath         as FP
 instance ConvertibleStrings (Path b t) Text   where convertString = cs . toFilePath
 instance ConvertibleStrings (Path b t) [Char] where convertString = toFilePath
 
+createDirectoryP :: Path a Dir -> IO ()
+createDirectoryP = createDirectory . toFilePath
+
 removeFileP :: Path a File -> IO ()
 removeFileP = removeFile . toFilePath
 

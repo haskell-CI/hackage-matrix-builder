@@ -26,8 +26,7 @@ instance {-# Overlapping #-} Monad m => MonadConfig (ReaderT Config m) where
   asksConfig = asks
 
 data Config = Config
-  { sqliteDb          :: Path Rel File
-  , jsClientTarget    :: Path Rel File
+  { jsClientTarget    :: Path Rel File
   , authFile          :: Path Rel File
   , authUser          :: Text
   , authPass          :: Text
@@ -36,12 +35,12 @@ data Config = Config
   , webServerPort     :: Int
   , webServerHostName :: Text
   , reportDir         :: Path Rel Dir
+  , queueDir          :: Path Rel Dir
   } deriving Show
 
 defaultConfig :: IO Config
 defaultConfig = return Config
-  { sqliteDb          = $(mkRelFile "db.sqlite")
-  , jsClientTarget    = $(mkRelFile "ui/api.js")
+  { jsClientTarget    = $(mkRelFile "ui/api.js")
   , authFile          = $(mkRelFile "auth")
   , authUser          = "trustee"
   , authPass          = "1234"
@@ -50,4 +49,5 @@ defaultConfig = return Config
   , webServerPort     = 3000
   , webServerHostName = "127.0.0.1"
   , reportDir         = $(mkRelDir "report")
+  , queueDir          = $(mkRelDir "queue")
   }
