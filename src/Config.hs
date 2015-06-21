@@ -33,7 +33,6 @@ data Config = Config
   , authPass          :: Text
   , uiConfigFile      :: Path Rel File
   , packagesJson      :: Path Rel File
-  , packageNamesJson  :: Path Rel File
   , webServerPort     :: Int
   , webServerHostName :: Text
   , reportDir         :: Path Rel Dir
@@ -48,7 +47,6 @@ defaultConfig = return Config
   , authPass          = "1234"
   , uiConfigFile      = $(mkRelFile "ui/config.js")
   , packagesJson      = $(mkRelFile "packages.json")
-  , packageNamesJson  = $(mkRelFile "packageNames.json")
   , webServerPort     = 3000
   , webServerHostName = "127.0.0.1"
   , reportDir         = $(mkRelDir "report")
