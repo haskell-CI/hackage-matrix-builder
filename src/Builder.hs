@@ -69,14 +69,14 @@ maxBackjumps = Just 10000
 
 -- | Path where to find @ghc@ and @ghc-pkg@.
 ghcBinPath :: GhcVer -> FilePath
-ghcBinPath v = "/Users/adam/.ghc-" ++ v' ++ "/bin/"
+ghcBinPath v = "/opt/ghc/" ++ v' ++ "/bin/"
   where
     v' = case v of
         GHC_7_00 -> "7.0.4"
         GHC_7_02 -> "7.2.2"
         GHC_7_04 -> "7.4.2"
         GHC_7_06 -> "7.6.3"
-        GHC_7_08 -> "7.8.3"
+        GHC_7_08 -> "7.8.4"
         GHC_7_10 -> "7.10.1"
 
 addGhcPath :: GhcVer -> Action CmdOption
