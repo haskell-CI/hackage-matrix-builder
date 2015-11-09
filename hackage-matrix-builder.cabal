@@ -37,6 +37,7 @@ library
     Api
     Api.Package
     Api.Package.Report
+    Api.Package.Report.Cell
     Api.Queue
     Api.Root
     Api.Tag

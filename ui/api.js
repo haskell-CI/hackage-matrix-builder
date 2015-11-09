@@ -12,185 +12,179 @@ var obfuscatedRequire = function (moduleName)
   return module["r" + "equire"](moduleName);
 }
 
-var MatrixApi =
-  function (url, secureUrl, modifyRequest)
-  {
-    var self = this;
-    var postfix          = '/v' + this.version + '/';
-    var contextUrl       = url + postfix;
-    var secureContextUrl = (secureUrl || url.replace(/^http:/, "https:")) + postfix;
-
-    this.cookieJar = isNodeJs ? obfuscatedRequire('request').jar() : undefined;
-
-    if(!modifyRequest) modifyRequest = function (req) { return req; };
-
-    var finalModifyRequest = function (req)
+function MatrixApi (url, secureUrl, modifyRequest)
+{
+  var MatrixApi =
+    function (url, secureUrl, modifyRequest)
     {
-      if (isNodeJs) req.jar = self.cookieJar;
-      return modifyRequest(req);
+      var self = this;
+      var postfix          = '/v' + this.version + '/';
+      var contextUrl       = url + postfix;
+      var secureContextUrl = (secureUrl || url.replace(/^http:/, "https:")) + postfix;
+
+      this.cookieJar = isNodeJs ? obfuscatedRequire('request').jar() : undefined;
+
+      if(!modifyRequest) modifyRequest = function (req) { return req; };
+
+      var finalModifyRequest = function (req)
+      {
+        if (isNodeJs) req.jar = self.cookieJar;
+        return modifyRequest(req);
+      }
+
+      MatrixApi.setContext(this, contextUrl, secureContextUrl, finalModifyRequest);
+    };
+
+  var jqFun;
+  if (isNodeJs)
+  {
+    MatrixApi.ajaxCall = nodeRequest;
+  }
+  else
+  {
+    if (isCommonJs) {
+      jqFun = function () { return require("jquery"); };
+    } else if (typeof define === "function" && define.amd) {
+      jqFun = function () { return window.$; };
+    } else {
+      jqFun = function () { return window.$; };
     }
 
-    MatrixApi.setContext(this, contextUrl, secureContextUrl, finalModifyRequest);
+    MatrixApi.ajaxCall = jQueryRequest;
+  }
+
+  MatrixApi.addObject = function (obj1, obj2)
+  {
+    for (var fld in obj2)
+      obj1[fld] = obj2[fld];
   };
 
-var jqFun;
-if (isNodeJs)
-{
-  // Export as Node module.
-  module.exports = MatrixApi;
+  MatrixApi.defaultAjaxOptions = {};
+  MatrixApi.defaultHeaders = {};
 
-  MatrixApi.ajaxCall = nodeRequest;
-}
-else
-{
-  if (isCommonJs) {
-    // Export as CommonJs
-    module.exports = MatrixApi;
-    jqFun = function () { return require("jquery"); };
-  } else if (typeof define === "function" && define.amd) {
-    // Export as AMD.
-    define("MatrixApi", [], function () { return MatrixApi; });
-    jqFun = function () { return window.$; };
-  } else {
-    // Export as global.
-    window.MatrixApi = MatrixApi;
-    jqFun = function () { return window.$; };
+  function jQueryRequest (method, url, params, success, error, contentType, acceptHeader, data, callOpts, modifyRequest)
+  {
+    var q = window.Q || function (a) { return a };
+    var jq = jqFun();
+
+    var headers = jq.extend(true, {}, MatrixApi.defaultHeaders);
+    MatrixApi.addObject(headers, { Accept : acceptHeader });
+
+    var callData =
+      { type        : method
+      , url         : url + (params ? '?' + jq.param(params) : '')
+      , cache       : false
+      , success     : success || function () {}
+      , error       : error || function () {}
+      , contentType : contentType
+      , headers     : headers
+      , xhrFields   : { withCredentials: true }
+      , data        : data || []
+      };
+
+    callData = modifyRequest(callData);
+
+    MatrixApi.addObject(callData, MatrixApi.defaultAjaxOptions);
+    MatrixApi.addObject(callData, callOpts);
+
+    return q(jq.ajax(callData));
   }
 
-  MatrixApi.ajaxCall = jQueryRequest;
-}
-
-MatrixApi.addObject = function (obj1, obj2)
-{
-  for (var fld in obj2)
-    obj1[fld] = obj2[fld];
-};
-
-MatrixApi.defaultAjaxOptions = {};
-MatrixApi.defaultHeaders = {};
-
-function jQueryRequest (method, url, params, success, error, contentType, acceptHeader, data, callOpts, modifyRequest)
-{
-  var q = window.Q || function (a) { return a };
-  var jq = jqFun();
-
-  var headers = jq.extend(true, {}, MatrixApi.defaultHeaders);
-  MatrixApi.addObject(headers, { Accept : acceptHeader });
-
-  var callData =
-    { type        : method
-    , url         : url + (params ? '?' + jq.param(params) : '')
-    , cache       : false
-    , success     : success || function () {}
-    , error       : error || function () {}
-    , contentType : contentType
-    , headers     : headers
-    , xhrFields   : { withCredentials: true }
-    , data        : data || []
-    };
-
-  callData = modifyRequest(callData);
-
-  MatrixApi.addObject(callData, MatrixApi.defaultAjaxOptions);
-  MatrixApi.addObject(callData, callOpts);
-
-  return q(jq.ajax(callData));
-}
-
-function nodeRequest (method, url, params, onSuccess, onError, contentType, acceptHeader, data, callOpts, modifyRequest)
-{
-  var allParams = {};
-  MatrixApi.addObject(allParams, params);
-
-  if (method === "GET" || method === "HEAD")
-    // Avoid cached API responses.
-    allParams._ = Date.now();
-
-  var headers = { "Content-type" : contentType
-                , "Accept"       : acceptHeader
-                };
-
-  MatrixApi.addObject(headers, MatrixApi.defaultHeaders);
-
-  var callData =
-    { url     : url
-    , qs      : allParams
-    , method  : method
-    , headers : headers
-    };
-
-  if (data) callData.body = data;
-
-  callData = modifyRequest(callData);
-
-  MatrixApi.addObject(callData, MatrixApi.defaultAjaxOptions);
-  MatrixApi.addObject(callData, callOpts);
-
-  return require("q").Promise(function (resolve, reject)
+  function nodeRequest (method, url, params, onSuccess, onError, contentType, acceptHeader, data, callOpts, modifyRequest)
   {
-    obfuscatedRequire("request")(callData, callback);
+    var allParams = {};
+    MatrixApi.addObject(allParams, params);
 
-    function callback (error, message, body)
+    if (method === "GET" || method === "HEAD")
+      // Avoid cached API responses.
+      allParams._ = Date.now();
+
+    var headers = { "Content-type" : contentType
+                  , "Accept"       : acceptHeader
+                  };
+
+    MatrixApi.addObject(headers, MatrixApi.defaultHeaders);
+
+    var callData =
+      { url     : url
+      , qs      : allParams
+      , method  : method
+      , headers : headers
+      };
+
+    if (data) callData.body = data;
+
+    callData = modifyRequest(callData);
+
+    MatrixApi.addObject(callData, MatrixApi.defaultAjaxOptions);
+    MatrixApi.addObject(callData, callOpts);
+
+    return require("q").Promise(function (resolve, reject)
     {
-      if (message && message.statusCode >= 200 && message.statusCode < 300)
+      obfuscatedRequire("request")(callData, callback);
+
+      function callback (error, message, body)
       {
-        var parsedResponse = parse(body);
-        onSuccess && onSuccess(parsedResponse, message);
-        resolve(parsedResponse)
-      }
-      else
-      {
-        if (!error)
+        if (message && message.statusCode >= 200 && message.statusCode < 300)
         {
-          error = new Error("HTTP request error");
-          error.statusCode = message.statusCode;
-          error.responseBody = body;
+          var parsedResponse = parse(body, message.headers);
+          onSuccess && onSuccess(parsedResponse, message);
+          resolve(parsedResponse)
         }
+        else
+        {
+          if (!error)
+          {
+            error = new Error("HTTP request error");
+            error.statusCode = message && message.statusCode;
+            error.responseBody = body;
+          }
 
-        error.response = parse(body);
+          error.response = parse(body, message ? message.headers : {});
 
-        if (onError)
-          onError(error);
+          if (onError)
+            onError(error);
 
-        reject(error);
+          reject(error);
+        }
       }
-    }
-  });
+    });
 
-  function parse (response)
-  {
-    if (acceptHeader.split(";").indexOf('text/json') >= 0)
+    function parse (response, headers)
     {
-      var r = response;
-      try
+      if (headers["content-type"] && headers["content-type"].split(";").indexOf("application/json") >= 0)
       {
-        r = JSON.parse(response);
-      }
-      catch (e)
-      {
+        var r = response;
+        try
+        {
+          r = JSON.parse(response);
+        }
+        catch (e)
+        {
+          return r;
+        }
         return r;
       }
-      return r;
+      else return response;
     }
-    else return response;
   }
-}
 
-MatrixApi.setContext =
-  function (obj, url, secureUrl, modifyRequest)
-  {
-    obj.contextUrl = url;
-    obj.secureContextUrl = secureUrl;
-    obj.modifyRequest = modifyRequest;
-    for (var fld in obj)
+  MatrixApi.setContext =
+    function (obj, url, secureUrl, modifyRequest)
     {
-      if (obj[fld] != undefined && obj[fld].apiObjectType != undefined && obj[fld].apiObjectType == 'resourceDir')
+      obj.contextUrl = url;
+      obj.secureContextUrl = secureUrl;
+      obj.modifyRequest = modifyRequest;
+      for (var fld in obj)
       {
-        var postfix = fld.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() + '/';
-        MatrixApi.setContext(obj[fld], url + postfix, secureUrl + postfix, modifyRequest);
+        if (obj[fld] != undefined && obj[fld].apiObjectType != undefined && obj[fld].apiObjectType == 'resourceDir')
+        {
+          var postfix = fld.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase() + '/';
+          MatrixApi.setContext(obj[fld], url + postfix, secureUrl + postfix, modifyRequest);
+        }
       }
-    }
-  };MatrixApi.prototype.version = "1.0.0";
+    };
+MatrixApi.prototype.version = "1.0.0";
 MatrixApi.prototype.Package =
   function Package (url, secureUrl, modifyRequest)
   {
@@ -248,6 +242,31 @@ MatrixApi.prototype.Package.prototype.Report.latest =
   function ()
   {
     var postfix = 'latest/';
+    var accessor = new this(this.contextUrl + postfix, this.secureContextUrl + postfix, this.modifyRequest);
+    accessor.get =
+      function (success, error, params, callOpts)
+      {
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+      };
+    return accessor;
+  };
+MatrixApi.prototype.Package.prototype.Report.prototype.Cell =
+  function Cell (url, secureUrl, modifyRequest)
+  {
+    if (this instanceof Cell)
+    {
+      MatrixApi.setContext(this, url, secureUrl, modifyRequest);
+    }
+    else
+    {
+      return Cell.access(url, secureUrl, modifyRequest);
+    }
+  };
+MatrixApi.prototype.Package.prototype.Report.prototype.Cell.apiObjectType = "resourceDir";
+MatrixApi.prototype.Package.prototype.Report.prototype.Cell.byId =
+  function (string)
+  {
+    var postfix = 'id/' + encodeURIComponent(string) + '/';
     var accessor = new this(this.contextUrl + postfix, this.secureContextUrl + postfix, this.modifyRequest);
     accessor.get =
       function (success, error, params, callOpts)
@@ -385,6 +404,27 @@ MatrixApi.prototype.User.byName =
         return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
-  };
+  };  return new MatrixApi (url, secureUrl, modifyRequest);
+}
+
+var jqFun;
+if (isNodeJs)
+{
+  // Export as Node module.
+  module.exports = MatrixApi;
+}
+else
+{
+  if (isCommonJs) {
+    // Export as CommonJs
+    module.exports = MatrixApi;
+  } else if (typeof define === "function" && define.amd) {
+    // Export as AMD.
+    define("MatrixApi", [], function () { return MatrixApi; });
+  } else {
+    // Export as global.
+    window.MatrixApi = MatrixApi;
+  }
+}
 
 })(this);

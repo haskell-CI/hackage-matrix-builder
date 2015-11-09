@@ -2,12 +2,13 @@ module Api (api) where
 
 import           Rest.Api
 
-import qualified Api.Package        as Package
-import qualified Api.Package.Report as Package.Report
-import qualified Api.Queue          as Queue
-import           Api.Root           (Root)
-import qualified Api.Tag            as Tag
-import qualified Api.User           as User
+import qualified Api.Package             as Package
+import qualified Api.Package.Report      as Package.Report
+import qualified Api.Package.Report.Cell as Package.Report.Cell
+import qualified Api.Queue               as Queue
+import           Api.Root                (Root)
+import qualified Api.Tag                 as Tag
+import qualified Api.User                as User
 
 api :: Api Root
 api = [(mkVersion 1 0 0, Some1 router)]
@@ -15,7 +16,7 @@ api = [(mkVersion 1 0 0, Some1 router)]
     router :: Router Root Root
     router =
       root -/ route queue
-           -/ route package --/ route report
+           -/ route package --/ route report ---/ route cell
            -/ route tag
            -/ route user
     package = Package.resource
@@ -23,3 +24,4 @@ api = [(mkVersion 1 0 0, Some1 router)]
     report  = Package.Report.resource
     tag     = Tag.resource
     user    = User.resource
+    cell    = Package.Report.Cell.resource

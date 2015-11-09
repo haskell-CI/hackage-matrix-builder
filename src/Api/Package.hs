@@ -104,7 +104,7 @@ reportsByStamp
       , rmModified    = b
       }
 
-validatePackage :: MonadRoot m => PackageName -> ExceptT Reason_ m ()
+validatePackage :: MonadRoot m => PackageName -> ExceptT (Reason e) m ()
 validatePackage pkgName =
   bool (throwError NotFound) (return ()) . (pkgName `elem`) =<< loadPackageSummary
 

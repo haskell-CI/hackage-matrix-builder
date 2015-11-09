@@ -2,7 +2,11 @@
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables   #-}
-module Api.Package.Report (resource, readReport) where
+module Api.Package.Report
+  ( WithReport
+  , resource
+  , readReport
+  ) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
@@ -31,16 +35,26 @@ resource = mkResourceReader
 get :: Handler WithReport
 get = mkConstHandler jsonO handler
   where
-    handler :: ExceptT Reason_ WithReport Report
+    handler :: ExceptT Reason_ WithReport ShallowReport
     handler = do
       pn <- lift . lift $ ask
       ident <- ask
       case ident of
         Latest -> byName pn
-    byName :: PackageName -> ExceptT Reason_ WithReport Report
+    byName :: PackageName -> ExceptT Reason_ WithReport ShallowReport
     byName pkgName = do
       validatePackage pkgName
-      readReport pkgName `orThrow` NotFound
+      readShallowReport pkgName `orThrow` NotFound
+
+readShallowReport :: (MonadIO m, MonadConfig m) => PackageName -> m (Maybe ShallowReport)
+readShallowReport pkgName =
+  fmap ((\(t,c) -> toShallowReport t <$> decode c) =<<)
+    .  liftIO
+    .  (\repDir -> tryReadFileWithModifiedTime
+              <=< fmap (repDir </>) . (<.> "json")
+              <=< parseRelFile . cs $ pkgName
+       )
+   =<< asksConfig reportDir
 
 readReport :: (MonadIO m, MonadConfig m) => PackageName -> m (Maybe Report)
 readReport pkgName =
