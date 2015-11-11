@@ -25,7 +25,7 @@ data Cell = Cell
 
 toCell :: String -> Maybe Cell
 toCell s =
-  case splitOn "/" s of
+  case splitOn "-" s of
     (a:b:_) -> Just Cell
       { gvGhcVersion     = cs a
       , gvPackageVersion = cs b

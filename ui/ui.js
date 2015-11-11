@@ -633,7 +633,7 @@
               .click(function (e) {
                 var ghcVersion = $(e.target).attr("data-ghc-version");
                 var packageVersion = $(e.target).attr("data-package-version");
-                var ident = ghcVersion + "/" + packageVersion;
+                var ident = ghcVersion + "-" + packageVersion;
                 api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
                    .get( function success (s) { setupFailTabs(ghcVersion, pkgName, packageVersion, s.resultA.result.fail); }
 
@@ -649,7 +649,7 @@
               .click(function (e) {
                 var ghcVersion = $(e.target).attr("data-ghc-version");
                 var packageVersion = $(e.target).attr("data-package-version");
-                var ident = ghcVersion + "/" + packageVersion;
+                var ident = ghcVersion + "-" + packageVersion;
                 api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
                    .get( function success (s) { setupFailDepsTabs(ghcVersion, s.resultA.result.failDeps); }
 
@@ -696,7 +696,7 @@
         var ghcVersion     = RegExp.$1;
         var packageVersion = RegExp.$2;
         var ghcVer = report.results.filter(function (v) { return v.ghcVersion === ghcVersion; })[0];
-        var ident = ghcVer.ghcVersion + "/" + packageVersion;
+        var ident = ghcVer.ghcVersion + "-" + packageVersion;
         if (!ghcVer) {
           console.warn("Could not find ghc version: GHC-" + ghcVersion);
           return;
