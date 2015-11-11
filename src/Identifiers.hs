@@ -28,6 +28,12 @@ type WithPackage = ReaderT PackageName Root
 newtype VersionName = VersionName { unVersionName :: StrictText }
   deriving (Eq, FromJSON, IsString, JSONSchema, Ord, Show, ToJSON)
 
+-- TODO These should use a smart constructor validating the format.
+instance ConvertibleStrings StrictText VersionName where
+  convertString = VersionName
+instance ConvertibleStrings String VersionName where
+  convertString = VersionName . cs
+
 newtype Revision = Revision { unRevision :: Word }
   deriving (Eq, FromJSON, JSONSchema, Ord, Show, ToJSON)
 

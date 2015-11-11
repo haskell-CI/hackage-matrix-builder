@@ -7,10 +7,20 @@
 module WebServer (defaultMain) where
 
 import           Control.Monad.Except
+import           Control.Monad.Trans.Resource
+import           Data.Conduit                 (($$+-))
+import           Data.Conduit.Binary          (sinkFile)
 import           Data.String.Conversions
-import           Happstack.Server.Compression
-import           Happstack.Server.FileServe
-import           Happstack.Server.SimpleHTTP
+import           Happstack.Server.Compression (compressedResponseFilter)
+import           Happstack.Server.FileServe   (Browsing (..), asContentType,
+                                               serveDirectory, serveFile)
+import           Happstack.Server.SimpleHTTP  (Response, bindIPv4, dir,
+                                               getFilter, nullConf, port,
+                                               setHeaderM, simpleHTTPWithSocket,
+                                               toResponse, waitForTermination)
+import           Network.HTTP.Conduit         (http, newManager, parseUrl,
+                                               requestHeaders, responseBody,
+                                               tlsManagerSettings)
 import           Path
 import           Rest.Run                     (apiToHandler)
 
@@ -26,7 +36,7 @@ defaultMain = do
 
   assertFile (authFile cfg) . cs $ authUser cfg <> "/" <> authPass cfg
   assertFile (uiConfigFile cfg) "var appConfig = { apiHost : '' };\n"
-  assertFile (packagesJson cfg) "[]"
+  assertPackagesJson (packagesJson cfg)
   assertFile (tagsFile cfg) "{}"
   assertDir  (queueDir cfg)
 
@@ -38,6 +48,19 @@ defaultMain = do
     (rsp,_) <- runRoot serverData $ getFilter router
     return rsp
   waitForTermination
+
+assertPackagesJson :: Path Rel File -> IO ()
+assertPackagesJson fp = do
+  ex <- doesFileExistP fp
+  unless ex $ do
+    putStrLn $ "Downloading package metadata from hackage to " ++ cs fp
+    manager <- liftIO $ newManager tlsManagerSettings
+    req_ <- parseUrl "http://hackage.haskell.org/packages/"
+    let req = req_ { requestHeaders = [("Accept", "application/json")] }
+    runResourceT $ do
+      res <- http req manager
+      responseBody res $$+- sinkFile (cs fp)
+
 
 assertFile :: Path Rel File -> String -> IO ()
 assertFile fp contents = do

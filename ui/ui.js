@@ -185,7 +185,6 @@
     function showPrefix () {
       var showOnlyReports = onlyReports.is(":checked");
       var filterByTags = !!tagFilters.length;
-      console.log(filterByTags, tagFilters);
       pkgList.html("");
       pkgList.append
         ( window.allPackages.filter(
@@ -590,7 +589,7 @@
     report.results.forEach(function (ghcResult, i) {
       var ghcVersionName = ghcResult.ghcVersion;
       var ghcFullVersionName = ghcResult.ghcFullVersion;
-      ghcResult.resultsA.forEach(function (versionResult, j) {
+      ghcResult.ghcResult.forEach(function (versionResult, j) {
         var versionName = versionResult.packageVersion;
         var revision    = versionResult.packageRevision;
         var res         = versionResult.result;
@@ -634,19 +633,29 @@
               .click(function (e) {
                 var ghcVersion = $(e.target).attr("data-ghc-version");
                 var packageVersion = $(e.target).attr("data-package-version");
+                var ident = ghcVersion + "/" + packageVersion;
+                api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
+                   .get( function success (s) { setupFailTabs(ghcVersion, pkgName, packageVersion, s.resultA.result.fail); }
+
+                       , function fail    (f) { console.warn("Loading cell data failed for " + ident, arguments) }
+                       );
                 setHash(cellHash(ghcVersion, pkgName, packageVersion));
-                setupFailTabs(ghcVersion, pkgName, packageVersion, r);
               });
           })(r);
         } else if (r = res.failDeps) {
           (function () {
-            td.text("FAIL (" + r.length + " deps)")
+            td.text("FAIL (" + r + " deps)")
               .addClass("fail-dep-build")
               .click(function (e) {
                 var ghcVersion = $(e.target).attr("data-ghc-version");
                 var packageVersion = $(e.target).attr("data-package-version");
+                var ident = ghcVersion + "/" + packageVersion;
+                api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
+                   .get( function success (s) { setupFailDepsTabs(ghcVersion, s.resultA.result.failDeps); }
+
+                       , function fail    (f) { console.warn("Loading cell data failed for " + ident, arguments) }
+                       );
                 setHash(cellHash(ghcVersion, pkgName, packageVersion));
-                setupFailDepsTabs(ghcVersion, r);
               });
           })(r);
         } else if (res.nop) {
@@ -687,20 +696,28 @@
         var ghcVersion     = RegExp.$1;
         var packageVersion = RegExp.$2;
         var ghcVer = report.results.filter(function (v) { return v.ghcVersion === ghcVersion; })[0];
+        var ident = ghcVer.ghcVersion + "/" + packageVersion;
         if (!ghcVer) {
           console.warn("Could not find ghc version: GHC-" + ghcVersion);
           return;
         }
-        var res = ghcVer.resultsA.filter(function (v) { return v.packageVersion === packageVersion; })[0];
+
+        var res = ghcVer.ghcResult.filter(function (v) { return v.packageVersion === packageVersion; })[0];
         if (!res) {
           console.warn("Could not find ghc/package version: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
           return;
         }
         if (res.result.fail) {
-          setupFailTabs(ghcVersion, pkgName, packageVersion, res.result.fail);
+          api.Package.byName(pkgName).Report.latest().Cell.byId(ident).get
+            ( function success (r) { setupFailTabs(ghcVer, pkgName, packageVersion, r.resultA.result.fail); }
+            , function fail () { console.warn("Couldn't find cell data for " + ident, arguments); }
+            );
         }
         else if (res.result.failDeps) {
-          setupFailDepsTabs(ghcVersion, res.result.failDeps);
+          api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
+             .get( function success (s) { setupFailDepsTabs(ghcVersion, s.resultA.result.failDeps); }
+                 , function fail    (f) { console.warn("Couldn't load cell data failed for " + ident, arguments) }
+                 );
         } else {
           console.warn("No build failure found for: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
         }

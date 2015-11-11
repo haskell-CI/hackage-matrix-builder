@@ -11,6 +11,7 @@ module Api.Types (module Api.Types, PackageName (..), WithPackage, VersionName (
 import           Control.Arrow
 import           Data.Aeson              (FromJSON (..), ToJSON (..))
 import           Data.JSON.Schema
+import           Data.List               (genericLength)
 import qualified Data.Map.Strict         as Map
 import           Data.String
 import           Data.String.Conversions
@@ -86,6 +87,77 @@ toReport md rd = Report
         , dfMessage        = y
         }) $ l
 
+toShallowReport :: UTCTime -> ReportData -> ShallowReport
+toShallowReport md rd = ShallowReport
+  { sPackageName = fromString . toString . rdPkgName $ rd
+  , sModified    = md
+  , sResults     = map (f $ rdVersions rd) . Map.toList . rdGVersions $ rd
+  }
+  where
+    f :: Map PkgVer (PkgRev, Bool)
+      -> (GhcVer, (PkgVer, Map PkgVer BuildResult, Map PkgVerPfx (Maybe PkgVer)))
+      -> ShallowGhcResult
+    f revs (w,(x,y,_)) = ShallowGhcResult
+      { sGhcVersion     = ghcVersionName w
+      , sGhcFullVersion = VersionName $ tshowPkgVer x
+      , sGhcResult      = map (toVersionResult revs) . Map.toList $ y
+      }
+    toVersionResult :: Map PkgVer (PkgRev, Bool) -> (PkgVer,BuildResult) -> ShallowVersionResult
+    toVersionResult revs (v,r) = ShallowVersionResult
+        { sPackageVersion  = VersionName $ tshowPkgVer v
+        , sPackageRevision = Revision . maybe 0 fst $ Map.lookup v revs
+        , sResult          = toResult r
+        }
+    toResult :: BuildResult -> ShallowResult
+    toResult = \case
+      BuildOk            -> ShallowOk
+      BuildNop           -> ShallowNop
+      BuildNoIp          -> ShallowNoIp
+      BuildNoIpBjLimit a -> ShallowNoIpBjLimit a
+      BuildNoIpFail _ _  -> ShallowNoIpFail
+      BuildFail _        -> ShallowFail
+      BuildFailDeps l    -> ShallowFailDeps (genericLength l)
+
+data ShallowReport = ShallowReport
+ { sPackageName :: PackageName
+ , sModified    :: UTCTime
+ , sResults     :: [ShallowGhcResult]
+ } deriving (Eq, Show, Generic)
+instance ToJSON     ShallowReport where toJSON    = gtoJsonWithSettings    $ strip "s"
+instance FromJSON   ShallowReport where parseJSON = gparseJsonWithSettings $ strip "s"
+instance JSONSchema ShallowReport where schema    = gSchemaWithSettings    $ strip "s"
+
+data ShallowGhcResult = ShallowGhcResult
+  { sGhcVersion     :: VersionName
+  , sGhcFullVersion :: VersionName
+  , sGhcResult      :: [ShallowVersionResult]
+  } deriving (Eq, Generic, Show)
+instance ToJSON     ShallowGhcResult where toJSON    = gtoJsonWithSettings    $ strip "s"
+instance FromJSON   ShallowGhcResult where parseJSON = gparseJsonWithSettings $ strip "s"
+instance JSONSchema ShallowGhcResult where schema    = gSchemaWithSettings    $ strip "s"
+
+data ShallowVersionResult = ShallowVersionResult
+ { sPackageVersion  :: VersionName
+ , sPackageRevision :: Revision
+ , sResult          :: ShallowResult
+ } deriving (Eq, Generic, Show)
+instance ToJSON     ShallowVersionResult where toJSON    = gtoJsonWithSettings    $ strip "s"
+instance FromJSON   ShallowVersionResult where parseJSON = gparseJsonWithSettings $ strip "s"
+instance JSONSchema ShallowVersionResult where schema    = gSchemaWithSettings    $ strip "s"
+
+data ShallowResult
+  = ShallowOk
+  | ShallowNop
+  | ShallowNoIp
+  | ShallowNoIpBjLimit Word
+  | ShallowNoIpFail
+  | ShallowFail
+  | ShallowFailDeps Word
+  deriving (Eq, Generic, Show)
+instance ToJSON     ShallowResult where toJSON    = gtoJsonWithSettings    $ strip "Shallow"
+instance FromJSON   ShallowResult where parseJSON = gparseJsonWithSettings $ strip "Shallow"
+instance JSONSchema ShallowResult where schema    = gSchemaWithSettings    $ strip "Shallow"
+
 data VersionInfo = VersionInfo
   { version    :: VersionName
   , revision   :: Revision
@@ -113,6 +185,15 @@ data GHCResult = GHCResult
 instance ToJSON     GHCResult where toJSON    = gtoJson
 instance FromJSON   GHCResult where parseJSON = gparseJson
 instance JSONSchema GHCResult where schema    = gSchema
+
+data SingleResult = SingleResult
+  { srGhcVersion     :: VersionName
+  , srGhcFullVersion :: VersionName
+  , srResultA        :: Maybe VersionResult
+  } deriving (Eq, Generic, Show)
+instance ToJSON     SingleResult where toJSON    = gtoJsonWithSettings    $ strip "sr"
+instance FromJSON   SingleResult where parseJSON = gparseJsonWithSettings $ strip "sr"
+instance JSONSchema SingleResult where schema    = gSchemaWithSettings    $ strip "sr"
 
 ghcVersionName :: GhcVer -> VersionName
 ghcVersionName = VersionName . \case

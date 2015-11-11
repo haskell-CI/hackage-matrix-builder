@@ -37,6 +37,7 @@ library
     Api
     Api.Package
     Api.Package.Report
+    Api.Package.Report.Cell
     Api.Queue
     Api.Root
     Api.Tag
@@ -64,6 +65,8 @@ library
     binary             >=0.7  && <0.8,
     blaze-builder      >=0.3  && <0.5,
     bytestring         >=0.10 && <0.11,
+    conduit            >=1.2  && <1.3,
+    conduit-extra      >=1.1  && <1.2,
     containers         >=0.5  && <0.6,
     cryptohash         >=0.11 && <0.12,
     deepseq            >=1.4  && <1.5,
@@ -84,6 +87,7 @@ library
     rest-core          >=0.35 && <0.37,
     rest-gen           >=0.17 && <0.18,
     rest-happstack     >=0.2  && <0.3,
+    resourcet          >=1.1  && <1.2,
     rest-stringmap     >=0.2  && <0.3,
     safe               >=0.3  && <0.4,
     shake              >=0.15 && <0.16,
@@ -93,6 +97,7 @@ library
     text-binary        >=0.1  && <0.3,
     time               >=1.5  && <1.6,
     tostring           >=0.2  && <0.3,
+    transformers       >=0.4  && <0.5,
     transformers-base  >=0.4  && <0.5,
     xmlhtml            >=0.2  && <0.3
 
