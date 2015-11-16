@@ -709,7 +709,7 @@
         }
         if (res.result.fail) {
           api.Package.byName(pkgName).Report.latest().Cell.byId(ident).get
-            ( function success (r) { setupFailTabs(ghcVer, pkgName, packageVersion, r.resultA.result.fail); }
+            ( function success (r) { setupFailTabs(ghcVer.ghcVersion, pkgName, packageVersion, r.resultA.result.fail); }
             , function fail () { console.warn("Couldn't find cell data for " + ident, arguments); }
             );
         }
