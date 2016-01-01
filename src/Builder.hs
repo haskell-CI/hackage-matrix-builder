@@ -78,6 +78,7 @@ ghcBinPath v = "/opt/ghc/" ++ v' ++ "/bin/"
         GHC_7_06 -> "7.6.3"
         GHC_7_08 -> "7.8.4"
         GHC_7_10 -> "7.10.3"
+        GHC_8_00 -> "8.0.1"
 
 addGhcPath :: GhcVer -> Action CmdOption
 addGhcPath gv = addPath [ghcBinPath gv] []

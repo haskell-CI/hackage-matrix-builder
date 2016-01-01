@@ -4,7 +4,7 @@
   var apiRootUrl = ((appConfig && appConfig.apiHost) || "") + "/api";
   var api = new MatrixApi(apiRootUrl, apiRootUrl);
 
-  window.ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10"];
+  window.ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0"];
 
   function fail (msg) {
     return function () {

@@ -203,6 +203,7 @@ ghcVersionName = VersionName . \case
   GHC_7_06 -> "7.6"
   GHC_7_08 -> "7.8"
   GHC_7_10 -> "7.10"
+  GHC_8_00 -> "8.0"
 
 data VersionResult = VersionResult
   { packageVersion  :: VersionName

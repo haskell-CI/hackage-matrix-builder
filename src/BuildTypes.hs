@@ -73,6 +73,7 @@ data GhcVer = GHC_7_00
             | GHC_7_06
             | GHC_7_08
             | GHC_7_10
+            | GHC_8_00
             deriving (Eq,Ord,Bounded,Enum,Read,Show,Hashable,Binary,NFData,Generic,FromJSON,ToJSON)
 
 ghcVers :: [GhcVer]
