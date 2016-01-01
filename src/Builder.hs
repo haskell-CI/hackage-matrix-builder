@@ -65,7 +65,7 @@ xcabalExe = "xcabal"
 -- | Backjump limit for cabal solver (passed via @--max-backjumps@).
 -- 'Nothing' denotes @--max-backjumps=-1@.
 maxBackjumps :: Maybe Word
-maxBackjumps = Just 10000
+maxBackjumps = Just 3000
 
 -- | Path where to find @ghc@ and @ghc-pkg@.
 ghcBinPath :: GhcVer -> FilePath
