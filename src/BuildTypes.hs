@@ -51,13 +51,12 @@ import qualified Data.Text                    as T
 import           Data.Text.Binary             ()
 import qualified Data.Text.Encoding           as T
 import           Data.Version
-import           GHC.Generics
+import           Generics.Deriving
 import           Numeric.Natural
 import           System.Exit
 import           Text.ParserCombinators.ReadP (ReadP, readP_to_S)
 
 -- orphans
-deriving instance Generic ExitCode
 deriving instance NFData ExitCode
 
 -- | Class for types which have a 'FilePath'(-component) representation

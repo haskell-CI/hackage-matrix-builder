@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 module Api.Root where
 
 import           Control.Applicative
@@ -46,9 +47,9 @@ runRoot :: ServerData -> Root a -> ServerPartT IO a
 runRoot serverData = flip runReaderT serverData . unRoot
 
 instance MonadBaseControl IO Root where
-  newtype StM Root a = StMRoot { unStMRoot :: StM (ReaderT ServerData (ServerPartT IO)) a }
-  liftBaseWith f = Root (liftBaseWith (\run -> f (liftM StMRoot . run . unRoot)))
-  restoreM = Root . restoreM . unStMRoot
+  type StM Root a = StM (ReaderT ServerData (ServerPartT IO)) a
+  liftBaseWith f  = Root (liftBaseWith (\run -> f (run . unRoot)))
+  restoreM        = Root . restoreM
 
 instance MonadConfig Root where
   asksConfig = asks . (. config)

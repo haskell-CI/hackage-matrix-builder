@@ -11,7 +11,7 @@ import qualified Api.Tag                 as Tag
 import qualified Api.User                as User
 
 api :: Api Root
-api = [(mkVersion 1 0 0, Some1 router)]
+api = Versioned [(mkVersion 1 0 0, Some1 router)]
   where
     router :: Router Root Root
     router =
