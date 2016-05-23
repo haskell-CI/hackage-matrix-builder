@@ -1,0 +1,12 @@
+{
+  "name": "purescript",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "output"
+  ],
+  "dependencies": {
+    "purescript-console": "^0.1.0"
+  }
+}
