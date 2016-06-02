@@ -1,6 +1,6 @@
 module Main where
 
-import Prelude (Unit, unit, pure, bind)
+import Prelude
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE, log)
 import Control.Monad.Eff.JQuery (ready)
@@ -14,150 +14,34 @@ import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
 import Data.Date (Date)
 
-main :: forall e. Eff (dom :: DOM, console :: CONSOLE | e) Unit
+import MatrixApi as Api
+import MatrixApi (API, newApi, MatrixApi)
+import Types
+
+main :: forall e. Eff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 main = do
+  api <- newApi "/api" "/api"
+  log "main"
   ready do
     log "Ready"
-    main'
+    main' api
+    -- userByName api "AdamBergmark" (\n -> log ("name: " ++ n.name)) (\err -> log "error")
   pure unit
 
-main' :: forall e. Eff (dom :: DOM, console :: CONSOLE | e) Unit
-main' = pure unit
+main' :: forall e. MatrixApi -> Eff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
+main' api = do
+  Api.tagList api (\tags -> cont { allTags = tags }) (\_ -> pure unit)
+  pure unit
 
-data State a b = State
-  { allPackages     :: List String
-  , allPackagesMore :: StrMap { name   :: String
-                              , report :: Report
-                              , tags   :: Tags
-                              }
-  , allTags         :: List b
-  }
+cont st = pure unit
 
-data Tags = Tags { unTags :: Map TagName (Set PackageName) }
+ghcVersions :: Array String
+ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0"]
 
-data Tag = Tag
-  { name     :: TagName
-  , packages :: Set PackageName
-  }
-
-data PackageMeta = PackageMeta
-  { pmName   :: PackageName
-  , pmReport :: Maybe Date
-  , pmTags   :: Set TagName
-  }
-
-data ReportMeta = ReportMeta
-  { rmPackageName :: PackageName
-  , rmModified    :: Date
-  }
-
-data Report = Report
-  { rPackageName :: PackageName
-  , rModified    :: Date
-  , rResults     :: List GHCResult
-  }
-
-data ShallowReport = ShallowReport
- { sPackageName :: PackageName
- , sModified    :: Date
- , sResults     :: List ShallowGhcResult
- }
-
-data ShallowGhcResult = ShallowGhcResult
-  { sGhcVersion     :: VersionName
-  , sGhcFullVersion :: VersionName
-  , sGhcResult      :: List ShallowVersionResult
-  }
-
-data ShallowVersionResult = ShallowVersionResult
- { sPackageVersion  :: VersionName
- , sPackageRevision :: Revision
- , sResult          :: ShallowResult
- }
-
-data ShallowResult
-  = ShallowOk
-  | ShallowNop
-  | ShallowNoIp
-  | ShallowNoIpBjLimit Word
-  | ShallowNoIpFail
-  | ShallowFail
-  | ShallowFailDeps Word
-
-
-data VersionInfo = VersionInfo
-  { version    :: VersionName
-  , revision   :: Revision
-  , preference :: Preference
-  }
-
-data Preference
-  = Normal
-  | UnPreferred
-  | Deprecated
-
-
-data GHCResult = GHCResult
-  { ghcVersion     :: VersionName
-  , ghcFullVersion :: VersionName
-  , resultsA       :: List VersionResult
-  , resultsB       :: List (Tuple PkgVerPfx (Maybe VersionName))
-  }
-
-data SingleResult = SingleResult
-  { srGhcVersion     :: VersionName
-  , srGhcFullVersion :: VersionName
-  , srResultA        :: Maybe VersionResult
-  }
-
-data VersionResult = VersionResult
-  { packageVersion  :: VersionName
-  , packageRevision :: Revision
-  , result          :: Result
-  }
-
-data Result
-  = Ok
-  | Nop
-  | NoIp
-  | NoIpBjLimit Word
-  | NoIpFail { err :: String, out :: String }
-  | Fail String
-  | FailDeps (List DepFailure)
-
-data DepFailure = DepFailure
-  { dfPackageName    :: PackageName
-  , dfPackageVersion :: VersionName
-  , dfMessage        :: String
-  }
-
-data Package = Package
-  { pName     :: PackageName
-  , pVersions :: List VersionInfo
-  }
-
-newtype Username = Username { unUsername :: String }
-
-
-data User = User
-  { uName     :: Username
-  , uPackages :: List PackageName
-  }
-
-data HackageUserRep = HackageUserRep
-  { hugroups   :: List String
-  , huusername :: String
-  , huuserid   :: Word
-  }
-
-data PackageName = PackageName { unPackageName :: String }
-
-data VersionName = VersionName { unVersionName :: String }
-
-data Revision = Revision { unRevision :: Word }
-
-data TagName = TagName { unTagName :: String }
-
-type PkgVerPfx = List Word
-
-type Word = Int
+type State = { allTags :: List Tag }
+--  { allPackages     :: List String
+--  , allPackagesMore :: StrMap { name   :: String
+--                              , report :: Report
+--                              , tags   :: Tags
+--                              }
+--  }
