@@ -4,7 +4,7 @@
   var apiRootUrl = ((appConfig && appConfig.apiHost) || "") + "/api";
   var api = new MatrixApi(apiRootUrl, apiRootUrl);
 
-  window.ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0"];
+  window.ghcVersions = ["8.0", "7.10", "7.8", "7.6", "7.4", "7.2", "7.0"];
 
   function fail (msg) {
     return function () {
@@ -568,7 +568,7 @@
       }
       trs.push(tr);
     }
-    $("#package").append(t.append(trs));
+    $("#package").append(t.append(arrayReverse(trs)));
 
     function newMajor (a,b) {
       if (!a) return true;
@@ -762,6 +762,12 @@
 
   function renderTag (tagName) {
     return $("<a>").addClass("tag-item").attr("data-tag-name", tagName).text(tagName);
+  }
+
+  // Reverse without mutating original array.
+  function arrayReverse (ar)
+  {
+    return Array.prototype.reverse.call(ar.slice());
   }
 
 })();
