@@ -18,7 +18,7 @@ import           Happstack.Server.SimpleHTTP  (Response, bindIPv4, dir,
                                                getFilter, nullConf, port,
                                                setHeaderM, simpleHTTPWithSocket,
                                                toResponse, waitForTermination)
-import           Network.HTTP.Conduit         (http, newManager, parseUrl,
+import           Network.HTTP.Conduit         (http, newManager, parseUrlThrow,
                                                requestHeaders, responseBody,
                                                tlsManagerSettings)
 import           Path
@@ -55,7 +55,7 @@ assertPackagesJson fp = do
   unless ex $ do
     putStrLn $ "Downloading package metadata from hackage to " ++ cs fp
     manager <- liftIO $ newManager tlsManagerSettings
-    req_ <- parseUrl "http://hackage.haskell.org/packages/"
+    req_ <- parseUrlThrow "http://hackage.haskell.org/packages/"
     let req = req_ { requestHeaders = [("Accept", "application/json")] }
     runResourceT $ do
       res <- http req manager
