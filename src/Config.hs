@@ -1,12 +1,17 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell   #-}
-module Config where
+module Config
+  ( Config (..)
+  , MonadConfig (..)
+  , defaultConfig
+  ) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.Text            (Text)
-import           Path
+import           Path                 (Dir, File, Path, Rel, mkRelDir,
+                                       mkRelFile)
 
 import           Paths                ()
 
