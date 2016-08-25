@@ -4,14 +4,22 @@
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
-module Api.Root where
+module Api.Root
+  ( MonadRoot (..)
+  , Root
+  , ServerData (..)
+  , runRoot
+  ) where
 
 import           Control.Applicative
 import           Control.Monad.Base
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Control
-import           Happstack.Server
+import           Happstack.Server            (FilterMonad, Happstack,
+                                              HasRqData (..), Response,
+                                              ServerMonad, ServerPartT,
+                                              WebMonad)
 import           Happstack.Server.Monads     ()
 import           Rest.Driver.Happstack       ()
 import           Rest.Driver.Perform         (Rest)
