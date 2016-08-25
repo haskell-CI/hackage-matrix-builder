@@ -1,14 +1,17 @@
+{-# LANGUAGE DataKinds                 #-}
 {-# LANGUAGE FlexibleContexts          #-}
 {-# LANGUAGE LambdaCase                #-}
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE TupleSections             #-}
 module Api.Utils
   ( listRange
+  , unlimitedListRange
   , filesByStamp
   , getDirWithFilter
   , secure
   , tryReadFile
   , xcabalPackage
+  , mkUnlimitedListing
   ) where
 
 import           Control.Arrow
@@ -25,6 +28,12 @@ import           Happstack.Server.Auth   (basicAuth)
 import           Happstack.Server.Monads
 import           Path
 import           Rest
+import           Rest.Container          (List)
+import           Rest.Dictionary         (Dict, FromMaybe, Param (Param))
+import           Rest.Driver.Happstack   ()
+import           Text.Read               (readMaybe)
+
+import qualified Rest.Container          as C
 import           Safe
 import           System.IO
 import           System.Process
@@ -38,6 +47,15 @@ import           Paths
 
 listRange :: Range -> [a] -> [a]
 listRange r = take (count r) . drop (offset r)
+
+unlimitedListRange :: Range -> [a] -> List a
+unlimitedListRange r as = C.List
+  { C.offset = offset r
+  , C.count  = length items
+  , C.items  = items
+  }
+  where
+    items = take (count r) . drop (offset r) $ as
 
 filesByStamp :: (FilePath -> Bool) -> Path a Dir -> IO [(Text, UTCTime)]
 filesByStamp p dir
@@ -87,3 +105,30 @@ parseXcabal s = do
            BT.UnPreferred -> UnPreferred
            BT.Deprecated  -> Deprecated
         }
+
+-- | A version of 'Rest.Handler.mkListing' with no upper limit for the
+-- @count@ parameter.
+--
+-- Be careful not to use this for listings that are expensive to
+-- compute (and if you use mkListing, enforce a maximum yourself).
+mkUnlimitedListing :: Monad m
+  => (Dict () () 'Nothing 'Nothing 'Nothing
+  -> Dict h x i' o' e')
+  -> (Range -> ExceptT (Reason (FromMaybe Void e')) m (FromMaybe () o'))
+  -> Handler m
+mkUnlimitedListing d a = mkHandler (mkPar unlimitedRange . d) (a . param)
+  where
+    unlimitedRange :: Param Range
+    unlimitedRange = Param ["offset", "count"] $ \xs ->
+      maybe (Left (ParseError "range"))
+            (Right . normalize)
+        $ case xs of
+            [Just o, Just c] -> Range         <$> readMaybe o <*> readMaybe c
+            [_     , Just c] -> Range 0       <$> readMaybe c
+            [Just o, _     ] -> (`Range` 100) <$> readMaybe o
+            _                -> Just $ Range 0 100
+      where
+        normalize r = Range
+          { offset = max 0 . offset $ r
+          , count  = max 0 . count $ r
+          }

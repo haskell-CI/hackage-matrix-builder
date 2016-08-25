@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections     #-}
 module Api.Queue (resource) where
@@ -5,6 +6,7 @@ module Api.Queue (resource) where
 import           Control.Monad.Except
 import           Data.String
 import           Rest
+import           Rest.Container       (List)
 import qualified Rest.Resource        as R
 
 import           Api.Package          (validatePackage)
@@ -15,15 +17,18 @@ import           Queue                (Create (..), Priority (..),
                                        QueueItem (..))
 import qualified Queue                as Q
 
-resource :: Resource Root WithPackage PackageName () Void
+resource :: Resource Root WithPackage PackageName Void ()
 resource = mkResourceReader
   { R.name   = "queue"
-  , R.schema = withListing () $ named [("name", singleBy fromString)]
-  , R.list   = const list
+  , R.schema = noListing $ named [ ("name", singleBy fromString)
+                                 , ("list", static ())
+                                 ]
   , R.get    = Just get
   , R.create = Just create
   , R.update = Just update
   , R.remove = Just remove
+  , R.statics = \case
+      () -> list
   }
 
 get :: Handler WithPackage
@@ -32,11 +37,11 @@ get = mkIdHandler jsonO $ const handler
     handler :: PackageName -> ExceptT Reason_ WithPackage QueueItem
     handler pkgName = (`orThrow` NotFound) . liftIO $ Q.get pkgName
 
-list :: ListHandler Root
-list = mkListing jsonO handler
+list :: Handler Root
+list = mkUnlimitedListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [QueueItem]
-    handler r = listRange r <$> liftIO Q.list
+    handler :: Range -> ExceptT Reason_ Root (List QueueItem)
+    handler r = unlimitedListRange r <$> liftIO Q.list
 
 create :: Handler Root
 create = mkInputHandler jsonI handler

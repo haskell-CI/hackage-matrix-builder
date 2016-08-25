@@ -322,40 +322,23 @@
     window.allPackages     = [];
     window.allPackagesMore = {};
     window.allTags         = [];
-    var responses = 0;
     api.Tag.list(function (l) {
       window.allTags = l.items;
-      responses++;
-      checkDone();
     }, function () {
       fail("Tag.list").apply(null, arguments);
-      responses++;
-      checkDone();
-    }, { count : 1000 });
-    for (var i = 0; i < 10; i++) {
-      (function (i) {
-        api.Package.list(function (l) {
-          l.items.forEach(function (v) {
-            window.allPackages.push(v.name);
-            window.allPackagesMore[v.name] = { name : v.name, report : v.report, tags : v.tags };
-          });
-          responses++;
-          checkDone();
-        }, function () {
-          fail("Package.list: " + i).apply(null, arguments);
-          responses++;
-          checkDone();
-        }, { count : 1000, offset : i*1000 });
-      })(i);
-    }
-    function checkDone () {
-      if (responses < 11) {
-        return;
-      }
-      setupRouting();
-      setupPicker(window.allPackages);
-    }
-
+    }, { count : 1000 }
+    ).then(function () {
+      api.Package.list(function (l) {
+        l.items.forEach(function (v) {
+          window.allPackages.push(v.name);
+          window.allPackagesMore[v.name] = { name : v.name, report : v.report, tags : v.tags };
+        });
+        setupRouting();
+        setupPicker(window.allPackages);
+      }, function () {
+        fail("Package.list: " + i).apply(null, arguments);
+      }, { count : 100000 });
+    });
   }
 
   function setupPicker (items) {

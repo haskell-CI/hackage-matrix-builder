@@ -21,6 +21,7 @@ import           Data.String
 import qualified Data.Text            as T
 import           Data.Time
 import           Rest
+import           Rest.Container
 import qualified Rest.Resource        as R
 
 import           Api.Root
@@ -35,17 +36,18 @@ data Listing
   = All
   | LatestReports
 
-resource :: Resource Root WithPackage PackageName Listing Void
+resource :: Resource Root WithPackage PackageName Void Listing
 resource = mkResourceReader
   { R.name    = "package"
-  , R.schema  = withListing All $ named [ ("name"          , singleBy fromString)
-                                        , ("latest-reports", listing LatestReports)
-                                        ]
+  , R.schema  = noListing $ named [ ("name", singleBy fromString)
+                                  , ("list", static All)
+                                  , ("list-latest-reports", static LatestReports)
+                                  ]
   , R.get     = Just get
   , R.actions = [("tags", tags)]
-  , R.list    = \case
-     All           -> list
-     LatestReports -> listLatestReport
+  , R.statics = \case
+      All           -> list
+      LatestReports -> listLatestReport
   }
 
 get :: Handler WithPackage
@@ -56,15 +58,15 @@ get = mkIdHandler jsonO $ const handler
       validatePackage pkgName
       liftIO (xcabalPackage pkgName) `orThrow` Busy
 
-list :: ListHandler Root
-list = mkListing jsonO handler
+list :: Handler Root
+list = mkUnlimitedListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [PackageMeta]
+    handler :: Range -> ExceptT Reason_ Root (List PackageMeta)
     handler r = do
       reports <- reportsByStamp
       pkgs <- loadPackageSummary
       ts <- loadTags
-      return . listRange r . f ts reports . Set.toList $ pkgs
+      return . unlimitedListRange r . f ts reports . Set.toList $ pkgs
     f :: Tags -> [ReportMeta] -> [PackageName] -> [PackageMeta]
     f ts reps pkgs
       = map (\(pn,rs) -> PackageMeta
@@ -80,11 +82,11 @@ list = mkListing jsonO handler
         pkgMap :: Map PackageName (Maybe a)
         pkgMap = Map.fromList . map (,Nothing) $ pkgs
 
-listLatestReport :: ListHandler Root
-listLatestReport = mkListing jsonO handler
+listLatestReport :: Handler Root
+listLatestReport = mkUnlimitedListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [ReportMeta]
-    handler r = listRange r <$> reportsByStamp
+    handler :: Range -> ExceptT Reason_ Root (List ReportMeta)
+    handler r = unlimitedListRange r <$> reportsByStamp
 
 tags :: Handler WithPackage
 tags = mkConstHandler jsonO handler

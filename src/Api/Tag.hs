@@ -1,9 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
 module Api.Tag (resource) where
 
 import           Control.Monad.Except
 import           Control.Monad.Reader
 import           Data.String.Conversions
 import           Rest
+import           Rest.Container          (List)
 import qualified Rest.Resource           as R
 
 import           Api.Package             (validatePackage)
@@ -14,15 +16,17 @@ import           Tag
 
 type WithTag = ReaderT TagName Root
 
-resource :: Resource Root WithTag TagName () Void
+resource :: Resource Root WithTag TagName Void ()
 resource = mkResourceReader
   { R.name   = "tag"
-  , R.schema = withListing () $ named [ ("name"   , singleBy (normalizeTagName . cs))
-                                      ]
+  , R.schema = noListing $ named [ ("name" , singleBy (normalizeTagName . cs))
+                                 , ("list" , static ())
+                                 ]
   , R.get    = Just get
-  , R.list   = const list
   , R.update = Just update
   , R.remove = Just remove
+  , R.statics = \case
+      () -> list
   }
 
 get :: Handler WithTag
@@ -32,11 +36,11 @@ get = mkIdHandler jsonO $ const handler
     handler tagName =
       Tag.byName tagName `orThrow` NotFound
 
-list :: ListHandler Root
-list = mkListing jsonO handler
+list :: Handler Root
+list = mkUnlimitedListing jsonO handler
   where
-    handler :: Range -> ExceptT Reason_ Root [Tag]
-    handler r = listRange r <$> toList
+    handler :: Range -> ExceptT Reason_ Root (List Tag)
+    handler r = unlimitedListRange r <$> toList
 
 update :: Handler WithTag
 update = mkIdHandler (jsonO . jsonI) handler
