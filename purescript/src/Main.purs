@@ -25,24 +25,13 @@ main = do
   log "main"
   ready do
     log "Ready"
-    fetchTagList2 api (\(tags :: Array Tag) -> logShow (map showTag tags))
-    -- userByName api "AdamBergmark" (\n -> log ("name: " ++ n.name)) (\err -> log "error")
+    Api.tagList api
+      (\taglist -> logShow <<< map showTag $ taglist.items)
+      (const $ log "Failed to get tags")
   pure unit
 
 showTag :: Tag -> String
 showTag t = "{ name : " <> show t.name <> ", packages : " <> show t.packages <> "}"
-
-fetchTagList2 :: forall e
-   . MatrixApi
-  -> (Array Tag -> Eff (dom :: DOM, api :: API, console :: CONSOLE | e) Unit)
-  -> Eff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
-fetchTagList2 api s = do
-  Api.tagList api (\l -> s (l.items)) (\_ -> pure unit)
-  pure unit
-
-
-success_ :: forall e . ApiList Tag -> Eff (api :: API, console :: CONSOLE | e) Unit
-success_ _ = log "got result"
 
 ghcVersions :: Array String
 ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0"]
