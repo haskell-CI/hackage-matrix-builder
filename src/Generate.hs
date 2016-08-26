@@ -1,5 +1,5 @@
+{-# LANGUAGE CPP #-}
 module Generate (defaultMain, jsMain) where
-
 
 import           Data.String.Conversions
 import qualified Rest.Gen                as Gen
@@ -16,7 +16,15 @@ defaultMain = do
   Gen.generate config "Matrix" api
     [] -- Additional modules to put in the generated cabal file
     [] -- Additional imports in every module, typically used for orphan instances
-    [(ModuleName "Data.Text.Internal", ModuleName "Data.Text")]
+    [(mkModuleName "Data.Text.Internal", mkModuleName "Data.Text")]
+
+#if MIN_VERSION_rest_gen(0,20,0)
+mkModuleName :: String -> ModuleName ()
+mkModuleName = ModuleName ()
+#else
+mkModuleName :: String -> ModuleName
+mkModuleName = ModuleName
+#endif
 
 jsMain :: IO ()
 jsMain = do

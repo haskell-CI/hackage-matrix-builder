@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DeriveAnyClass        #-}
 {-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleInstances     #-}
@@ -7,7 +8,9 @@
 {-# LANGUAGE StandaloneDeriving    #-}
 {-# LANGUAGE ViewPatterns          #-}
 
+#if !MIN_VERSION_deepseq(1,4,2)
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+#endif
 
 -- | Build-types and associated primitive helpers
 module BuildTypes
@@ -56,8 +59,10 @@ import           Numeric.Natural
 import           System.Exit
 import           Text.ParserCombinators.ReadP (ReadP, readP_to_S)
 
+#if !MIN_VERSION_deepseq(1,4,2)
 -- orphans
 deriving instance NFData ExitCode
+#endif
 
 -- | Class for types which have a 'FilePath'(-component) representation
 class ToFP s where
@@ -74,6 +79,10 @@ data GhcVer = GHC_7_00
             | GHC_7_10
             | GHC_8_00
             deriving (Eq,Ord,Bounded,Enum,Read,Show,Hashable,Binary,NFData,Generic,FromJSON,ToJSON)
+#if MIN_VERSION_aeson(1,0,0)
+deriving instance J.ToJSONKey GhcVer
+deriving instance J.FromJSONKey GhcVer
+#endif
 
 ghcVers :: [GhcVer]
 ghcVers = [minBound..maxBound]
@@ -107,6 +116,11 @@ instance ToFP PkgName where
 -- | Our variant of 'Data.Version.Version'
 newtype PkgVer = PkgVer [Word]
                deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary,FromJSON,ToJSON)
+
+#if MIN_VERSION_aeson(1,0,0)
+deriving instance J.ToJSONKey PkgVer
+deriving instance J.FromJSONKey PkgVer
+#endif
 
 instance ToFP PkgVer where
     toFP = T.unpack . tshowPkgVer
@@ -301,6 +315,7 @@ tshowPkgCstr (PkgName n,cstr) = case cstr of
 showPkgCstr :: (PkgName,PkgCstr) -> String
 showPkgCstr = T.unpack . tshowPkgCstr
 
+#if !MIN_VERSION_aeson(1,0,0)
 ----------------------------------------------------------------------------
 -- Some semi-orphans (they can only become full orphans, if aeson
 -- decides to define instances paremtric in the key-type of the Map,
@@ -326,7 +341,6 @@ instance FromJSON v => FromJSON (Map.Map GhcVer v) where
     parseJSON v = do
         entries <- Map.toList <$> J.parseJSON v
         Map.fromList <$> mapM (bitraverse (J.parseJSON . J.String) pure) entries
-
 ----
 
 instance ToJSON v => ToJSON (Map.Map PkgVerPfx v) where
@@ -334,3 +348,4 @@ instance ToJSON v => ToJSON (Map.Map PkgVerPfx v) where
 
 instance FromJSON v => FromJSON (Map.Map PkgVerPfx v) where
     parseJSON v = Map.fromList <$> J.parseJSON v
+#endif
