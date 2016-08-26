@@ -1,30 +1,23 @@
 module Types where
 
-import Prelude (Unit, unit, pure, bind)
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE, log)
-import Control.Monad.Eff.JQuery (ready)
-import Data.Set (Set)
-import DOM (DOM)
-import Control.Monad.Trans ()
-import Data.List (List)
+-- import Data.Set (Set)
+-- import Data.List (List)
 import Data.Map (Map)
-import Data.StrMap (StrMap)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
 import Data.Date (Date)
 
-data Tags = Tags { unTags :: Map TagName (Set PackageName) }
+data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 
 type Tag =
   { name     :: TagName
-  , packages :: Set PackageName
+  , packages :: Array PackageName
   }
 
 data PackageMeta = PackageMeta
   { pmName   :: PackageName
   , pmReport :: Maybe Date
-  , pmTags   :: Set TagName
+  , pmTags   :: Array TagName
   }
 
 data ReportMeta = ReportMeta
@@ -35,19 +28,19 @@ data ReportMeta = ReportMeta
 data Report = Report
   { rPackageName :: PackageName
   , rModified    :: Date
-  , rResults     :: List GHCResult
+  , rResults     :: Array GHCResult
   }
 
 data ShallowReport = ShallowReport
  { sPackageName :: PackageName
  , sModified    :: Date
- , sResults     :: List ShallowGhcResult
+ , sResults     :: Array ShallowGhcResult
  }
 
 data ShallowGhcResult = ShallowGhcResult
   { sGhcVersion     :: VersionName
   , sGhcFullVersion :: VersionName
-  , sGhcResult      :: List ShallowVersionResult
+  , sGhcResult      :: Array ShallowVersionResult
   }
 
 data ShallowVersionResult = ShallowVersionResult
@@ -81,8 +74,8 @@ data Preference
 data GHCResult = GHCResult
   { ghcVersion     :: VersionName
   , ghcFullVersion :: VersionName
-  , resultsA       :: List VersionResult
-  , resultsB       :: List (Tuple PkgVerPfx (Maybe VersionName))
+  , resultsA       :: Array VersionResult
+  , resultsB       :: Array (Tuple PkgVerPfx (Maybe VersionName))
   }
 
 data SingleResult = SingleResult
@@ -104,7 +97,7 @@ data Result
   | NoIpBjLimit Word
   | NoIpFail { err :: String, out :: String }
   | Fail String
-  | FailDeps (List DepFailure)
+  | FailDeps (Array DepFailure)
 
 data DepFailure = DepFailure
   { dfPackageName    :: PackageName
@@ -114,20 +107,20 @@ data DepFailure = DepFailure
 
 data Package = Package
   { pName     :: PackageName
-  , pVersions :: List VersionInfo
+  , pVersions :: Array VersionInfo
   }
 
 type Username = String
 
 type User =
   { name     :: Username
-  , packages :: List PackageName
+  , packages :: Array PackageName
   }
 
 -- TODO Remove prefixes
 
 data HackageUserRep = HackageUserRep
-  { hugroups   :: List String
+  { hugroups   :: Array String
   , huusername :: String
   , huuserid   :: Word
   }
@@ -140,8 +133,8 @@ type Revision = Word
 
 type TagName = String
 
-type PkgVerPfx = List Word
+type PkgVerPfx = Array Word
 
 type Word = Int
 
-type ApiList a = { offset :: Int, count :: Int, items :: List a }
+type ApiList a = { offset :: Int, count :: Int, items :: Array a }
