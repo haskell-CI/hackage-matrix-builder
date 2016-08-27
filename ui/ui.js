@@ -635,17 +635,26 @@
         if (!td[0]) {
           console.warn("Could not find cell for " + cellHash(ghcVersionName, pkgName, versionName));
         }
+
+        function onlyHighlight ()
+        {
+          highlightCell(ghcVersionName, versionName);
+        }
+
         td.removeClass("fail-unknown");
         var r;
         if (res.ok) {
           td.text("OK")
-            .addClass("pass-build");
+            .addClass("pass-build")
+            .click(onlyHighlight);
         } else if (res.noIp) {
           td.text("OK (no-ip)")
-            .addClass("pass-no-ip");
+            .addClass("pass-no-ip")
+            .click(onlyHighlight);
         } else if (r = res.noIpBjLimit) {
           td.text("FAIL (BJ " + r + ")")
-            .addClass("fail-bj");
+            .addClass("fail-bj")
+            .click(onlyHighlight);
         } else if (r = res.noIpFail) {
           (function (r) {
             td.text("FAIL (no-ip)")
@@ -691,7 +700,8 @@
           })(r);
         } else if (res.nop) {
           td.text("OK (boot)")
-            .addClass("pass-no-op");
+            .addClass("pass-no-op")
+            .click(onlyHighlight);
         } else {
           console.warn("unhandled result: ", res);
           td.addClass("fail-unknown");
@@ -754,7 +764,7 @@
                  , function fail    (f) { console.warn("Couldn't load cell data failed for " + ident, arguments) }
                  );
         } else {
-          console.warn("No build failure found for: GHC-" + ghcVersion + "/" + pkgName + "-" + packageVersion);
+          highlightCell(ghcVersion, packageVersion);
         }
       }, 0);
     }
