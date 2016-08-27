@@ -510,18 +510,18 @@
     t.append($("<thead>").append($("<tr>").append(corner, headers)));
 
     var trs = [];
-    for (var row = 0; row < rows; row++) {
+    for (var row = rows - 1; row >= 0; row--) {
       var v = pkg.versions[row];
 
       var versionName = v.version;
       var revision    = v.revision;
       var unpreferred = v.unpreferred;
-      var prevVersionNameMay = pkg.versions[row-1] && pkg.versions[row-1].version;
+      var nextVersionNameMay = pkg.versions[row+1] && pkg.versions[row+1].version;
 
       var th = $("<th>")
         .addClass("pkgv")
         .append
-          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName, prevVersionNameMay))
+          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName, nextVersionNameMay))
           , " "
           , $("<a>").attr("href", hackageUrl(pkgName, versionName)).text(versionName)
           , revision
@@ -543,15 +543,15 @@
       });
 
       var tr = $("<tr>").addClass("solver-row").append(th).append(tds);
-      if (newMajor(pkg.versions[row-1], pkg.versions[row])) {
+      if (newMajor(pkg.versions[row+1], pkg.versions[row])) {
         tr.addClass("first-major");
       }
-      if (newMinor(pkg.versions[row-1], pkg.versions[row])) {
+      if (newMinor(pkg.versions[row+1], pkg.versions[row])) {
         tr.addClass("first-minor");
       }
       trs.push(tr);
     }
-    $("#package").append(t.append(arrayReverse(trs)));
+    $("#package").append(t.append(trs));
 
     function newMajor (a,b) {
       if (!a) return true;
