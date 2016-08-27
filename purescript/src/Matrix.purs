@@ -1,9 +1,10 @@
 module MatrixApi where
 
-import Prelude (Unit)
+import Control.Monad.Eff
+import Data.Foreign.Null
+import Data.Maybe
+import Prelude
 import Types
-
-import Control.Monad.Eff (Eff)
 
 foreign import data MatrixApi :: *
 
@@ -16,15 +17,25 @@ foreign import newApi :: forall eff
 
 foreign import data JQueryXHR :: *
 
+type ApiEff e o = Eff (api :: API | e) o
+
 foreign import userByName :: forall eff
    . MatrixApi
   -> String
-  -> (User -> Eff (api :: API | eff) Unit)
-  -> (JQueryXHR -> Eff (api :: API | eff) Unit)
-  -> Eff (api :: API | eff) Unit
+  -> (User      -> ApiEff eff Unit)
+  -> (JQueryXHR -> ApiEff eff Unit)
+  -> ApiEff eff Unit
 
 foreign import tagList :: forall eff
    . MatrixApi
-  -> (ApiList Tag -> Eff (api :: API | eff) Unit)
-  -> (JQueryXHR -> Eff (api :: API | eff) Unit)
-  -> Eff (api :: API | eff) Unit
+  -> (ApiList Tag -> ApiEff eff Unit)
+  -> (JQueryXHR   -> ApiEff eff Unit)
+  -> ApiEff eff Unit
+
+foreign import packageList :: forall eff
+   . MatrixApi
+  -> Maybe Int
+  -> Maybe Int
+  -> (ApiList PackageMeta -> ApiEff eff Unit)
+  -> (JQueryXHR           -> ApiEff eff Unit)
+  -> ApiEff eff Unit

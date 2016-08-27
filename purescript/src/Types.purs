@@ -14,10 +14,10 @@ type Tag =
   , packages :: Array PackageName
   }
 
-data PackageMeta = PackageMeta
-  { pmName   :: PackageName
-  , pmReport :: Maybe Date
-  , pmTags   :: Array TagName
+type PackageMeta =
+  { name   :: PackageName
+  , report :: Maybe Date
+  , tags   :: Array TagName
   }
 
 data ReportMeta = ReportMeta

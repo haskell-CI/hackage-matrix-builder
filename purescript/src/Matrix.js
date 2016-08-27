@@ -37,3 +37,28 @@ exports.tagList = function (api) {
     }
   }
 };
+
+exports.packageList = function (api) {
+  return function (count) {
+    return function (offset) {
+      return function (ok) {
+        return function (er) {
+          return function () {
+            var params = {};
+            if (typeof count.value0 === "number") {
+              params.count = count.value0;
+            }
+            if (typeof offset.value0 === "number") {
+              params.offset = offset;
+            }
+            api.Package.list
+              ( function (v) { ok(v)(); }
+              , function (e) { er(e)(); }
+              , params
+              );
+          }
+        }
+      }
+    }
+  }
+};
