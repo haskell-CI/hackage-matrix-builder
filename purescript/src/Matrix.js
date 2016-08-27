@@ -8,21 +8,12 @@ exports.newApi = function (rootUrl) {
   };
 };
 
-exports.userByName = function (api) {
-  return function (name) {
-    console.log("a");
-    return function (ok) {
-      console.log("b");
-      return function (err) {
-        console.log("c");
-        return function () {
-          console.log("Run user byname");
-          api.User.byName(name).get( function (v) { ok(v)(); }
-                                   , function (e) { er(e)(); }
-                                   );
-        };
-      };
-    };
+exports.userByName = function (api, name, ok, err) {
+  return function () {
+    api.User.byName(name).get
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      );
   };
 };
 

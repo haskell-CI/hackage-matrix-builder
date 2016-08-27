@@ -38,13 +38,16 @@ boot :: forall e
   -> Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 boot api = do
   liftEff $ log "bootCont"
-  tl <- tagListAff api
-  pl <- packageListAff api { count : Just 100000, offset : Nothing }
+  tl <- Api.tagListAff api
+  pl <- Api.packageListAff api { count : Just 100000, offset : Nothing }
+  adam <- Api.userByNameAff api "AdamBergmark"
   let state = { allTags         : tl.items
               , allPackages     : map (\p -> p.name) pl.items
               , allPackagesMore : pl.items
               }
-  liftEff $ logShow $ map showTag state.allTags
+  liftEff $ do
+    logShow $ map showTag state.allTags
+    logShow $ adam.packages
 
 showTag :: Tag -> String
 showTag t = "{ name : " <> show t.name <> ", packages : " <> show t.packages <> "}"
@@ -57,16 +60,3 @@ type State =
   , allPackages     :: Array PackageName
   , allPackagesMore :: Array PackageMeta
   }
-
-packageListAff :: forall e
-   . MatrixApi
-  -> Range
-  -> Aff (api :: API | e) (ApiList PackageMeta)
-packageListAff api range = makeAff \err succ ->
-  runFn4 Api.packageList api range succ (err <<< const (error "Getting package list failed"))
-
-tagListAff :: forall e
-   . MatrixApi
-  -> Aff (api :: API | e) (ApiList Tag)
-tagListAff api = makeAff \err succ ->
-  runFn3 Api.tagList api succ (err <<< const (error "Getting tag list failed"))
