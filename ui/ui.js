@@ -12,9 +12,17 @@
     };
   }
 
+  function getVersionedPackageName (uri)
+  {
+    return (/^\/package\/([^\/\d]+)-([\d\.]+)$/.test(uri.path())
+         && RegExp.$1 && RegExp.$2
+         && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
+           ) || null;
+  }
+
   function getPackageName (uri)
   {
-    return (/^\/package\/([^\/]+)$/.test(uri.path()) && RegExp.$1) || null;
+    return (/^\/package\/([^\/\d]+)$/.test(uri.path()) && RegExp.$1) || null;
   }
 
   function setupRouting ()
@@ -52,9 +60,15 @@
     }
     var title = null;
     var pkgName;
+    var tmp;
 
     if (uri.path() === "/") {
       renderHome();
+    } else if (tmp = getVersionedPackageName(uri)) {
+      pkgName = tmp.packageName;
+      title = pkgName + " - package";
+      uri = packageUri(pkgName, tmp.packageVersion);
+      selectedPackage(pkgName);
     } else if (pkgName = getPackageName(uri)) {
       title = pkgName + " - package";
       selectedPackage(pkgName);
