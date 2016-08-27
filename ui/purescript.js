@@ -17256,6 +17256,7 @@ var Control_Monad_Eff_JQuery = require("../Control.Monad.Eff.JQuery");
 var Control_Monad_Trans = require("../Control.Monad.Trans");
 var DOM = require("../DOM");
 var Data_Date = require("../Data.Date");
+var Data_Function_Uncurried = require("../Data.Function.Uncurried");
 var Data_List = require("../Data.List");
 var Data_Map = require("../Data.Map");
 var Data_Maybe = require("../Data.Maybe");
@@ -17275,7 +17276,7 @@ var Data_Functor = require("../Data.Functor");
 var tagListAff = function (api) {
     return Control_Monad_Aff.makeAff(function (err) {
         return function (succ) {
-            return MatrixApi_1.tagList(api)(succ)(function ($6) {
+            return MatrixApi_1.tagList(api, succ, function ($6) {
                 return err(Data_Function["const"](Control_Monad_Eff_Exception.error("Getting tag list failed"))($6));
             });
         };
@@ -17289,7 +17290,7 @@ var packageListAff = function (api) {
         return function (moffset) {
             return Control_Monad_Aff.makeAff(function (err) {
                 return function (succ) {
-                    return MatrixApi_1.packageList(api)(mcount)(moffset)(succ)(function ($7) {
+                    return MatrixApi_1.packageList(api, mcount, moffset, succ, function ($7) {
                         return err(Data_Function["const"](Control_Monad_Eff_Exception.error("Getting package list failed"))($7));
                     });
                 };
@@ -17326,7 +17327,7 @@ module.exports = {
     main: main
 };
 
-},{"../Control.Bind":9,"../Control.Monad.Aff":17,"../Control.Monad.Eff":33,"../Control.Monad.Eff.Class":20,"../Control.Monad.Eff.Console":22,"../Control.Monad.Eff.Exception":25,"../Control.Monad.Eff.Exception.Unsafe":23,"../Control.Monad.Eff.JQuery":27,"../Control.Monad.Trans":44,"../Control.Semigroupoid":52,"../DOM":53,"../Data.Date":72,"../Data.Function":89,"../Data.Functor":92,"../Data.List":102,"../Data.Map":103,"../Data.Maybe":106,"../Data.Semigroup":123,"../Data.Set":126,"../Data.Show":128,"../Data.StrMap":132,"../Data.Tuple":140,"../MatrixApi":150,"../Prelude":155,"../Types":157}],147:[function(require,module,exports){
+},{"../Control.Bind":9,"../Control.Monad.Aff":17,"../Control.Monad.Eff":33,"../Control.Monad.Eff.Class":20,"../Control.Monad.Eff.Console":22,"../Control.Monad.Eff.Exception":25,"../Control.Monad.Eff.Exception.Unsafe":23,"../Control.Monad.Eff.JQuery":27,"../Control.Monad.Trans":44,"../Control.Semigroupoid":52,"../DOM":53,"../Data.Date":72,"../Data.Function":89,"../Data.Function.Uncurried":88,"../Data.Functor":92,"../Data.List":102,"../Data.Map":103,"../Data.Maybe":106,"../Data.Semigroup":123,"../Data.Set":126,"../Data.Show":128,"../Data.StrMap":132,"../Data.Tuple":140,"../MatrixApi":150,"../Prelude":155,"../Types":157}],147:[function(require,module,exports){
 "use strict";
 
 // module Math
@@ -17470,41 +17471,29 @@ exports.userByName = function (api) {
   };
 };
 
-exports.tagList = function (api) {
-  return function (ok) {
-    return function (er) {
-      return function () {
-        api.Tag.list( function (v) { ok(v)(); }
-                    , function (e) { er(e)(); }
-                    );
-      }
-    }
-  }
+exports.tagList = function (api, ok, er) {
+  return function () {
+    api.Tag.list( function (v) { ok(v)(); }
+                , function (e) { er(e)(); }
+                );
+  };
 };
 
-exports.packageList = function (api) {
-  return function (count) {
-    return function (offset) {
-      return function (ok) {
-        return function (er) {
-          return function () {
-            var params = {};
-            if (typeof count.value0 === "number") {
-              params.count = count.value0;
-            }
-            if (typeof offset.value0 === "number") {
-              params.offset = offset;
-            }
-            api.Package.list
-              ( function (v) { ok(v)(); }
-              , function (e) { er(e)(); }
-              , params
-              );
-          }
-        }
-      }
+exports.packageList = function (api, count, offset, ok, err) {
+  return function () {
+    var params = {};
+    if (typeof count.value0 === "number") {
+      params.count = count.value0;
     }
-  }
+    if (typeof offset.value0 === "number") {
+      params.offset = offset;
+    }
+    api.Package.list
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      , params
+      );
+  };
 };
 
 },{}],150:[function(require,module,exports){
@@ -17513,6 +17502,7 @@ exports.packageList = function (api) {
 var $foreign = require("./foreign");
 var Control_Monad_Eff = require("../Control.Monad.Eff");
 var Data_Foreign_Null = require("../Data.Foreign.Null");
+var Data_Function_Uncurried = require("../Data.Function.Uncurried");
 var Data_Maybe = require("../Data.Maybe");
 var Prelude = require("../Prelude");
 var Types = require("../Types");
@@ -17523,7 +17513,7 @@ module.exports = {
     userByName: $foreign.userByName
 };
 
-},{"../Control.Monad.Eff":33,"../Data.Foreign.Null":84,"../Data.Maybe":106,"../Prelude":155,"../Types":157,"./foreign":149}],151:[function(require,module,exports){
+},{"../Control.Monad.Eff":33,"../Data.Foreign.Null":84,"../Data.Function.Uncurried":88,"../Data.Maybe":106,"../Prelude":155,"../Types":157,"./foreign":149}],151:[function(require,module,exports){
 "use strict";
 
 // module Partial.Unsafe

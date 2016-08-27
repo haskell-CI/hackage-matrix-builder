@@ -26,39 +26,27 @@ exports.userByName = function (api) {
   };
 };
 
-exports.tagList = function (api) {
-  return function (ok) {
-    return function (er) {
-      return function () {
-        api.Tag.list( function (v) { ok(v)(); }
-                    , function (e) { er(e)(); }
-                    );
-      }
-    }
-  }
+exports.tagList = function (api, ok, er) {
+  return function () {
+    api.Tag.list( function (v) { ok(v)(); }
+                , function (e) { er(e)(); }
+                );
+  };
 };
 
-exports.packageList = function (api) {
-  return function (count) {
-    return function (offset) {
-      return function (ok) {
-        return function (er) {
-          return function () {
-            var params = {};
-            if (typeof count.value0 === "number") {
-              params.count = count.value0;
-            }
-            if (typeof offset.value0 === "number") {
-              params.offset = offset;
-            }
-            api.Package.list
-              ( function (v) { ok(v)(); }
-              , function (e) { er(e)(); }
-              , params
-              );
-          }
-        }
-      }
+exports.packageList = function (api, count, offset, ok, err) {
+  return function () {
+    var params = {};
+    if (typeof count.value0 === "number") {
+      params.count = count.value0;
     }
-  }
+    if (typeof offset.value0 === "number") {
+      params.offset = offset;
+    }
+    api.Package.list
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      , params
+      );
+  };
 };

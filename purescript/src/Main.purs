@@ -10,6 +10,7 @@ import Control.Monad.Eff.JQuery
 import Control.Monad.Trans
 import DOM
 import Data.Date
+import Data.Function.Uncurried
 import Data.List
 import Data.Map
 import Data.Maybe
@@ -63,9 +64,10 @@ packageListAff :: forall e
   -> Maybe Int
   -> Aff (api :: API | e) (ApiList PackageMeta)
 packageListAff api mcount moffset = makeAff \err succ ->
-  Api.packageList api mcount moffset succ (err <<< const (error "Getting package list failed"))
+  runFn5 Api.packageList api mcount moffset succ (err <<< const (error "Getting package list failed"))
 
 tagListAff :: forall e
    . MatrixApi
   -> Aff (api :: API | e) (ApiList Tag)
-tagListAff api = makeAff \err succ -> Api.tagList api succ (err <<< const (error "Getting tag list failed"))
+tagListAff api = makeAff \err succ ->
+  runFn3 Api.tagList api succ (err <<< const (error "Getting tag list failed"))
