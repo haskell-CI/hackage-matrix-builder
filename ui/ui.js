@@ -502,6 +502,8 @@
       );
     tabs.tabs();
     tabs.appendTo($("#tabs-container"));
+
+    $(window).scrollTo("#tabs-container");
   }
   function cleanupTabs () {
     $("#tabs-container").html("");
