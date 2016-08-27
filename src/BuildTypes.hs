@@ -33,6 +33,10 @@ import           Control.Monad
 import qualified Crypto.Hash.SHA256           as SHA256
 import           Data.Aeson                   (FromJSON, ToJSON)
 import qualified Data.Aeson                   as J
+#if MIN_VERSION_aeson(1,0,0)
+import qualified Data.Aeson.Encoding          as J
+#endif
+import qualified Data.Aeson.Types             as J
 import           Data.Bifunctor
 import           Data.Binary
 import           Data.Bitraversable
@@ -42,6 +46,7 @@ import qualified Data.ByteString.Base16       as B16
 import qualified Data.ByteString.Char8        as BC
 import           Data.Coerce
 import           Data.Hashable
+import           Text.Read                    (readMaybe)
 -- import           Data.List
 import qualified Data.Map                     as Map
 import           Data.Maybe
@@ -80,8 +85,18 @@ data GhcVer = GHC_7_00
             | GHC_8_00
             deriving (Eq,Ord,Bounded,Enum,Read,Show,Hashable,Binary,NFData,Generic,FromJSON,ToJSON)
 #if MIN_VERSION_aeson(1,0,0)
-deriving instance J.ToJSONKey GhcVer
-deriving instance J.FromJSONKey GhcVer
+-- Since the JSON representation of GhcVer is a string we can't use
+-- the default implementations for To/FromJSONKey
+-- https://github.com/bos/aeson/issues/463
+instance J.ToJSONKey GhcVer where
+  toJSONKey = J.ToJSONKeyText toText (J.text . toText)
+    where
+      toText = T.pack . show
+instance J.FromJSONKey GhcVer where
+  fromJSONKey = J.FromJSONKeyTextParser $ \t ->
+    maybe (J.typeMismatch "String is no a valid GhcVer" (J.String t))
+          pure
+          (readMaybe $ T.unpack t)
 #endif
 
 ghcVers :: [GhcVer]
@@ -118,8 +133,10 @@ newtype PkgVer = PkgVer [Word]
                deriving (Show,Read,Eq,Ord,Generic,NFData,Hashable,Binary,FromJSON,ToJSON)
 
 #if MIN_VERSION_aeson(1,0,0)
-deriving instance J.ToJSONKey PkgVer
-deriving instance J.FromJSONKey PkgVer
+-- We can use the default implementations here since PkgVer doesn't
+-- serialize into a string.
+instance J.ToJSONKey PkgVer
+instance J.FromJSONKey PkgVer
 #endif
 
 instance ToFP PkgVer where
