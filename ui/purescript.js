@@ -17267,51 +17267,35 @@ var Prelude = require("../Prelude");
 var MatrixApi_1 = require("../MatrixApi");
 var MatrixApi_1 = require("../MatrixApi");
 var Types = require("../Types");
-var Control_Semigroupoid = require("../Control.Semigroupoid");
-var Data_Function = require("../Data.Function");
 var Data_Semigroup = require("../Data.Semigroup");
 var Data_Show = require("../Data.Show");
 var Control_Bind = require("../Control.Bind");
+var Data_Function = require("../Data.Function");
 var Data_Functor = require("../Data.Functor");
-var tagListAff = function (api) {
-    return Control_Monad_Aff.makeAff(function (err) {
-        return function (succ) {
-            return MatrixApi_1.tagList(api, succ, function ($6) {
-                return err(Data_Function["const"](Control_Monad_Eff_Exception.error("Getting tag list failed"))($6));
-            });
-        };
-    });
-};
 var showTag = function (t) {
     return "{ name : " + (Data_Show.show(Data_Show.showString)(t.name) + (", packages : " + (Data_Show.show(Data_Show.showArray(Data_Show.showString))(t.packages) + "}")));
-};
-var packageListAff = function (api) {
-    return function (range) {
-        return Control_Monad_Aff.makeAff(function (err) {
-            return function (succ) {
-                return MatrixApi_1.packageList(api, range, succ, function ($7) {
-                    return err(Data_Function["const"](Control_Monad_Eff_Exception.error("Getting package list failed"))($7));
-                });
-            };
-        });
-    };
 };
 var ghcVersions = [ "7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0" ];
 var boot = function (api) {
     return Control_Bind.bind(Control_Monad_Aff.bindAff)(Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Control_Monad_Eff_Console.log("bootCont")))(function () {
-        return Control_Bind.bind(Control_Monad_Aff.bindAff)(tagListAff(api))(function (v) {
-            return Control_Bind.bind(Control_Monad_Aff.bindAff)(packageListAff(api)({
+        return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.tagListAff(api))(function (v) {
+            return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.packageListAff(api)({
                 count: new Data_Maybe.Just(100000), 
                 offset: Data_Maybe.Nothing.value
             }))(function (v1) {
-                var state = {
-                    allTags: v.items, 
-                    allPackages: Data_Functor.map(Data_Functor.functorArray)(function (p) {
-                        return p.name;
-                    })(v1.items), 
-                    allPackagesMore: v1.items
-                };
-                return Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Data_Function.apply(Control_Monad_Eff_Console.logShow(Data_Show.showArray(Data_Show.showString)))(Data_Functor.map(Data_Functor.functorArray)(showTag)(state.allTags)));
+                return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.userByNameAff(api)("AdamBergmark"))(function (v2) {
+                    var state = {
+                        allTags: v.items, 
+                        allPackages: Data_Functor.map(Data_Functor.functorArray)(function (p) {
+                            return p.name;
+                        })(v1.items), 
+                        allPackagesMore: v1.items
+                    };
+                    return Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(function __do() {
+                        Data_Function.apply(Control_Monad_Eff_Console.logShow(Data_Show.showArray(Data_Show.showString)))(Data_Functor.map(Data_Functor.functorArray)(showTag)(state.allTags))();
+                        return Data_Function.apply(Control_Monad_Eff_Console.logShow(Data_Show.showArray(Data_Show.showString)))(v2.packages)();
+                    });
+                });
             });
         });
     });
@@ -17328,7 +17312,7 @@ module.exports = {
     main: main
 };
 
-},{"../Control.Bind":9,"../Control.Monad.Aff":17,"../Control.Monad.Eff":33,"../Control.Monad.Eff.Class":20,"../Control.Monad.Eff.Console":22,"../Control.Monad.Eff.Exception":25,"../Control.Monad.Eff.Exception.Unsafe":23,"../Control.Monad.Eff.JQuery":27,"../Control.Monad.Trans":44,"../Control.Semigroupoid":52,"../DOM":53,"../Data.Date":72,"../Data.Function":89,"../Data.Function.Uncurried":88,"../Data.Functor":92,"../Data.List":102,"../Data.Map":103,"../Data.Maybe":106,"../Data.Semigroup":123,"../Data.Set":126,"../Data.Show":128,"../Data.StrMap":132,"../Data.Tuple":140,"../MatrixApi":150,"../Prelude":155,"../Types":157}],147:[function(require,module,exports){
+},{"../Control.Bind":9,"../Control.Monad.Aff":17,"../Control.Monad.Eff":33,"../Control.Monad.Eff.Class":20,"../Control.Monad.Eff.Console":22,"../Control.Monad.Eff.Exception":25,"../Control.Monad.Eff.Exception.Unsafe":23,"../Control.Monad.Eff.JQuery":27,"../Control.Monad.Trans":44,"../DOM":53,"../Data.Date":72,"../Data.Function":89,"../Data.Function.Uncurried":88,"../Data.Functor":92,"../Data.List":102,"../Data.Map":103,"../Data.Maybe":106,"../Data.Semigroup":123,"../Data.Set":126,"../Data.Show":128,"../Data.StrMap":132,"../Data.Tuple":140,"../MatrixApi":150,"../Prelude":155,"../Types":157}],147:[function(require,module,exports){
 "use strict";
 
 // module Math
@@ -17454,21 +17438,12 @@ exports.newApi = function (rootUrl) {
   };
 };
 
-exports.userByName = function (api) {
-  return function (name) {
-    console.log("a");
-    return function (ok) {
-      console.log("b");
-      return function (err) {
-        console.log("c");
-        return function () {
-          console.log("Run user byname");
-          api.User.byName(name).get( function (v) { ok(v)(); }
-                                   , function (e) { er(e)(); }
-                                   );
-        };
-      };
-    };
+exports.userByName = function (api, name, ok, err) {
+  return function () {
+    api.User.byName(name).get
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      );
   };
 };
 
@@ -17506,20 +17481,61 @@ function fromRange (range) {
 // Generated by psc version 0.9.3
 "use strict";
 var $foreign = require("./foreign");
+var Control_Monad_Aff = require("../Control.Monad.Aff");
 var Control_Monad_Eff = require("../Control.Monad.Eff");
+var Control_Monad_Eff_Exception = require("../Control.Monad.Eff.Exception");
+var Control_Monad_Eff_Exception_Unsafe = require("../Control.Monad.Eff.Exception.Unsafe");
 var Data_Foreign_Null = require("../Data.Foreign.Null");
 var Data_Function_Uncurried = require("../Data.Function.Uncurried");
 var Data_Maybe = require("../Data.Maybe");
 var Prelude = require("../Prelude");
 var Types = require("../Types");
+var Control_Semigroupoid = require("../Control.Semigroupoid");
+var Data_Function = require("../Data.Function");
+var stringyErr = function (err) {
+    return function (s) {
+        return function ($0) {
+            return err(Data_Function["const"](Control_Monad_Eff_Exception.error("Getting user failed"))($0));
+        };
+    };
+};
+var tagListAff = function (api) {
+    return Control_Monad_Aff.makeAff(function (err) {
+        return function (succ) {
+            return $foreign.tagList(api, succ, stringyErr(err)("Getting tag list failed"));
+        };
+    });
+};
+var userByNameAff = function (api) {
+    return function (name) {
+        return Control_Monad_Aff.makeAff(function (err) {
+            return function (succ) {
+                return $foreign.userByName(api, name, succ, stringyErr(err)("Getting user failed"));
+            };
+        });
+    };
+};
+var packageListAff = function (api) {
+    return function (range) {
+        return Control_Monad_Aff.makeAff(function (err) {
+            return function (succ) {
+                return $foreign.packageList(api, range, succ, stringyErr(err)("Getting package list failed"));
+            };
+        });
+    };
+};
 module.exports = {
+    packageListAff: packageListAff, 
+    stringyErr: stringyErr, 
+    tagListAff: tagListAff, 
+    userByNameAff: userByNameAff, 
     newApi: $foreign.newApi, 
     packageList: $foreign.packageList, 
     tagList: $foreign.tagList, 
     userByName: $foreign.userByName
 };
 
-},{"../Control.Monad.Eff":33,"../Data.Foreign.Null":84,"../Data.Function.Uncurried":88,"../Data.Maybe":106,"../Prelude":155,"../Types":157,"./foreign":149}],151:[function(require,module,exports){
+},{"../Control.Monad.Aff":17,"../Control.Monad.Eff":33,"../Control.Monad.Eff.Exception":25,"../Control.Monad.Eff.Exception.Unsafe":23,"../Control.Semigroupoid":52,"../Data.Foreign.Null":84,"../Data.Function":89,"../Data.Function.Uncurried":88,"../Data.Maybe":106,"../Prelude":155,"../Types":157,"./foreign":149}],151:[function(require,module,exports){
 "use strict";
 
 // module Partial.Unsafe

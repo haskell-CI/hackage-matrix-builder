@@ -29,7 +29,7 @@ userByNameAff :: forall e
   -> Aff (api :: API | e) User
 userByNameAff api name = makeAff \err succ ->
   runFn4 userByName api name succ
-    (err <<< const (error "Getting user failed"))
+    (stringyErr err "Getting user failed")
 
 foreign import userByName :: forall eff .
   Fn4 MatrixApi
@@ -42,7 +42,8 @@ tagListAff :: forall e
    . MatrixApi
   -> Aff (api :: API | e) (ApiList Tag)
 tagListAff api = makeAff \err succ ->
-  runFn3 tagList api succ (err <<< const (error "Getting tag list failed"))
+  runFn3 tagList api succ
+    (stringyErr err "Getting tag list failed")
 
 foreign import tagList :: forall eff .
   Fn3 MatrixApi
@@ -55,7 +56,8 @@ packageListAff :: forall e
   -> Range
   -> Aff (api :: API | e) (ApiList PackageMeta)
 packageListAff api range = makeAff \err succ ->
-  runFn4 packageList api range succ (err <<< const (error "Getting package list failed"))
+  runFn4 packageList api range succ
+    (stringyErr err "Getting package list failed")
 
 foreign import packageList :: forall eff .
   Fn4 MatrixApi
@@ -63,3 +65,10 @@ foreign import packageList :: forall eff .
       (ApiList PackageMeta -> ApiEff eff Unit)
       (JQueryXHR           -> ApiEff eff Unit)
       (ApiEff eff Unit)
+
+stringyErr :: forall e
+   . (Error -> Eff (api :: API | e) Unit)
+  -> String
+  -> JQueryXHR
+  -> Eff (api :: API | e) Unit
+stringyErr err s = err <<< const (error "Getting user failed")
