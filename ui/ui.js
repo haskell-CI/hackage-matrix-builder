@@ -14,7 +14,8 @@
 
   function getVersionedPackageName (uri)
   {
-    return (/^\/package\/([^\/\d]+)-([\d\.]+)$/.test(uri.path())
+    var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
+    return (reg.test(uri.path())
          && RegExp.$1 && RegExp.$2
          && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
            ) || null;
@@ -22,7 +23,38 @@
 
   function getPackageName (uri)
   {
-    return (/^\/package\/([^\/\d]+)$/.test(uri.path()) && RegExp.$1) || null;
+    var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)$/
+    return (reg.test(uri.path()) && RegExp.$1) || null;
+
+  }
+
+  window.tests = function ()
+  {
+    function testVersioned (s)
+    {
+      console.log("getVersionedPackageName", s, getVersionedPackageName(new Uri("/package/" + s)));
+    }
+    function testUnversioned (s)
+    {
+      console.log("getPackageName", s, getPackageName(new Uri("/package/" + s)));
+    }
+    var versioned =
+      [ "aeson-1.0.0.0"
+      , "foo-bar-2.0"
+      , "baz-1"
+      , "foo-bar-bax-1"
+      , "foo23-bar-bax44-1"
+      ];
+    var unversioned =
+      [ "aeson"
+      , "foo23"
+      , "foo-bax1"
+      , "foo-bar-baz"
+      ]
+    versioned.forEach(testVersioned);
+    unversioned.forEach(testUnversioned);
+    versioned.forEach(testUnversioned);
+    unversioned.forEach(testVersioned);
   }
 
   function setupRouting ()
