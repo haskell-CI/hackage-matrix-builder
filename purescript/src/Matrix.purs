@@ -34,9 +34,8 @@ foreign import tagList :: forall eff .
       (ApiEff eff Unit)
 
 foreign import packageList :: forall eff .
-  Fn5 MatrixApi
-      (Maybe Int)
-      (Maybe Int)
+  Fn4 MatrixApi
+      Range
       (ApiList PackageMeta -> ApiEff eff Unit)
       (JQueryXHR           -> ApiEff eff Unit)
       (ApiEff eff Unit)

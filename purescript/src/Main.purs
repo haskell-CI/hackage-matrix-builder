@@ -39,7 +39,7 @@ boot :: forall e
 boot api = do
   liftEff $ log "bootCont"
   tl <- tagListAff api
-  pl <- packageListAff api (Just 100000) Nothing
+  pl <- packageListAff api { count : Just 100000, offset : Nothing }
   let state = { allTags         : tl.items
               , allPackages     : map (\p -> p.name) pl.items
               , allPackagesMore : pl.items
@@ -60,11 +60,10 @@ type State =
 
 packageListAff :: forall e
    . MatrixApi
-  -> Maybe Int
-  -> Maybe Int
+  -> Range
   -> Aff (api :: API | e) (ApiList PackageMeta)
-packageListAff api mcount moffset = makeAff \err succ ->
-  runFn5 Api.packageList api mcount moffset succ (err <<< const (error "Getting package list failed"))
+packageListAff api range = makeAff \err succ ->
+  runFn4 Api.packageList api range succ (err <<< const (error "Getting package list failed"))
 
 tagListAff :: forall e
    . MatrixApi

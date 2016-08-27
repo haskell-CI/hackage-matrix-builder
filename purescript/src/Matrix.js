@@ -28,25 +28,30 @@ exports.userByName = function (api) {
 
 exports.tagList = function (api, ok, er) {
   return function () {
-    api.Tag.list( function (v) { ok(v)(); }
-                , function (e) { er(e)(); }
-                );
-  };
-};
-
-exports.packageList = function (api, count, offset, ok, err) {
-  return function () {
-    var params = {};
-    if (typeof count.value0 === "number") {
-      params.count = count.value0;
-    }
-    if (typeof offset.value0 === "number") {
-      params.offset = offset;
-    }
-    api.Package.list
+    api.Tag.list
       ( function (v) { ok(v)(); }
       , function (e) { er(e)(); }
-      , params
       );
   };
 };
+
+exports.packageList = function (api, range, ok, err) {
+  return function () {
+    api.Package.list
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      , fromRange(range)
+      );
+  };
+};
+
+function fromRange (range) {
+  var params = {};
+  if (typeof range.count.value0 === "number") {
+    params.count = range.count.value0;
+  }
+  if (typeof range.offset.value0 === "number") {
+    params.offset = range.offset.value0;
+  }
+  return params;
+}

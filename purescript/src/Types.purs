@@ -138,3 +138,5 @@ type PkgVerPfx = Array Word
 type Word = Int
 
 type ApiList a = { offset :: Int, count :: Int, items :: Array a }
+
+type Range = { count :: Maybe Int, offset :: Maybe Int }
