@@ -38,9 +38,9 @@ boot :: forall e
   -> Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 boot api = do
   liftEff $ log "bootCont"
-  tl <- Api.tagListAff api
-  pl <- Api.packageListAff api { count : Just 100000, offset : Nothing }
-  adam <- Api.userByNameAff api "AdamBergmark"
+  tl   <- Api.tagList      api
+  pl   <- Api.packageList  api { count : Just 100000, offset : Nothing }
+  adam <- Api.userByName   api "AdamBergmark"
   let state = { allTags         : tl.items
               , allPackages     : map (\p -> p.name) pl.items
               , allPackagesMore : pl.items

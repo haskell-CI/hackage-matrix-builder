@@ -17278,12 +17278,12 @@ var showTag = function (t) {
 var ghcVersions = [ "7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0" ];
 var boot = function (api) {
     return Control_Bind.bind(Control_Monad_Aff.bindAff)(Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Control_Monad_Eff_Console.log("bootCont")))(function () {
-        return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.tagListAff(api))(function (v) {
-            return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.packageListAff(api)({
+        return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.tagList(api))(function (v) {
+            return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.packageList(api)({
                 count: new Data_Maybe.Just(100000), 
                 offset: Data_Maybe.Nothing.value
             }))(function (v1) {
-                return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.userByNameAff(api)("AdamBergmark"))(function (v2) {
+                return Control_Bind.bind(Control_Monad_Aff.bindAff)(MatrixApi_1.userByName(api)("AdamBergmark"))(function (v2) {
                     var state = {
                         allTags: v.items, 
                         allPackages: Data_Functor.map(Data_Functor.functorArray)(function (p) {
@@ -17438,7 +17438,7 @@ exports.newApi = function (rootUrl) {
   };
 };
 
-exports.userByName = function (api, name, ok, err) {
+exports.userByName_ = function (api, name, ok, err) {
   return function () {
     api.User.byName(name).get
       ( function (v) { ok(v)(); }
@@ -17447,7 +17447,7 @@ exports.userByName = function (api, name, ok, err) {
   };
 };
 
-exports.tagList = function (api, ok, er) {
+exports.tagList_ = function (api, ok, er) {
   return function () {
     api.Tag.list
       ( function (v) { ok(v)(); }
@@ -17456,7 +17456,7 @@ exports.tagList = function (api, ok, er) {
   };
 };
 
-exports.packageList = function (api, range, ok, err) {
+exports.packageList_ = function (api, range, ok, err) {
   return function () {
     api.Package.list
       ( function (v) { ok(v)(); }
@@ -17499,40 +17499,40 @@ var stringyErr = function (err) {
         };
     };
 };
-var tagListAff = function (api) {
+var tagList = function (api) {
     return Control_Monad_Aff.makeAff(function (err) {
         return function (succ) {
-            return $foreign.tagList(api, succ, stringyErr(err)("Getting tag list failed"));
+            return $foreign.tagList_(api, succ, stringyErr(err)("Getting tag list failed"));
         };
     });
 };
-var userByNameAff = function (api) {
+var userByName = function (api) {
     return function (name) {
         return Control_Monad_Aff.makeAff(function (err) {
             return function (succ) {
-                return $foreign.userByName(api, name, succ, stringyErr(err)("Getting user failed"));
+                return $foreign.userByName_(api, name, succ, stringyErr(err)("Getting user failed"));
             };
         });
     };
 };
-var packageListAff = function (api) {
+var packageList = function (api) {
     return function (range) {
         return Control_Monad_Aff.makeAff(function (err) {
             return function (succ) {
-                return $foreign.packageList(api, range, succ, stringyErr(err)("Getting package list failed"));
+                return $foreign.packageList_(api, range, succ, stringyErr(err)("Getting package list failed"));
             };
         });
     };
 };
 module.exports = {
-    packageListAff: packageListAff, 
+    packageList: packageList, 
     stringyErr: stringyErr, 
-    tagListAff: tagListAff, 
-    userByNameAff: userByNameAff, 
+    tagList: tagList, 
+    userByName: userByName, 
     newApi: $foreign.newApi, 
-    packageList: $foreign.packageList, 
-    tagList: $foreign.tagList, 
-    userByName: $foreign.userByName
+    packageList_: $foreign.packageList_, 
+    tagList_: $foreign.tagList_, 
+    userByName_: $foreign.userByName_
 };
 
 },{"../Control.Monad.Aff":17,"../Control.Monad.Eff":33,"../Control.Monad.Eff.Exception":25,"../Control.Monad.Eff.Exception.Unsafe":23,"../Control.Semigroupoid":52,"../Data.Foreign.Null":84,"../Data.Function":89,"../Data.Function.Uncurried":88,"../Data.Maybe":106,"../Prelude":155,"../Types":157,"./foreign":149}],151:[function(require,module,exports){

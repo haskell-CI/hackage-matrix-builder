@@ -23,43 +23,43 @@ foreign import data JQueryXHR :: *
 
 type ApiEff e o = Eff (api :: API | e) o
 
-userByNameAff :: forall e
+userByName :: forall e
   . MatrixApi
   -> String
   -> Aff (api :: API | e) User
-userByNameAff api name = makeAff \err succ ->
-  runFn4 userByName api name succ
+userByName api name = makeAff \err succ ->
+  runFn4 userByName_ api name succ
     (stringyErr err "Getting user failed")
 
-foreign import userByName :: forall eff .
+foreign import userByName_ :: forall eff .
   Fn4 MatrixApi
       String
       (User      -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
-tagListAff :: forall e
+tagList :: forall e
    . MatrixApi
   -> Aff (api :: API | e) (ApiList Tag)
-tagListAff api = makeAff \err succ ->
-  runFn3 tagList api succ
+tagList api = makeAff \err succ ->
+  runFn3 tagList_ api succ
     (stringyErr err "Getting tag list failed")
 
-foreign import tagList :: forall eff .
+foreign import tagList_ :: forall eff .
   Fn3 MatrixApi
       (ApiList Tag -> ApiEff eff Unit)
       (JQueryXHR   -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
-packageListAff :: forall e
+packageList :: forall e
    . MatrixApi
   -> Range
   -> Aff (api :: API | e) (ApiList PackageMeta)
-packageListAff api range = makeAff \err succ ->
-  runFn4 packageList api range succ
+packageList api range = makeAff \err succ ->
+  runFn4 packageList_ api range succ
     (stringyErr err "Getting package list failed")
 
-foreign import packageList :: forall eff .
+foreign import packageList_ :: forall eff .
   Fn4 MatrixApi
       Range
       (ApiList PackageMeta -> ApiEff eff Unit)

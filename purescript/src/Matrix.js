@@ -8,7 +8,7 @@ exports.newApi = function (rootUrl) {
   };
 };
 
-exports.userByName = function (api, name, ok, err) {
+exports.userByName_ = function (api, name, ok, err) {
   return function () {
     api.User.byName(name).get
       ( function (v) { ok(v)(); }
@@ -17,7 +17,7 @@ exports.userByName = function (api, name, ok, err) {
   };
 };
 
-exports.tagList = function (api, ok, er) {
+exports.tagList_ = function (api, ok, er) {
   return function () {
     api.Tag.list
       ( function (v) { ok(v)(); }
@@ -26,7 +26,7 @@ exports.tagList = function (api, ok, er) {
   };
 };
 
-exports.packageList = function (api, range, ok, err) {
+exports.packageList_ = function (api, range, ok, err) {
   return function () {
     api.Package.list
       ( function (v) { ok(v)(); }
