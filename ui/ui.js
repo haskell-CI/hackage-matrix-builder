@@ -634,7 +634,7 @@
                 var packageVersion = $(e.target).attr("data-package-version");
                 var ident = ghcVersion + "-" + packageVersion;
                 api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
-                   .get( function success (s) { setupFailDepsTabs(ghcVersion, s.resultA.result.failDeps); }
+                   .get( function success (s) { setupFailDepsTabs(s); }
 
                        , function fail    (f) { console.warn("Loading cell data failed for " + ident, arguments) }
                        );
@@ -657,9 +657,13 @@
            , contents : $("<pre>").addClass("log-entry").text(r)
           }]
         );
+      highlightCell(ghcVersion, packageVersion);
     }
 
-    function setupFailDepsTabs (ghcVersion, r) {
+    function setupFailDepsTabs (s) {
+      var ghcVersion = s.ghcVersion;
+      var packageVersion = s.resultA.packageVersion;
+      var r = s.resultA.result.failDeps;
       setupTabs
         ( r.map(function (v, i) {
             return { label    : cellHash(ghcVersion, v.packageName, v.packageVersion)
@@ -670,7 +674,7 @@
                    };
           })
         );
-
+      highlightCell(ghcVersion, packageVersion);
     }
 
     if (/^#GHC-([^\/]+)\/[^.]+-(.+?)$/.test(window.location.hash)) {
@@ -698,7 +702,7 @@
         }
         else if (res.result.failDeps) {
           api.Package.byName(pkgName).Report.latest().Cell.byId(ident)
-             .get( function success (s) { setupFailDepsTabs(ghcVersion, s.resultA.result.failDeps); }
+             .get( function success (s) { setupFailDepsTabs(s); }
                  , function fail    (f) { console.warn("Couldn't load cell data failed for " + ident, arguments) }
                  );
         } else {
@@ -706,6 +710,18 @@
         }
       }, 0);
     }
+  }
+
+  function highlightCell (ghcVersion, packageVersion)
+  {
+    $("#page-package .stcell.highlight").removeClass("highlight");
+    var tableCell = $("#page-package .stcell[data-package-version='" + packageVersion + "'][data-ghc-version='" + ghcVersion + "']")[0];
+    if (!tableCell)
+    {
+      console.warn("Could not find table cell for highlighting", ghcVersion, packageVersion)
+      return;
+    }
+    $(tableCell).addClass("highlight");
   }
 
   function formatDate (d) {

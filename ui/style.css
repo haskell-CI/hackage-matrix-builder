@@ -226,6 +226,11 @@ body {
   padding-right: 5px;
 }
 
+#page-package td.highlight
+{
+  border: 5px solid blue;
+}
+
 #page-package th {
   border: 1px solid black;
   padding-left: 5px;
