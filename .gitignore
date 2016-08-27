@@ -19,3 +19,4 @@
 /db.sqlite-shm
 /db.sqlite-wal
 /tags.json
+/purescript/.psa-stash
