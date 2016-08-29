@@ -45,7 +45,8 @@ getUserPackages userName = do
   fmap (packagesInGroup . hugroups) . maybe (throwError NotFound) return . decode $ userInfo
 
 getHackageUser :: Username -> IO (Maybe LazyByteString)
-getHackageUser userName = (Just <$> simpleHttp ("http://hackage.haskell.org/user/" <> cs userName <> ".json")) `E.catch` (\StatusCodeException{} -> return Nothing)
+getHackageUser userName = (Just <$> simpleHttp ("http://hackage.haskell.org/user/" <> cs userName <> ".json")) `E.catch` (\case
+  HttpExceptionRequest _ StatusCodeException{} -> return Nothing)
 
 packagesInGroup :: [StrictText] -> [PackageName]
 packagesInGroup = mapMaybe getPkg

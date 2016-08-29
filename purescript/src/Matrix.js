@@ -1,5 +1,3 @@
-// module MatrixApi
-
 exports.newApi = function (rootUrl) {
   return function (secureUrl) {
     return function () {

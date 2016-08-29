@@ -21,7 +21,9 @@ import Prelude
 
 import MatrixApi as Api
 import MatrixApi
+import Uri
 import Types
+import MiscFFI as Misc
 
 type AllEffs e o = Eff (dom :: DOM, console :: CONSOLE, api :: API, err :: EXCEPTION) o
 
@@ -46,8 +48,34 @@ boot api = do
               , allPackagesMore : pl.items
               }
   liftEff $ do
-    logShow $ map showTag state.allTags
-    logShow $ adam.packages
+    log "Got everything from the API"
+  setupRouting
+  setupPicker
+
+setupRouting :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
+setupRouting = do
+  liftEff $ Misc.onPopstate $ \pev -> do
+    bd :: JQuery <- body
+    Misc.delegate (bd :: JQuery) "a" "click" $ \e -> do
+      log "clicked an anchor"
+      thisAnchor <- Misc.eventTarget e >>= Misc.selectElement
+      alt   <- Misc.altKey   e
+      ctrl  <- Misc.ctrlKey  e
+      meta  <- Misc.metaKey  e
+      shift <- Misc.shiftKey e
+      which <- Misc.which    e
+      pure unit
+      if alt || ctrl || meta || shift || which == 1
+        then pure unit
+        else do
+          currentUri :: Uri <- newUri <$> windowUri
+          linkUri    :: Uri <- newUri <$> Misc.getAttr "href" thisAnchor
+          pure unit
+          -- TODO ...
+
+setupPicker :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
+setupPicker = pure unit -- unsafeThrow "setupPicker"
+
 
 showTag :: Tag -> String
 showTag t = "{ name : " <> show t.name <> ", packages : " <> show t.packages <> "}"
