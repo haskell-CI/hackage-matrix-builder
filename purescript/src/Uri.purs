@@ -102,3 +102,8 @@ foreign import replaceQueryParamValue :: String -> String -> String -> Uri -> Ur
 foreign import deleteQueryParam :: String -> Uri -> Uri
 
 foreign import deleteQueryParamValue :: String -> String -> Uri -> Uri
+
+-- | PureScript stuff
+
+instance showUri :: Show Uri where
+  show u = "newUri \"" <> toString u <> "\""

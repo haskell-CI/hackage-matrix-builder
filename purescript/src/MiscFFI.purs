@@ -13,6 +13,14 @@ foreign import onPopstate :: forall e
    . (JQueryEvent -> Eff (dom :: DOM | e) Unit)
   -> Eff (dom :: DOM | e) Unit
 
+foreign import delegate2 :: forall e a b
+   . (Selectable a, Selectable b)
+  => a
+  -> b
+  -> String -- e.g. "click"
+  -> (JQueryEvent -> Eff (dom :: DOM | e) Unit)
+  -> (Eff (dom :: DOM | e) Unit)
+
 delegate :: forall e a b
    . (Selectable a, Selectable b)
   => a
@@ -38,7 +46,6 @@ foreign import delegate_ :: forall e a b
          String -- e.g. "click"
          (JQueryEvent -> Eff (dom :: DOM | e) Unit)
          (Eff (dom :: DOM | e) Unit)
-
 
 selectElement :: forall e
    . HTMLElement

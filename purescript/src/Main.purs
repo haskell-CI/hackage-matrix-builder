@@ -54,24 +54,30 @@ boot api = do
 
 setupRouting :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 setupRouting = do
-  liftEff $ Misc.onPopstate $ \pev -> do
-    bd :: JQuery <- body
-    Misc.delegate (bd :: JQuery) "a" "click" $ \e -> do
-      log "clicked an anchor"
-      thisAnchor <- Misc.eventTarget e >>= Misc.selectElement
-      alt   <- Misc.altKey   e
-      ctrl  <- Misc.ctrlKey  e
-      meta  <- Misc.metaKey  e
-      shift <- Misc.shiftKey e
-      which <- Misc.which    e
-      pure unit
-      if alt || ctrl || meta || shift || which == 1
-        then pure unit
-        else do
-          currentUri :: Uri <- newUri <$> windowUri
-          linkUri    :: Uri <- newUri <$> Misc.getAttr "href" thisAnchor
-          pure unit
-          -- TODO ...
+  liftEff $ log "setupRouting"
+  liftEff $ Misc.onPopstate $ \pev -> log "onPopState"
+  bd :: JQuery <- liftEff body
+  liftEff $ Misc.delegate2 bd "a" "click" $ \e -> do
+    log "clicked an anchor"
+    thisAnchor <- Misc.eventTarget e >>= Misc.selectElement
+    alt   <- Misc.altKey   e
+    ctrl  <- Misc.ctrlKey  e
+    meta  <- Misc.metaKey  e
+    shift <- Misc.shiftKey e
+    which <- Misc.which    e
+    pure unit
+    if alt || ctrl || meta || shift || which == 1
+      then do
+        log "special url"
+        pure unit
+      else do
+        log "not special url"
+        preventDefault e
+        currentUri :: Uri <- newUri <$> windowUri
+        linkUri    :: Uri <- newUri <$> Misc.getAttr "href" thisAnchor
+        logShow $ Tuple currentUri linkUri
+        pure unit
+        -- TODO ...
 
 setupPicker :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 setupPicker = pure unit -- unsafeThrow "setupPicker"

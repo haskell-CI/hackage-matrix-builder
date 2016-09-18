@@ -18165,8 +18165,8 @@ var Types = require("../Types");
 var MiscFFI = require("../MiscFFI");
 var Data_Semigroup = require("../Data.Semigroup");
 var Data_Show = require("../Data.Show");
-var Data_Function = require("../Data.Function");
 var Control_Bind = require("../Control.Bind");
+var Data_Function = require("../Data.Function");
 var Control_Applicative = require("../Control.Applicative");
 var Data_Unit = require("../Data.Unit");
 var Data_HeytingAlgebra = require("../Data.HeytingAlgebra");
@@ -18175,33 +18175,40 @@ var Data_Functor = require("../Data.Functor");
 var showTag = function (t) {
     return "{ name : " + (Data_Show.show(Data_Show.showString)(t.name) + (", packages : " + (Data_Show.show(Data_Show.showArray(Data_Show.showString))(t.packages) + "}")));
 };
-var setupRouting = Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Data_Function.apply(MiscFFI.onPopstate)(function (pev) {
-    return function __do() {
-        var v = Control_Monad_Eff_JQuery.body();
-        return Data_Function.apply(MiscFFI.delegate(MiscFFI.selectableJQuery)(MiscFFI.selectableString)(v)("a")("click"))(function (e) {
-            return function __do() {
-                Control_Monad_Eff_Console.log("clicked an anchor")();
-                var v1 = Control_Bind.bind(Control_Monad_Eff.bindEff)(MiscFFI.eventTarget(e))(MiscFFI.selectElement)();
-                var v2 = MiscFFI.altKey(e)();
-                var v3 = MiscFFI.ctrlKey(e)();
-                var v4 = MiscFFI.metaKey(e)();
-                var v5 = MiscFFI.shiftKey(e)();
-                var v6 = MiscFFI.which(e)();
-                Data_Unit.unit;
-                var $20 = v2 || (v3 || (v4 || (v5 || v6 === 1)));
-                if ($20) {
-                    return Data_Unit.unit;
+var setupRouting = Control_Bind.bind(Control_Monad_Aff.bindAff)(Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Control_Monad_Eff_Console.log("setupRouting")))(function () {
+    return Control_Bind.bind(Control_Monad_Aff.bindAff)(Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Data_Function.apply(MiscFFI.onPopstate)(function (pev) {
+        return Control_Monad_Eff_Console.log("onPopState");
+    })))(function () {
+        return Control_Bind.bind(Control_Monad_Aff.bindAff)(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff)(Control_Monad_Eff_JQuery.body))(function (v) {
+            return Data_Function.apply(Control_Monad_Eff_Class.liftEff(Control_Monad_Aff.monadEffAff))(Data_Function.apply(MiscFFI.delegate2(MiscFFI.selectableJQuery)(MiscFFI.selectableString)(v)("a")("click"))(function (e) {
+                return function __do() {
+                    Control_Monad_Eff_Console.log("clicked an anchor")();
+                    var v1 = Control_Bind.bind(Control_Monad_Eff.bindEff)(MiscFFI.eventTarget(e))(MiscFFI.selectElement)();
+                    var v2 = MiscFFI.altKey(e)();
+                    var v3 = MiscFFI.ctrlKey(e)();
+                    var v4 = MiscFFI.metaKey(e)();
+                    var v5 = MiscFFI.shiftKey(e)();
+                    var v6 = MiscFFI.which(e)();
+                    Data_Unit.unit;
+                    var $20 = v2 || (v3 || (v4 || (v5 || v6 === 1)));
+                    if ($20) {
+                        Control_Monad_Eff_Console.log("special url")();
+                        return Data_Unit.unit;
+                    };
+                    if (!$20) {
+                        Control_Monad_Eff_Console.log("not special url")();
+                        Control_Monad_Eff_JQuery.preventDefault(e)();
+                        var v7 = Data_Functor.map(Control_Monad_Eff.functorEff)(Uri.newUri)(Uri.windowUri)();
+                        var v8 = Data_Functor.map(Control_Monad_Eff.functorEff)(Uri.newUri)(MiscFFI.getAttr("href")(v1))();
+                        Data_Function.apply(Control_Monad_Eff_Console.logShow(Data_Tuple.showTuple(Uri.showUri)(Uri.showUri)))(new Data_Tuple.Tuple(v7, v8))();
+                        return Data_Unit.unit;
+                    };
+                    throw new Error("Failed pattern match at Main line 69, column 5 - line 79, column 18: " + [ $20.constructor.name ]);
                 };
-                if (!$20) {
-                    var v7 = Data_Functor.map(Control_Monad_Eff.functorEff)(Uri.newUri)(Uri.windowUri)();
-                    var v8 = Data_Functor.map(Control_Monad_Eff.functorEff)(Uri.newUri)(MiscFFI.getAttr("href")(v1))();
-                    return Data_Unit.unit;
-                };
-                throw new Error("Failed pattern match at Main line 68, column 7 - line 73, column 20: " + [ $20.constructor.name ]);
-            };
-        })();
-    };
-}));
+            }));
+        });
+    });
+});
 var setupPicker = Control_Applicative.pure(Control_Monad_Aff.applicativeAff)(Data_Unit.unit);
 var ghcVersions = [ "7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0" ];
 var boot = function (api) {
@@ -18469,10 +18476,29 @@ exports.onPopstate = function (cb) {
   };
 };
 
-exports.delegate_  = function (el,  sel, eventName, cb) {
-//  return function () {
-//    return $(el).delegate(sel, eventName, cb);
-//  };
+exports.delegate2  = function (_sel1) {
+  return function (_sel2) {
+    return function (el) {
+      return function (sel) {
+        return function (eventName) {
+          return function (cb) {
+            console.log("delegate_", el, sel, eventName, cb);
+            return function () {
+              return $(el).delegate(sel, eventName, cb);
+            };
+          };
+        };
+      };
+    };
+  };
+};
+
+exports.delegate_ = function (el,  sel, eventName, cb) {
+  debugger;
+  console.log("delegate_", el, sel, eventName, cb);
+  return function () {
+    return $(el).delegate(sel, eventName, cb);
+  };
 };
 
 exports.eventTarget = function (jqEvent) { return function () { return jqEvent.eventTarget; }; };
@@ -18525,6 +18551,7 @@ module.exports = {
     selectableString: selectableString, 
     altKey: $foreign.altKey, 
     ctrlKey: $foreign.ctrlKey, 
+    delegate2: $foreign.delegate2, 
     delegate_: $foreign.delegate_, 
     eventTarget: $foreign.eventTarget, 
     getAttr: $foreign.getAttr, 
@@ -18990,7 +19017,13 @@ var DOM_HTML_Types = require("../DOM.HTML.Types");
 var Data_Foreign_Null = require("../Data.Foreign.Null");
 var Data_Function_Uncurried = require("../Data.Function.Uncurried");
 var Prelude = require("../Prelude");
+var Data_Show = require("../Data.Show");
+var Data_Semigroup = require("../Data.Semigroup");
+var showUri = new Data_Show.Show(function (u) {
+    return "newUri \"" + ($foreign.toString(u) + "\"");
+});
 module.exports = {
+    showUri: showUri, 
     addQueryParam: $foreign.addQueryParam, 
     anchor: $foreign.anchor, 
     clone: $foreign.clone, 
@@ -19025,7 +19058,7 @@ module.exports = {
     withUserInfo: $foreign.withUserInfo
 };
 
-},{"../Control.Monad.Eff":33,"../DOM":58,"../DOM.HTML.Types":56,"../Data.Foreign.Null":92,"../Data.Function.Uncurried":99,"../Prelude":168,"./foreign":173}],175:[function(require,module,exports){
+},{"../Control.Monad.Eff":33,"../DOM":58,"../DOM.HTML.Types":56,"../Data.Foreign.Null":92,"../Data.Function.Uncurried":99,"../Data.Semigroup":134,"../Data.Show":139,"../Prelude":168,"./foreign":173}],175:[function(require,module,exports){
 require('Main').main();
 
 },{"Main":157}]},{},[175]);
