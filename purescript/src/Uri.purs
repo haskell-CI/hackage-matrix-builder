@@ -3,7 +3,7 @@ module Uri where
 import Control.Monad.Eff
 import DOM
 import DOM.HTML.Types
-import Data.Foreign.Null
+import Data.Nullable
 import Data.Function.Uncurried
 import Data.Maybe
 import Prelude
@@ -31,39 +31,39 @@ foreign import clone :: Uri -> Uri
 -- knowing if Null or Nullable Null is correct. This problem does not exist when
 -- working with Maybe values in client server communication.
 protocol :: Uri -> Maybe String
-protocol = unNull <<< protocol_
+protocol = toMaybe <<< protocol_
 
-foreign import protocol_ :: Uri -> Null String
+foreign import protocol_ :: Uri -> Nullable String
 
 userInfo :: Uri -> Maybe String
-userInfo = unNull <<< userInfo_
+userInfo = toMaybe <<< userInfo_
 
-foreign import userInfo_ :: Uri -> Null String
+foreign import userInfo_ :: Uri -> Nullable String
 
 host :: Uri -> Maybe String
-host = unNull <<< host_
+host = toMaybe <<< host_
 
-foreign import host_ :: Uri -> Null String
+foreign import host_ :: Uri -> Nullable String
 
 port :: Uri -> Maybe String
-port = unNull <<< port_
+port = toMaybe <<< port_
 
-foreign import port_ :: Uri -> Null String
+foreign import port_ :: Uri -> Nullable String
 
 path :: Uri -> Maybe String
-path = unNull <<< path_
+path = toMaybe <<< path_
 
-foreign import path_ :: Uri -> Null String
+foreign import path_ :: Uri -> Nullable String
 
 query :: Uri -> Maybe String
-query = unNull <<< query_
+query = toMaybe <<< query_
 
-foreign import query_ :: Uri -> Null String
+foreign import query_ :: Uri -> Nullable String
 
 anchor :: Uri -> Maybe String
-anchor = unNull <<< anchor_
+anchor = toMaybe <<< anchor_
 
-foreign import anchor_ :: Uri -> Null String
+foreign import anchor_ :: Uri -> Nullable String
 
 -- | Other getters
 

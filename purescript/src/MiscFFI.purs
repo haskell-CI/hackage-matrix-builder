@@ -5,7 +5,7 @@ import Control.Monad.Eff.Console
 import Control.Monad.Eff.JQuery
 import DOM
 import DOM.HTML.Types
-import Data.Foreign.Null
+import Data.Nullable
 import Data.Function.Uncurried
 import Prelude
 import Uri (Uri)

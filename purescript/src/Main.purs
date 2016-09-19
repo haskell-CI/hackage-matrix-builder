@@ -7,6 +7,7 @@ import Control.Monad.Eff.Console (CONSOLE, log, logShow)
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
 import Control.Monad.Eff.JQuery
+import Control.Monad.Eff.JQuery as J
 import Control.Monad.Trans
 import DOM
 import Data.Array as Array
@@ -63,39 +64,43 @@ setupRouting = do
   liftEff $ log "setupRouting"
   liftEff $ Misc.onPopstate $ \pev -> log "onPopState"
   bd :: JQuery <- liftEff body
-  liftEff $ Misc.delegate2 bd "a" "click" $ \e -> do
-    log "clicked an anchor"
-    thisAnchor <- Misc.selectElement =<< Misc.target e
-    alt   <- Misc.altKey   e
-    ctrl  <- Misc.ctrlKey  e
-    meta  <- Misc.metaKey  e
-    shift <- Misc.shiftKey e
-    which <- Misc.which    e
-    if alt || ctrl || meta || shift || which /= 1
-      then do
-        log "special url"
-        unsafeLog
-          { alt   : alt
-          , ctrl  : ctrl
-          , meta  : meta
-          , shift : shift
-          , which : which
-          }
-        pure unit
-      else do
-        log "not special url"
-        preventDefault e
-        stopPropagation e
-        Misc.delay $ do
-          log "delay"
-          linkUri <- newUri <$> Misc.getAttr "href" thisAnchor
-          fromUri linkUri false false
+  liftEff $ do
+    currentUri <- Uri.newUri <$> Uri.windowUri
+    fromUri currentUri true true
+    Misc.delegate2 bd "a" "click" $ \e -> do
+      log "clicked an anchor"
+      thisAnchor <- Misc.selectElement =<< Misc.target e
+      alt   <- Misc.altKey   e
+      ctrl  <- Misc.ctrlKey  e
+      meta  <- Misc.metaKey  e
+      shift <- Misc.shiftKey e
+      which <- Misc.which    e
+      if alt || ctrl || meta || shift || which /= 1
+        then do
+          log "special url"
+          unsafeLog
+            { alt   : alt
+            , ctrl  : ctrl
+            , meta  : meta
+            , shift : shift
+            , which : which
+            }
+          pure unit
+        else do
+          log "not special url"
+          preventDefault e
+          stopPropagation e
+          Misc.delay $ do
+            log "delay"
+            linkUri <- newUri <$> Misc.getAttr "href" thisAnchor
+            fromUri linkUri false false
 
 fromUri :: forall e . Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 fromUri uri force isPopping = do
   log "fromUri"
   let justTitle t = { title : Just t, packageName : Nothing }
   currentUri <- newUri <$> Uri.windowUri
+  unsafeLog $ Tuple (Uri.path uri) (Uri.path currentUri)
   unless (not force && Uri.path uri == Uri.path currentUri) $ do
     r :: { title :: Maybe String, packageName :: Maybe String }<- if Uri.path uri == Just "/"
       then do
@@ -155,8 +160,12 @@ renderNotFound = pure unit -- $ unsafeThrow "renderNotFound"
 
 renderHome :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderHome = do
-  log "renderHome"
-  pure unit -- $ unsafeThrow "renderHome"
+  hidePages
+  J.select "#page-home" >>= J.display
+
+hidePages :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
+hidePages = do
+  J.select ".page" >>= J.hide
 
 renderPackages :: forall e . Eff (dom :: DOM | e) Unit
 renderPackages = pure unit -- $ unsafeThrow "renderPackages"

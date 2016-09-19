@@ -4,7 +4,7 @@ import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
-import Data.Foreign.Null
+import Data.Nullable
 import Data.Function.Uncurried
 import Data.Maybe
 import Prelude
@@ -75,6 +75,6 @@ stringyErr :: forall e
 stringyErr err s = err <<< const (error "Getting user failed")
 
 getVersionedPackageName :: Uri -> Maybe { packageName :: PackageName, packageVersion :: VersionName }
-getVersionedPackageName = unNull <<< getVersionedPackageName_
+getVersionedPackageName = toMaybe <<< getVersionedPackageName_
 
-foreign import getVersionedPackageName_ :: Uri -> Null { packageName :: PackageName, packageVersion :: VersionName }
+foreign import getVersionedPackageName_ :: Uri -> Nullable { packageName :: PackageName, packageVersion :: VersionName }

@@ -46,6 +46,7 @@ function fromRange (range) {
 }
 
 exports.getVersionedPackageName_ = function (uri) {
+  debugger;
   var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
   return (reg.test(uri.path())
        && RegExp.$1 && RegExp.$2
