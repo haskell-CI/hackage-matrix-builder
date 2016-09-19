@@ -9,22 +9,27 @@ import Control.Monad.Eff.Exception.Unsafe
 import Control.Monad.Eff.JQuery
 import Control.Monad.Trans
 import DOM
+import Data.Array as Array
 import Data.Date
+import Data.Either
 import Data.Function.Uncurried
 import Data.List
 import Data.Map
 import Data.Maybe
 import Data.Set (Set)
 import Data.StrMap
+import Data.String.Regex as R
 import Data.Tuple
+import Partial.Unsafe (unsafePartial)
 import Prelude
 
-import MatrixApi as Api
 import MatrixApi
+import MatrixApi as Api
+import MiscFFI (unsafeLog)
+import MiscFFI as Misc
+import Types
 import Uri (Uri, newUri)
 import Uri as Uri
-import Types
-import MiscFFI as Misc
 
 type AllEffs e o = Eff (dom :: DOM, console :: CONSOLE, api :: API, err :: EXCEPTION) o
 
@@ -53,7 +58,7 @@ boot api = do
   setupRouting
   setupPicker
 
-setupRouting :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
+setupRouting :: forall e . Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
 setupRouting = do
   liftEff $ log "setupRouting"
   liftEff $ Misc.onPopstate $ \pev -> log "onPopState"
@@ -69,7 +74,7 @@ setupRouting = do
     if alt || ctrl || meta || shift || which /= 1
       then do
         log "special url"
-        Misc.unsafeLog
+        unsafeLog
           { alt   : alt
           , ctrl  : ctrl
           , meta  : meta
@@ -82,31 +87,85 @@ setupRouting = do
         preventDefault e
         stopPropagation e
         Misc.delay $ do
+          log "delay"
           linkUri <- newUri <$> Misc.getAttr "href" thisAnchor
           fromUri linkUri false false
 
-fromUri :: forall e . Uri -> Boolean -> Boolean -> Eff (dom :: DOM | e) Unit
+fromUri :: forall e . Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 fromUri uri force isPopping = do
+  log "fromUri"
+  let justTitle t = { title : Just t, packageName : Nothing }
   currentUri <- newUri <$> Uri.windowUri
-  unless (not force && Uri.path uri == Uri.path currentUri) do
-    r <- if Uri.path uri == Just "/"
+  unless (not force && Uri.path uri == Uri.path currentUri) $ do
+    r :: { title :: Maybe String, packageName :: Maybe String }<- if Uri.path uri == Just "/"
       then do
         renderHome
-        pure { title : Nothing, pkgName : Nothing }
+        pure { title : Nothing, packageName : Nothing }
       else do
         case getVersionedPackageName uri of
           Just tmp -> do
             let pkgName = tmp.packageName
-            let title = Just $ pkgName <> " - package"
+            let title = pkgName <> " - package"
             -- TODO was: packageUri(pkgName, tmp.packageVersion);
             let uri = packageUri pkgName Nothing
             selectedPackage pkgName
-            pure { title : Just title, pkgName : Just pkgName }
-          Nothing -> unsafeThrow "TODO"
-    unsafeThrow "TODO2"
+            pure { title : Just title, packageName : Just pkgName }
+          Nothing ->
+            if Uri.path uri == Just "/latest"
+            then do
+              renderLatest
+              pure $ justTitle "latest"
+            else
+              case R.match (regex' "^/user/([^/]+)" R.noFlags) <$> Uri.path uri of
+                Just (Just arr) ->
+                  case Array.head arr of
+                    Just (Just name) -> do
+                      renderUser name
+                      pure <<< justTitle $ name <> "- users"
+                    x -> throwLog "TODO5" x
+                Just res -> throwLog "regex bug" res
+                Nothing ->
+                  if Uri.path uri == Just "/packages"
+                    then do
+                      renderPackages
+                      pure $ justTitle "packages"
+                    else do
+                      renderNotFound
+                      pure $ justTitle "404'd!"
+    let title = maybe "" (\v -> v <> " - ") r.title <> "Hackage Matrix Builder"
+    unsafeLog $ Tuple "title" title
+    let history = if isPopping
+                    then Misc.historyReplaceState
+                    else Misc.historyPushState
+    history title uri
+    Misc.setDocumentTitle title
+    pure unit
 
-renderHome :: forall e . Eff (dom :: DOM | e) Unit
-renderHome = pure unit
+-- | Unsafe version of `regex`.
+regex' :: String -> R.RegexFlags -> R.Regex
+regex' pattern flags = unsafePartial $ fromRight (R.regex pattern flags)
+
+throwLog :: forall a b e . String -> a -> Eff (console :: CONSOLE | e) b
+throwLog err d = do
+  unsafeLog ({ errorType : err, data : d })
+  unsafeThrow err
+
+renderNotFound :: forall e . Eff (dom :: DOM | e) Unit
+renderNotFound = pure unit -- $ unsafeThrow "renderNotFound"
+
+renderHome :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderHome = do
+  log "renderHome"
+  pure unit -- $ unsafeThrow "renderHome"
+
+renderPackages :: forall e . Eff (dom :: DOM | e) Unit
+renderPackages = pure unit -- $ unsafeThrow "renderPackages"
+
+renderLatest :: forall e . Eff (dom :: DOM | e) Unit
+renderLatest = pure unit -- $ unsafeThrow "renderLatest"
+
+renderUser :: forall e . String -> Eff (dom :: DOM | e) Unit
+renderUser _ = pure unit -- $ unsafeThrow "renderUser"
 
 setupPicker :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 setupPicker = pure unit

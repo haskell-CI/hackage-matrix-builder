@@ -8,6 +8,8 @@ import DOM.HTML.Types
 import Data.Foreign.Null
 import Data.Function.Uncurried
 import Prelude
+import Uri (Uri)
+import Uri as Uri
 import Unsafe.Coerce
 
 foreign import onPopstate :: forall e
@@ -65,4 +67,22 @@ foreign import getAttr :: forall e . String -> JQuery -> Eff (dom :: DOM | e) St
 
 foreign import unsafeLog :: forall a e . a -> Eff (console :: CONSOLE | e) Unit
 
-foreign import delay :: forall e . Eff e Unit -> Eff e Unit
+foreign import delay :: forall e . Eff (dom :: DOM | e) Unit -> Eff (dom :: DOM | e) Unit
+
+historyPushState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
+historyPushState t u = runFn2 historyPushState_ t (Uri.toString u)
+
+foreign import historyPushState_ :: forall e
+  . Fn2 String
+        String
+        (Eff (dom :: DOM | e) Unit)
+
+historyReplaceState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
+historyReplaceState t u = runFn2 historyReplaceState_ t (Uri.toString u)
+
+foreign import historyReplaceState_ :: forall e
+  . Fn2 String
+        String
+        (Eff (dom :: DOM | e) Unit)
+
+foreign import setDocumentTitle :: forall e . String -> Eff (dom :: DOM | e) Unit

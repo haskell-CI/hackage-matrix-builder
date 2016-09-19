@@ -51,3 +51,21 @@ exports.delay = function (f) {
     setTimeout(f, 0);
   };
 };
+
+exports.historyPushState_ = function (title, uri) {
+  return function () {
+    window.history.pushState(null, title, uri.toString());
+  }
+};
+
+exports.historyReplaceState_ = function (title, uri) {
+  return function () {
+    window.history.replaceState(null, title, uri.toString());
+  }
+};
+
+exports.setDocumentTitle = function (title) {
+  return function () {
+    window.document.title = title;
+  };
+};
