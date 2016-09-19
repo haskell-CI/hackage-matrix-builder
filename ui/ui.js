@@ -564,12 +564,12 @@
       var versionName = v.version;
       var revision    = v.revision;
       var unpreferred = v.unpreferred;
-      var nextVersionNameMay = pkg.versions[row+1] && pkg.versions[row+1].version;
+      var previousVersionNameMay = pkg.versions[row-1] && pkg.versions[row-1].version;
 
       var th = $("<th>")
         .addClass("pkgv")
         .append
-          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName, nextVersionNameMay))
+          ( $("<a>").text("Δ").attr("href", hdiffUrl(pkgName, versionName, previousVersionNameMay))
           , " "
           , $("<a>").attr("href", hackageUrl(pkgName, versionName)).text(versionName)
           , revision
