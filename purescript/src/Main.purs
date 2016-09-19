@@ -10,6 +10,7 @@ import Control.Monad.Eff.JQuery
 import Control.Monad.Trans
 import DOM
 import Data.Date
+import Data.Foreign.Null
 import Data.Function.Uncurried
 import Data.List
 import Data.Map
@@ -21,7 +22,8 @@ import Prelude
 
 import MatrixApi as Api
 import MatrixApi
-import Uri
+import Uri (Uri, newUri)
+import Uri as Uri
 import Types
 import MiscFFI as Misc
 
@@ -59,29 +61,56 @@ setupRouting = do
   bd :: JQuery <- liftEff body
   liftEff $ Misc.delegate2 bd "a" "click" $ \e -> do
     log "clicked an anchor"
-    thisAnchor <- Misc.eventTarget e >>= Misc.selectElement
+    thisAnchor <- Misc.selectElement =<< Misc.target e
     alt   <- Misc.altKey   e
     ctrl  <- Misc.ctrlKey  e
     meta  <- Misc.metaKey  e
     shift <- Misc.shiftKey e
     which <- Misc.which    e
-    pure unit
-    if alt || ctrl || meta || shift || which == 1
+    if alt || ctrl || meta || shift || which /= 1
       then do
         log "special url"
+        Misc.unsafeLog
+          { alt   : alt
+          , ctrl  : ctrl
+          , meta  : meta
+          , shift : shift
+          , which : which
+          }
         pure unit
       else do
         log "not special url"
         preventDefault e
-        currentUri :: Uri <- newUri <$> windowUri
-        linkUri    :: Uri <- newUri <$> Misc.getAttr "href" thisAnchor
-        logShow $ Tuple currentUri linkUri
-        pure unit
-        -- TODO ...
+        stopPropagation e
+        Misc.delay $ do
+          linkUri <- newUri <$> Misc.getAttr "href" thisAnchor
+          fromUri linkUri false false
+
+fromUri :: forall e . Uri -> Boolean -> Boolean -> Eff (dom :: DOM | e) Unit
+fromUri uri force isPopping = do
+  currentUri <- newUri <$> Uri.windowUri
+--  unless (not force && Uri.path uri == path currentUri) $ do
+  r <- if unNull (Uri.path uri) == Just "/"
+    then do
+      renderHome
+      pure { title : Nothing, pkgName : Nothing }
+    else do
+      case getVersionedPackageName uri of
+        Just tmp -> do
+          let pkgName = tmp.packageName
+          let title = Just $ pkgName <> " - package"
+          -- TODO was: packageUri(pkgName, tmp.packageVersion);
+          let uri = packageUri pkgName Nothing
+          selectedPackage pkgName
+          pure { title : Just title, pkgName : Just pkgName }
+        Nothing -> unsafeThrow "TODO"
+  pure unit
+
+renderHome :: forall e . Eff (dom :: DOM | e) Unit
+renderHome = pure unit
 
 setupPicker :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
-setupPicker = pure unit -- unsafeThrow "setupPicker"
-
+setupPicker = pure unit
 
 showTag :: Tag -> String
 showTag t = "{ name : " <> show t.name <> ", packages : " <> show t.packages <> "}"
@@ -94,3 +123,21 @@ type State =
   , allPackages     :: Array PackageName
   , allPackagesMore :: Array PackageMeta
   }
+
+packageUri :: PackageName -> Maybe { ghcVersion :: VersionName, packageVersion :: VersionName } -> Uri
+packageUri pkgName ghcAndPkgVersion =
+  let u = newUri $ "/package/" <> pkgName in
+  case ghcAndPkgVersion of
+    Nothing -> u
+    Just r -> flip Uri.withAnchor u $
+      cellHash
+        { packageName    : pkgName
+        , ghcVersion     : r.ghcVersion
+        , packageVersion : r.packageVersion
+        }
+
+cellHash :: { packageName :: PackageName, ghcVersion :: VersionName, packageVersion :: VersionName } -> String
+cellHash r = "GHC-" <> r.ghcVersion <> "/" <> r.packageName <> "-" <> r.packageVersion
+
+selectedPackage :: forall e . PackageName -> Eff e Unit
+selectedPackage pkgName = unsafeThrow "selectedPackage"

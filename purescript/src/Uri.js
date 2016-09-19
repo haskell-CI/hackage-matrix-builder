@@ -1,5 +1,5 @@
 exports.windowUri              = function () { return window.location.href };
-exports.newUri                 = function (s) { return new window.Uri(u); };
+exports.newUri                 = function (s) { return new window.Uri(s); };
 exports.toString               = function (u) { return u.toString(); };
 exports.clone                  = function (u) { return u.clone(); };
 exports.protocol               = function (u) { return u.protocol() };

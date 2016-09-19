@@ -44,3 +44,19 @@ function fromRange (range) {
   }
   return params;
 }
+
+exports.getVersionedPackageName_ = function (uri) {
+  var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
+  return (reg.test(uri.path())
+       && RegExp.$1 && RegExp.$2
+       && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
+         ) || null;
+};
+
+exports.packageUri_ = function (pkgName, ghcVersion, pkgVersion) {
+  var u = new Uri("/package/" + pkgName);
+  if (ghcVersion && pkgVersion) {
+    u.anchor(cellHash(ghcVersion, pkgName, pkgVersion));
+  }
+  return u;
+};

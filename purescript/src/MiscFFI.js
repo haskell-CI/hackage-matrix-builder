@@ -4,15 +4,18 @@ exports.onPopstate = function (cb) {
   };
 };
 
-exports.delegate2  = function (_sel1) {
+exports.delegate2 = function (_sel1) {
   return function (_sel2) {
     return function (el) {
       return function (sel) {
         return function (eventName) {
           return function (cb) {
-            console.log("delegate_", el, sel, eventName, cb);
             return function () {
-              return $(el).delegate(sel, eventName, cb);
+              return $(el).delegate
+                ( sel
+                , eventName
+                , function (e) { cb(e)(); }
+                );
             };
           };
         };
@@ -23,13 +26,12 @@ exports.delegate2  = function (_sel1) {
 
 exports.delegate_ = function (el,  sel, eventName, cb) {
   debugger;
-  console.log("delegate_", el, sel, eventName, cb);
   return function () {
     return $(el).delegate(sel, eventName, cb);
   };
 };
 
-exports.eventTarget = function (jqEvent) { return function () { return jqEvent.eventTarget; }; };
+exports.target = function (jqEvent) { return function () { return jqEvent.target; }; };
 exports.altKey = function (jqEvent) { return function () { return jqEvent.altKey; }; };
 exports.ctrlKey = function (jqEvent) { return function () { return jqEvent.ctrlKey; }; };
 exports.shiftKey = function (jqEvent) { return function () { return jqEvent.shiftKey; }; };
@@ -37,3 +39,15 @@ exports.metaKey = function (jqEvent) { return function () { return jqEvent.metaK
 exports.shiftKey = function (jqEvent) { return function () { return jqEvent.shiftKey; }; };
 exports.which = function (jqEvent) { return function () { return jqEvent.which; }; };
 exports.getAttr = function (attr) { return function (jq) { return function () { return jq.attr(attr); }; }; };
+
+exports.unsafeLog = function (a) {
+  return function () {
+    console.log(a);
+  };
+};
+
+exports.delay = function (f) {
+  return function () {
+    setTimeout(f, 0);
+  };
+};

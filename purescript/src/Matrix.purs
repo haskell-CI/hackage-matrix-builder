@@ -9,6 +9,7 @@ import Data.Function.Uncurried
 import Data.Maybe
 import Prelude
 import Types
+import Uri (Uri)
 
 foreign import data MatrixApi :: *
 
@@ -72,3 +73,8 @@ stringyErr :: forall e
   -> JQueryXHR
   -> Eff (api :: API | e) Unit
 stringyErr err s = err <<< const (error "Getting user failed")
+
+getVersionedPackageName :: Uri -> Maybe { packageName :: PackageName, packageVersion :: VersionName }
+getVersionedPackageName = unNull <<< getVersionedPackageName_
+
+foreign import getVersionedPackageName_ :: Uri -> Null { packageName :: PackageName, packageVersion :: VersionName }

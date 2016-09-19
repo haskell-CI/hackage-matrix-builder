@@ -1,6 +1,7 @@
 module MiscFFI where
 
 import Control.Monad.Eff
+import Control.Monad.Eff.Console
 import Control.Monad.Eff.JQuery
 import DOM
 import DOM.HTML.Types
@@ -52,7 +53,7 @@ selectElement :: forall e
   -> Eff (dom :: DOM | e) JQuery
 selectElement = select <<< unsafeCoerce
 
-foreign import eventTarget :: forall e . JQueryEvent -> Eff (dom :: DOM | e) HTMLElement
+foreign import target :: forall e . JQueryEvent -> Eff (dom :: DOM | e) HTMLElement
 foreign import altKey      :: forall e . JQueryEvent -> Eff (dom :: DOM | e) Boolean
 foreign import ctrlKey     :: forall e . JQueryEvent -> Eff (dom :: DOM | e) Boolean
 foreign import metaKey     :: forall e . JQueryEvent -> Eff (dom :: DOM | e) Boolean
@@ -61,3 +62,7 @@ foreign import which       :: forall e . JQueryEvent -> Eff (dom :: DOM | e) Int
 
 -- String is probably too lenient in he return type!
 foreign import getAttr :: forall e . String -> JQuery -> Eff (dom :: DOM | e) String
+
+foreign import unsafeLog :: forall a e . a -> Eff (console :: CONSOLE | e) Unit
+
+foreign import delay :: forall e . Eff e Unit -> Eff e Unit

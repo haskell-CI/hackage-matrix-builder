@@ -106,4 +106,4 @@ foreign import deleteQueryParamValue :: String -> String -> Uri -> Uri
 -- | PureScript stuff
 
 instance showUri :: Show Uri where
-  show u = "newUri \"" <> toString u <> "\""
+  show u = "(newUri \"" <> toString u <> "\")"
