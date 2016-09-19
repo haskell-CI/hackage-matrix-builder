@@ -10,7 +10,6 @@ import Control.Monad.Eff.JQuery
 import Control.Monad.Trans
 import DOM
 import Data.Date
-import Data.Foreign.Null
 import Data.Function.Uncurried
 import Data.List
 import Data.Map
@@ -89,22 +88,22 @@ setupRouting = do
 fromUri :: forall e . Uri -> Boolean -> Boolean -> Eff (dom :: DOM | e) Unit
 fromUri uri force isPopping = do
   currentUri <- newUri <$> Uri.windowUri
---  unless (not force && Uri.path uri == path currentUri) $ do
-  r <- if unNull (Uri.path uri) == Just "/"
-    then do
-      renderHome
-      pure { title : Nothing, pkgName : Nothing }
-    else do
-      case getVersionedPackageName uri of
-        Just tmp -> do
-          let pkgName = tmp.packageName
-          let title = Just $ pkgName <> " - package"
-          -- TODO was: packageUri(pkgName, tmp.packageVersion);
-          let uri = packageUri pkgName Nothing
-          selectedPackage pkgName
-          pure { title : Just title, pkgName : Just pkgName }
-        Nothing -> unsafeThrow "TODO"
-  pure unit
+  unless (not force && Uri.path uri == Uri.path currentUri) do
+    r <- if Uri.path uri == Just "/"
+      then do
+        renderHome
+        pure { title : Nothing, pkgName : Nothing }
+      else do
+        case getVersionedPackageName uri of
+          Just tmp -> do
+            let pkgName = tmp.packageName
+            let title = Just $ pkgName <> " - package"
+            -- TODO was: packageUri(pkgName, tmp.packageVersion);
+            let uri = packageUri pkgName Nothing
+            selectedPackage pkgName
+            pure { title : Just title, pkgName : Just pkgName }
+          Nothing -> unsafeThrow "TODO"
+    unsafeThrow "TODO2"
 
 renderHome :: forall e . Eff (dom :: DOM | e) Unit
 renderHome = pure unit

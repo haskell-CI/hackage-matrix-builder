@@ -5,6 +5,7 @@ import DOM
 import DOM.HTML.Types
 import Data.Foreign.Null
 import Data.Function.Uncurried
+import Data.Maybe
 import Prelude
 
 -- | Creation and conversion
@@ -29,19 +30,40 @@ foreign import clone :: Uri -> Uri
 -- If we want to decode null into Nullable (Nullable a) there is no way of
 -- knowing if Null or Nullable Null is correct. This problem does not exist when
 -- working with Maybe values in client server communication.
-foreign import protocol :: Uri -> Null String
+protocol :: Uri -> Maybe String
+protocol = unNull <<< protocol_
 
-foreign import userInfo :: Uri -> Null String
+foreign import protocol_ :: Uri -> Null String
 
-foreign import host :: Uri -> Null String
+userInfo :: Uri -> Maybe String
+userInfo = unNull <<< userInfo_
 
-foreign import port :: Uri -> Null String
+foreign import userInfo_ :: Uri -> Null String
 
-foreign import path :: Uri -> Null String
+host :: Uri -> Maybe String
+host = unNull <<< host_
 
-foreign import query :: Uri -> Null String
+foreign import host_ :: Uri -> Null String
 
-foreign import anchor :: Uri -> Null String
+port :: Uri -> Maybe String
+port = unNull <<< port_
+
+foreign import port_ :: Uri -> Null String
+
+path :: Uri -> Maybe String
+path = unNull <<< path_
+
+foreign import path_ :: Uri -> Null String
+
+query :: Uri -> Maybe String
+query = unNull <<< query_
+
+foreign import query_ :: Uri -> Null String
+
+anchor :: Uri -> Maybe String
+anchor = unNull <<< anchor_
+
+foreign import anchor_ :: Uri -> Null String
 
 -- | Other getters
 
