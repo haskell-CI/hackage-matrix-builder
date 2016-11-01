@@ -1,2 +1,7 @@
+with-compiler: ghc-8.0.2
 packages: .
--- packages: cabal/Cabal/
+packages: cabal/Cabal/
+tests: false
+benchmarks: false
+
+-- build-log: buildlogs/$libname.log

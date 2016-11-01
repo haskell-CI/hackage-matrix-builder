@@ -19,17 +19,22 @@ library matrix-lib
                      , Job
                      , PkgId
                      , WorkerApi
+                     , WorkerApi.Client
+                     , PlanJson
+
+  ghc-options: -Wall
 
   -- non-locals
   build-depends:       base        ^>= 4.9
-                     , Cabal       ^>= 1.24
-                     , aeson       ^>= 0.11
+                     , Cabal       ^>= 1.25
+                     , aeson       ^>= 1
                      , async       ^>= 2.1.0
                      , bytestring  ^>= 0.10.2
                      , containers  ^>= 0.5.7.1
                      , deepseq     ^>= 1.4
                      , directory   ^>= 1.2.7
                      , filepath    ^>= 1.4.1.0
+                     , hashable    ^>= 1.2.4
                      , http-types  ^>= 0.9.1
                      , io-streams  ^>= 1.3.5
                      , lens        ^>= 4.14
@@ -40,6 +45,13 @@ library matrix-lib
                      , tar         ^>= 0.5
                      , text        ^>= 1.2
                      , time        ^>= 1.6
+
+                     , servant-client ^>= 0.8.1
+                     , http-client ^>= 0.5.3
+
+                     , postgresql-simple ^>= 0.5.2
+                     , uuid-types        ^>= 1.0.3
+                     , cryptohash-sha256 ^>= 0.11.100.1
 
 executable matrix-worker
   default-language:    Haskell2010
@@ -52,8 +64,8 @@ executable matrix-worker
 
   -- non-locals
   build-depends:       base        ^>= 4.9
-                     , Cabal       ^>= 1.24
-                     , aeson       ^>= 0.11
+                     , Cabal       ^>= 1.25
+                     , aeson       ^>= 1
                      , async       ^>= 2.1.0
                      , bytestring  ^>= 0.10.2
                      , containers  ^>= 0.5.7.1
@@ -73,14 +85,19 @@ executable matrix-worker
                      , tar         ^>= 0.5
                      , text        ^>= 1.2
                      , time        ^>= 1.6
+                     , config-value ^>= 0.5
+                     , concurrent-extra ^>= 0.7.0.10
+                     , unix        ^>= 2.7.2
 
   ghc-options: -threaded -Wall -rtsopts
 
-
+-- mostly for testing
 executable matrix-worker-client
   default-language:    Haskell2010
   hs-source-dirs:      src-exe
   main-is:             MainWorkerClient.hs
+
+--  buildable: False
 
   build-depends: matrix-lib
   -- local pkg
@@ -88,8 +105,8 @@ executable matrix-worker-client
 
   -- non-locals
   build-depends:       base        ^>= 4.9
-                     , Cabal       ^>= 1.24
-                     , aeson       ^>= 0.11
+                     , Cabal       ^>= 1.25
+                     , aeson       ^>= 1
                      , async       ^>= 2.1.0
                      , bytestring  ^>= 0.10.2
                      , containers  ^>= 0.5.7.1
@@ -111,7 +128,7 @@ executable matrix-worker-client
 
   ghc-options: -threaded -Wall -rtsopts
 
-
+-- orchestrates everything & provides WebUI
 executable matrix-controller
   default-language:    Haskell2010
   hs-source-dirs:      src-exe
@@ -121,33 +138,36 @@ executable matrix-controller
 
   -- local pkg
   build-depends:       servant-snap
+  build-depends:       servant-client, http-client, uuid-types, groom
 
   -- non-locals
-  build-depends:       base        ^>= 4.9
-                     , Cabal       ^>= 1.24
-                     , aeson       ^>= 0.11
-                     , async       ^>= 2.1.0
-                     , bytestring  ^>= 0.10.2
-                     , containers  ^>= 0.5.7.1
-                     , deepseq     ^>= 1.4
-                     , directory   ^>= 1.2.7
-                     , filepath    ^>= 1.4.1.0
-                     , http-types  ^>= 0.9.1
-                     , io-streams  ^>= 1.3.5
-                     , lens        ^>= 4.14
-                     , mtl         ^>= 2.2.1
-                     , process     ^>= 1.4
-                     , servant     ^>= 0.8
-                     , snap        ^>= 1
-                     , snap-core   ^>= 1
-                     , snap-server ^>= 1
-                     , stm         ^>= 2.4.4
-                     , tar         ^>= 0.5
-                     , text        ^>= 1.2
-                     , time        ^>= 1.6
-                     , opaleye     ^>= 0.5.1
-                     , product-profunctors ^>= 0.7.1
-                     , postgresql-simple   ^>= 0.5.2
+  build-depends:       base                 ^>= 4.9
+                     , Cabal                ^>= 1.25
+                     , aeson                ^>= 1
+                     , async                ^>= 2.1.0
+                     , bytestring           ^>= 0.10.2
+                     , containers           ^>= 0.5.7.1
+                     , deepseq              ^>= 1.4
+                     , directory            ^>= 1.2.7
+                     , filepath             ^>= 1.4.1.0
+                     , http-types           ^>= 0.9.1
+                     , io-streams           ^>= 1.3.5
+                     , lens                 ^>= 4.14
+                     , mtl                  ^>= 2.2.1
+                     , process              ^>= 1.4
+                     , servant              ^>= 0.8
+                     , snap                 ^>= 1
+                     , snap-core            ^>= 1
+                     , snap-server          ^>= 1
+                     , stm                  ^>= 2.4.4
+                     , tar                  ^>= 0.5
+                     , text                 ^>= 1.2
+                     , time                 ^>= 1.6
+--                     , opaleye              ^>= 0.5.1
+                     , product-profunctors  ^>= 0.7.1
+                     , postgresql-simple    ^>= 0.5.2
+                     , unordered-containers ^>= 0.2.7.1
+                     , resource-pool        ^>= 0.2.3.2
+                     , SafeSemaphore        ^>= 0.10.1
 
   ghc-options: -threaded -Wall -rtsopts
-

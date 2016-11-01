@@ -4,17 +4,28 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 
-module IndexHelper (readIndexTimeMap, IndexTimeMap, indexTar, cabalDir, readPkgIndex, getPkgIndexTs, mapInternLst, readIndexTuples, PkgIdxTuple(..)) where
+module IndexHelper
+    ( readIndexTimeMap
+    , IndexTimeMap
+    , indexTar
+    , cabalDir
+    , readPkgIndex
+    , getPkgIndexTs
+    , mapInternLst
+    , readIndexTuples
+    , PkgIdxTuple(..)
+    ) where
 
 import           Prelude.Local
 
 import qualified Codec.Archive.Tar as Tar
 import qualified Codec.Archive.Tar.Entry as Tar
-import           Control.Exception
+-- import           Control.Exception
 import qualified Data.ByteString.Lazy as BSL
 import qualified Data.IntMap as IntMap
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import           Data.String
 import qualified Data.Text as T
 import           System.IO.Unsafe
 
@@ -32,13 +43,13 @@ indexTar = cabalDir </> "packages" </> "hackage.haskell.org" </> "01-index.tar"
 data PkgIdxTuple = PkgIdxTuple
     { pitName  :: PkgN
     , pitVer   :: Maybe Ver
-    , pitRev   :: Word
-    , pitTime  :: Word -- unix epoch secs
+    , pitRev   :: PkgRev
+    , pitTime  :: PkgIdxTs -- unix epoch secs
     , pitOwner :: Text
     } deriving Show
 
 -- internal
-type IdxTuple = (PkgN, Maybe Ver, Word, Word, Text)
+type IdxTuple = (PkgN, Maybe Ver, PkgRev, PkgIdxTs, Text)
 
 readIndexTuples :: FilePath -> IO [PkgIdxTuple]
 readIndexTuples idxtar = do
@@ -66,7 +77,7 @@ readIndexTuples idxtar = do
               (o',oc')  = mapIntern o oc
               (n',nc')  = mapIntern n nc
               (mv',vc') = case mv of
-                Just (Ver v) -> first (Just . Ver) (mapInternLst v vc)
+                Just (Ver v) -> first (Just . Ver) (mapIntern v vc)
                 Nothing      -> (Nothing, vc)
 
               (r',rc')    = lookupRev (n',mv') rc
@@ -101,7 +112,7 @@ readPkgIndex = do
             itm <- evaluate itm'
             return ((itm,sz),itm)
 
-getPkgIndexTs :: IO Word
+getPkgIndexTs :: IO PkgIdxTs
 getPkgIndexTs = do
     itm <- readPkgIndex
     if IntMap.null itm
@@ -120,7 +131,7 @@ decodeEntry e
   = Just (pn, Just pv)
 
   | (pn', "preferred-versions") <- splitFileName fp
-  = Just (T.pack $ init pn', Nothing)
+  = Just (fromString $ init pn', Nothing)
 
   | otherwise = error "decodeEntry: unexpected entry"
   where
@@ -162,7 +173,7 @@ makeTimeMap = go IntMap.empty Set.empty 0 . internPkgIds . mapMaybe decodeEntry'
           where
             (n',nc') = mapIntern n nc
             (mv',vc') = case mv of
-              Just (Ver v) -> first (Just . Ver) (mapInternLst v vc)
+              Just (Ver v) -> first (Just . Ver) (mapIntern v vc)
               Nothing      -> (Nothing, vc)
 
 
@@ -200,7 +211,7 @@ readIndex idxtar = do
   --   golst Tar.Done          = []
 
 fn2pkgver :: FilePath -> (PkgN,Ver)
-fn2pkgver fn = (T.pack n, readVer v0)
+fn2pkgver fn = (fromString n, readVer v0)
   where
     (n,'/':v0) = break (=='/') $ takeDirectory fn
 

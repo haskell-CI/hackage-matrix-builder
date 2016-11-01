@@ -8,6 +8,8 @@
 module Job
     ( JobStep(..), runStep
     , Task, newTask, runTask, cancelTask
+      -- * internal utilities
+    , runProc'
     ) where
 
 import           Prelude.Local
@@ -15,7 +17,6 @@ import           Prelude.Local
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 -- import qualified Data.Text.IO as T
-import           System.Exit
 import           System.IO
 import qualified System.IO.Streams as Streams
 -- import qualified System.IO.Streams.List as Streams
@@ -44,9 +45,12 @@ runProc' :: FilePath -> [Text] -> IO (Text, Int)
 runProc' exe args = do
     -- TODO: use exception safe variant
     (s,ph) <- runProc exe (map T.unpack args)
-    !rc <- ec2int <$> waitForProcess ph
     !bs <- T.decodeUtf8 <$> is2bs s
+    !rc <- ec2int <$> waitForProcess ph
     pure (bs,rc)
+
+is2bs :: InputStream ByteString -> IO ByteString
+is2bs s = mconcat <$> Streams.toList s
 
 -- merges stdout/stderr
 runProc :: FilePath -> [String] -> IO (InputStream ByteString, ProcessHandle)
@@ -76,8 +80,6 @@ ec2int :: ExitCode -> Int
 ec2int ExitSuccess = 0
 ec2int (ExitFailure i) = i
 
-is2bs :: InputStream ByteString -> IO ByteString
-is2bs s = mconcat <$> Streams.toList s
 
 data Task a = TaskReady | TaskRunning (Async a)
 
