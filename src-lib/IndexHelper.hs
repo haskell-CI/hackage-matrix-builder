@@ -1,41 +1,85 @@
+{-# LANGUAGE StrictData #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 
-{-# OPTIONS_GHC -Wall #-}
+module IndexHelper (readIndexTimeMap, IndexTimeMap, indexTar, cabalDir, readPkgIndex, getPkgIndexTs, mapInternLst, readIndexTuples, PkgIdxTuple(..)) where
 
-module IndexHelper (readIndexTimeMap, IndexTimeMap, indexTar, cabalDir, readPkgIndex, getPkgIndexTs, mapInternLst) where
+import           Prelude.Local
 
 import qualified Codec.Archive.Tar as Tar
 import qualified Codec.Archive.Tar.Entry as Tar
-import           Control.Concurrent.MVar
 import           Control.Exception
-import           Data.Bifunctor
 import qualified Data.ByteString.Lazy as BSL
-import           Data.IntMap (IntMap)
 import qualified Data.IntMap as IntMap
-import           Data.List
-import           Data.Map (Map)
 import qualified Data.Map.Strict as Map
-import           Data.Maybe
-import           Data.Set (Set)
 import qualified Data.Set as Set
 import qualified Data.Text as T
-import           Distribution.Text
-import           System.Directory
-import           System.FilePath
 import           System.IO.Unsafe
 
 import           PkgId
-
 
 cabalDir :: FilePath
 cabalDir = unsafePerformIO (getAppUserDataDirectory "cabal")
 {-# NOINLINE cabalDir #-}
 
 indexTar :: FilePath
-indexTar = cabalDir </> "packages" </> "hackage.haskell.org" </> "00-index.tar"
+indexTar = cabalDir </> "packages" </> "hackage.haskell.org" </> "01-index.tar"
+
+----------------------------------------------------------------------------
+
+data PkgIdxTuple = PkgIdxTuple
+    { pitName  :: PkgN
+    , pitVer   :: Maybe Ver
+    , pitRev   :: Word
+    , pitTime  :: Word -- unix epoch secs
+    , pitOwner :: Text
+    } deriving Show
+
+-- internal
+type IdxTuple = (PkgN, Maybe Ver, Word, Word, Text)
+
+readIndexTuples :: FilePath -> IO [PkgIdxTuple]
+readIndexTuples idxtar = do
+    es <- Tar.read <$> BSL.readFile idxtar
+    -- return $! Map.fromListWith (flip mappend) [ (k1,Map.singleton k2 v) | (k1,(k2,v)) <- golst es ]
+    return (internPkgIds $ mapMaybe decode $ asLst es)
+  where
+      asLst (Tar.Next e es) = e : asLst es
+      asLst Tar.Done        = []
+      asLst (Tar.Fail e)    = throw e
+
+      decode :: Tar.Entry -> Maybe IdxTuple
+      decode (Tar.Entry{..}) = do
+          (pkgn,mpkgv) <- decodeEntry (Tar.Entry{..})
+          pure (pkgn,mpkgv, 0, fromIntegral entryTime, owner)
+        where
+          owner = T.pack $ Tar.ownerName $ entryOwnership
+
+      internPkgIds :: [IdxTuple] -> [PkgIdxTuple]
+      internPkgIds = go2 mempty mempty mempty mempty
+        where
+          go2 _ _ _ _ [] = []
+          go2 !nc !vc !rc !oc ((n,mv,_,t,o):es) = (PkgIdxTuple n' mv' r' t o') : go2 nc' vc' rc' oc' es
+            where
+              (o',oc')  = mapIntern o oc
+              (n',nc')  = mapIntern n nc
+              (mv',vc') = case mv of
+                Just (Ver v) -> first (Just . Ver) (mapInternLst v vc)
+                Nothing      -> (Nothing, vc)
+
+              (r',rc')    = lookupRev (n',mv') rc
+
+      lookupRev :: (PkgN,Maybe Ver) -> Map (PkgN,Maybe Ver) Word -> (Word,Map (PkgN,Maybe Ver) Word)
+      lookupRev nv m = (rev,m')
+        where
+          !m' = Map.alter upd nv m
+          !rev = Map.findWithDefault undefined nv m'
+
+          upd :: Maybe Word -> Maybe Word
+          upd Nothing = Just 0
+          upd (Just j) = Just $! (j+1)
 
 ----------------------------------------------------------------------------
 
@@ -76,7 +120,7 @@ decodeEntry e
   = Just (pn, Just pv)
 
   | (pn', "preferred-versions") <- splitFileName fp
-  = Just (T.pack pn', Nothing)
+  = Just (T.pack $ init pn', Nothing)
 
   | otherwise = error "decodeEntry: unexpected entry"
   where
@@ -162,4 +206,3 @@ fn2pkgver fn = (T.pack n, readVer v0)
 
     readVer :: String -> Ver
     readVer = fromMaybe (error "readVer") . simpleParse
-
