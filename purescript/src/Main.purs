@@ -10,7 +10,6 @@ import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
 import Control.Monad.Eff.JQuery
 import Control.Monad.Eff.JQuery as J
-import Control.Monad.Trans
 import DOM
 import Data.Array as Array
 import Data.Date
@@ -22,6 +21,7 @@ import Data.Maybe
 import Data.Set (Set)
 import Data.StrMap
 import Data.String.Regex as R
+import Data.String.Regex.Flags as RF
 import Data.Tuple
 import Partial.Unsafe (unsafePartial)
 import Prelude
@@ -98,41 +98,41 @@ setupRouting state = do
             fromUri state linkUri false false
 
 fromUri :: forall e . State -> Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
-fromUri state uri force isPopping = do
+fromUri state uri_ force isPopping = do
   log "fromUri"
   let justTitle t = { title : Just t, packageName : Nothing }
   currentUri <- newUri <$> Uri.windowUri
-  unsafeLog $ Tuple (Uri.path uri) (Uri.path currentUri)
-  unless (not force && Uri.path uri == Uri.path currentUri) $ do
+  unsafeLog $ Tuple (Uri.path uri_) (Uri.path currentUri)
+  unless (not force && Uri.path uri_ == Uri.path currentUri) $ do
     r :: { title :: Maybe String, packageName :: Maybe String } <-
-      if Uri.path uri == Just "/"
+      if Uri.path uri_ == Just "/"
       then do
         renderHome
         pure { title : Nothing, packageName : Nothing }
       else do
-        case getVersionedPackageName uri of
+        case getVersionedPackageName uri_ of
           Just tmp -> do
             let pkgName = tmp.packageName
             let pgkVersion = tmp.packageVersion
             let title = pkgName <> " - package"
             -- TODO was: packageUri(pkgName, tmp.packageVersion);
-            let uri = packageUri pkgName Nothing
+            let uriForPackage = packageUri pkgName Nothing
             selectedPackage state pkgName
             pure { title : Just title, packageName : Just pkgName }
           Nothing ->
-            case getPackageName uri of
+            case getPackageName uri_ of
               Just pkgName -> do
                 let title = pkgName <> " - package"
-                let uri = packageUri pkgName Nothing
+                let uriForPackage = packageUri pkgName Nothing
                 selectedPackage state pkgName
                 pure { title : Just title, packageName : Just pkgName }
               Nothing ->
-                if Uri.path uri == Just "/latest"
+                if Uri.path uri_ == Just "/latest"
                 then do
                   renderLatest
                   pure $ justTitle "latest"
                 else do
-                  case R.match (regex' "^/user/([^/]+)" R.noFlags) <$> Uri.path uri of
+                  case R.match (regex' "^/user/([^/]+)" RF.noFlags) <$> Uri.path uri_ of
                     Just (Just arr) ->
                       case Array.head arr of
                         Just (Just name) -> do
@@ -140,7 +140,7 @@ fromUri state uri force isPopping = do
                           pure <<< justTitle $ name <> "- users"
                         x -> throwLog "TODO5" x
                     _ ->
-                      if Uri.path uri == Just "/packages"
+                      if Uri.path uri_ == Just "/packages"
                         then do
                           renderPackages
                           pure $ justTitle "packages"
@@ -152,12 +152,12 @@ fromUri state uri force isPopping = do
     let history = if isPopping
                     then Misc.historyReplaceState
                     else Misc.historyPushState
-    history title uri
+    history title uri_
     Misc.setDocumentTitle title
     pure unit
 
 -- | Unsafe version of `regex`.
-regex' :: String -> R.RegexFlags -> R.Regex
+regex' :: String -> RF.RegexFlags -> R.Regex
 regex' pattern flags = unsafePartial $ fromRight (R.regex pattern flags)
 
 throwLog :: forall a b e . String -> a -> Eff (console :: CONSOLE | e) b
