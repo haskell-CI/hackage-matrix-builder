@@ -69,3 +69,13 @@ exports.setDocumentTitle = function (title) {
     window.document.title = title;
   };
 };
+
+exports.autocomplete_ = function (jq, source, select) {
+  return function () {
+    jq.autocomplete
+      ( { source : source
+        , select : function (_, v) { select()(v); }
+        }
+      )
+  };
+};
