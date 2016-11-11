@@ -72,18 +72,18 @@ foreign import delay :: forall e . Eff (dom :: DOM | e) Unit -> Eff (dom :: DOM 
 historyPushState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
 historyPushState t u = runFn2 historyPushState_ t (Uri.toString u)
 
-foreign import historyPushState_ :: forall e
-  . Fn2 String
-        String
-        (Eff (dom :: DOM | e) Unit)
+foreign import historyPushState_ :: forall e .
+  Fn2 String
+      String
+      (Eff (dom :: DOM | e) Unit)
 
 historyReplaceState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
 historyReplaceState t u = runFn2 historyReplaceState_ t (Uri.toString u)
 
-foreign import historyReplaceState_ :: forall e
-  . Fn2 String
-        String
-        (Eff (dom :: DOM | e) Unit)
+foreign import historyReplaceState_ :: forall e .
+  Fn2 String
+      String
+      (Eff (dom :: DOM | e) Unit)
 
 foreign import setDocumentTitle :: forall e . String -> Eff (dom :: DOM | e) Unit
 
