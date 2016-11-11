@@ -143,7 +143,7 @@ fromUri uri force isPopping = do
                           renderPackages
                           pure $ justTitle "packages"
                         else do
-                          renderNotFound
+                          renderNotFound Nothing
                           pure $ justTitle "404'd!"
     let title = maybe "" (\v -> v <> " - ") r.title <> "Hackage Matrix Builder"
     unsafeLog $ Tuple "title" title
@@ -163,8 +163,43 @@ throwLog err d = do
   unsafeLog ({ errorType : err, data : d })
   unsafeThrow err
 
-renderNotFound :: forall e . Eff (dom :: DOM | e) Unit
-renderNotFound = pure unit -- $ unsafeThrow "renderNotFound"
+renderNotFound :: forall e . Maybe PackageName -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderNotFound mPkgName = do
+  log $ "renderNotFound: " <> show mPkgName
+  hidePages
+  pure unit
+  msg <- case mPkgName of
+    Nothing -> do
+      el <- J.create "div"
+      appendText "Page not found, sorry!" el
+      pure el
+    Just pkgName -> do
+      el <- J.create "div"
+      J.appendText "The package " el
+      strongName <- J.create "strong"
+      J.appendText pkgName strongName
+      J.append strongName el
+      J.appendText " could not be found." el
+      pure el
+  msgContainer <- select "#page-notfound .message"
+  J.setHtml "" msgContainer
+  J.append msg msgContainer
+  select "#page-notfound" >>= J.display
+
+  -- $ unsafeThrow "renderNotFound"
+
+--  function renderNotFound (pkgName) {
+--    hidePages();
+--
+--    var msg = "Page not found, sorry!";
+--    if (pkgName) {
+--      msg = $("<div>").append("The package ", $("<strong>").text(pkgName), " could not be found.");
+--    }
+--
+--    $("#page-notfound .message").html("").append(msg);
+--    $("#page-notfound").show();
+--  }
+
 
 renderHome :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderHome = do
@@ -236,5 +271,8 @@ packageUri pkgName ghcAndPkgVersion =
 cellHash :: { packageName :: PackageName, ghcVersion :: VersionName, packageVersion :: VersionName } -> String
 cellHash r = "GHC-" <> r.ghcVersion <> "/" <> r.packageName <> "-" <> r.packageVersion
 
-selectedPackage :: forall e . PackageName -> Eff e Unit
-selectedPackage pkgName = unsafeThrow "selectedPackage"
+selectedPackage :: forall e . PackageName -> Eff (console :: CONSOLE | e) Unit
+selectedPackage pkgName = do
+  log $ "selectedPackage: " <> show pkgName
+  pure unit
+  -- unsafeThrow "selectedPackage"
