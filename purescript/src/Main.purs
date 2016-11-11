@@ -160,6 +160,7 @@ renderNotFound = pure unit -- $ unsafeThrow "renderNotFound"
 
 renderHome :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderHome = do
+  log "renderHome"
   hidePages
   J.select "#page-home" >>= J.display
 
@@ -167,16 +168,22 @@ hidePages :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
 hidePages = do
   J.select ".page" >>= J.hide
 
-renderPackages :: forall e . Eff (dom :: DOM | e) Unit
-renderPackages = pure unit -- $ unsafeThrow "renderPackages"
+renderPackages :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderPackages = do
+  log "renderPackages"
+  pure unit -- $ unsafeThrow "renderPackages"
 
-renderLatest :: forall e . Eff (dom :: DOM | e) Unit
-renderLatest = pure unit -- $ unsafeThrow "renderLatest"
+renderLatest :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderLatest = do
+  log "renderLatest"
+  pure unit -- $ unsafeThrow "renderLatest"
 
-renderUser :: forall e . String -> Eff (dom :: DOM | e) Unit
-renderUser _ = pure unit -- $ unsafeThrow "renderUser"
+renderUser :: forall e . String -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderUser _ = do
+  log "renderUser"
+  pure unit -- $ unsafeThrow "renderUser"
 
-setupPicker :: forall e . Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
+setupPicker :: forall e . Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
 setupPicker = pure unit
 
 showTag :: Tag -> String
