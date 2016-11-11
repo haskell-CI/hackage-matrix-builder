@@ -34,6 +34,24 @@ exports.packageList_ = function (api, range, ok, err) {
   };
 };
 
+exports.latestReportByPackageName_ = function (api, pkgName, ok, err) {
+  return function () {
+    api.Package.byName(pkgName).Report.latest().get
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      );
+  };
+};
+
+exports.packageByName_ = function (api, pkgName, ok, err) {
+  return function () {
+    api.Package.byName(pkgName).get
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      );
+  };
+};
+
 function fromRange (range) {
   var params = {};
   if (typeof range.count.value0 === "number") {

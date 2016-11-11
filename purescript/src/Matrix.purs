@@ -67,6 +67,42 @@ foreign import packageList_ :: forall eff .
       (JQueryXHR           -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
+latestReportByPackageName :: forall e
+   . MatrixApi
+  -> PackageName
+  -> Aff (api :: API | e) Report
+latestReportByPackageName api pkgName = makeAff \err succ ->
+  runFn4 latestReportByPackageName_
+    api
+    pkgName
+    succ
+    (stringyErr err "getting latest report by package name failed")
+
+foreign import latestReportByPackageName_ :: forall eff .
+  Fn4 MatrixApi
+      PackageName
+      (Report    -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
+packageByName :: forall e
+   . MatrixApi
+  -> PackageName
+  -> Aff (api :: API | e) Package
+packageByName api pkgName = makeAff \err succ ->
+  runFn4 packageByName_
+    api
+    pkgName
+    succ
+    (stringyErr err "getting package by name failed")
+
+foreign import packageByName_ :: forall eff .
+  Fn4 MatrixApi
+      PackageName
+      (Package   -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
 stringyErr :: forall e
    . (Error -> Eff (api :: API | e) Unit)
   -> String
