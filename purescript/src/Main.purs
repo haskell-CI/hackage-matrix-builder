@@ -47,9 +47,9 @@ boot :: forall e
   -> Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
 boot api = do
   liftEff $ log "bootCont"
-  tl   <- Api.tagList      api
-  pl   <- Api.packageList  api { count : Just 100000, offset : Nothing }
-  adam <- Api.userByName   api "AdamBergmark"
+  tl   <- Api.tagList     api
+  pl   <- Api.packageList api { count : Just 100000, offset : Nothing }
+  adam <- Api.userByName  api "AdamBergmark"
   let state = { allTags         : tl.items
               , allPackages     : map (\p -> p.name) pl.items
               , allPackagesMore : pl.items
@@ -102,7 +102,7 @@ fromUri uri force isPopping = do
   currentUri <- newUri <$> Uri.windowUri
   unsafeLog $ Tuple (Uri.path uri) (Uri.path currentUri)
   unless (not force && Uri.path uri == Uri.path currentUri) $ do
-    r :: { title :: Maybe String, packageName :: Maybe String }<- if Uri.path uri == Just "/"
+    r :: { title :: Maybe String, packageName :: Maybe String } <- if Uri.path uri == Just "/"
       then do
         renderHome
         pure { title : Nothing, packageName : Nothing }
