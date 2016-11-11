@@ -87,18 +87,18 @@ foreign import historyReplaceState_ :: forall e .
 
 foreign import setDocumentTitle :: forall e . String -> Eff (dom :: DOM | e) Unit
 
-autocomplete :: forall a e
+autocomplete :: forall e
    . { source :: Array String
-     , select :: (a -> { item :: { value :: String } }
+     , select :: ({ item :: { value :: String } }
               -> Eff (dom :: DOM | e) Unit)
      }
   -> JQuery
   -> Eff (dom :: DOM | e) Unit
 autocomplete s jq = runFn3 autocomplete_ jq s.source s.select
 
-foreign import autocomplete_ :: forall a e .
+foreign import autocomplete_ :: forall e.
   Fn3 JQuery
       (Array String)
-      (a -> { item :: { value :: String } }
+      ({ item :: { value :: String } }
         -> Eff (dom :: DOM | e) Unit)
       (Eff (dom :: DOM | e) Unit)

@@ -64,10 +64,18 @@ function fromRange (range) {
 }
 
 exports.getVersionedPackageName_ = function (uri) {
-  debugger;
   var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
+  var m = uri.path().match(reg)
+  console.log("getVersionedPackageName", uri.path(), m, [RegExp.$1, RegExp.$2])
   return (reg.test(uri.path())
        && RegExp.$1 && RegExp.$2
        && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
          ) || null;
+};
+
+exports.getPackageName_ = function (uri) {
+  var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)$/
+  var m = uri.path().match(reg)
+  console.log("getPackageName", uri.path(), m, RegExp.$1)
+  return (reg.test(uri.path()) && RegExp.$1) || null;
 };

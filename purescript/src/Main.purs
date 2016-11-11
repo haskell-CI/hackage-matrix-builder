@@ -57,7 +57,7 @@ boot api = do
   liftEff $ do
     log "Got everything from the API"
   setupRouting
-  setupPicker
+  setupPicker state
 
 setupRouting :: forall e . Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
 setupRouting = do
@@ -102,7 +102,8 @@ fromUri uri force isPopping = do
   currentUri <- newUri <$> Uri.windowUri
   unsafeLog $ Tuple (Uri.path uri) (Uri.path currentUri)
   unless (not force && Uri.path uri == Uri.path currentUri) $ do
-    r :: { title :: Maybe String, packageName :: Maybe String } <- if Uri.path uri == Just "/"
+    r :: { title :: Maybe String, packageName :: Maybe String } <-
+      if Uri.path uri == Just "/"
       then do
         renderHome
         pure { title : Nothing, packageName : Nothing }
@@ -110,33 +111,40 @@ fromUri uri force isPopping = do
         case getVersionedPackageName uri of
           Just tmp -> do
             let pkgName = tmp.packageName
+            let pgkVersion = tmp.packageVersion
             let title = pkgName <> " - package"
             -- TODO was: packageUri(pkgName, tmp.packageVersion);
             let uri = packageUri pkgName Nothing
             selectedPackage pkgName
             pure { title : Just title, packageName : Just pkgName }
           Nothing ->
-            if Uri.path uri == Just "/latest"
-            then do
-              renderLatest
-              pure $ justTitle "latest"
-            else
-              case R.match (regex' "^/user/([^/]+)" R.noFlags) <$> Uri.path uri of
-                Just (Just arr) ->
-                  case Array.head arr of
-                    Just (Just name) -> do
-                      renderUser name
-                      pure <<< justTitle $ name <> "- users"
-                    x -> throwLog "TODO5" x
-                Just res -> throwLog "regex bug" res
-                Nothing ->
-                  if Uri.path uri == Just "/packages"
-                    then do
-                      renderPackages
-                      pure $ justTitle "packages"
-                    else do
-                      renderNotFound
-                      pure $ justTitle "404'd!"
+            case getPackageName uri of
+              Just pkgName -> do
+                let title = pkgName <> " - package"
+                let uri = packageUri pkgName Nothing
+                selectedPackage pkgName
+                pure { title : Just title, packageName : Just pkgName }
+              Nothing ->
+                if Uri.path uri == Just "/latest"
+                then do
+                  renderLatest
+                  pure $ justTitle "latest"
+                else do
+                  case R.match (regex' "^/user/([^/]+)" R.noFlags) <$> Uri.path uri of
+                    Just (Just arr) ->
+                      case Array.head arr of
+                        Just (Just name) -> do
+                          renderUser name
+                          pure <<< justTitle $ name <> "- users"
+                        x -> throwLog "TODO5" x
+                    _ ->
+                      if Uri.path uri == Just "/packages"
+                        then do
+                          renderPackages
+                          pure $ justTitle "packages"
+                        else do
+                          renderNotFound
+                          pure $ justTitle "404'd!"
     let title = maybe "" (\v -> v <> " - ") r.title <> "Hackage Matrix Builder"
     unsafeLog $ Tuple "title" title
     let history = if isPopping
@@ -183,8 +191,23 @@ renderUser _ = do
   log "renderUser"
   pure unit -- $ unsafeThrow "renderUser"
 
-setupPicker :: forall e . Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
-setupPicker = pure unit
+setupPicker :: forall e . State -> Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
+setupPicker st = liftEff $ do
+  let items = st.allPackages
+  select "#search" >>= Misc.autocomplete
+    { source : st.allPackages
+    , select : \v -> fromUri (packageUri v.item.value Nothing) false false
+    }
+-- TODO
+-- $("#search").keydown(function (e) {
+--   if (e.which === 13) {
+--     e.preventDefault();
+--     e.stopPropagation();
+--     fromUri(packageUri($(this).val()));
+--     return;
+--   }
+-- });
+
 
 showTag :: Tag -> String
 showTag t = "{ name : " <> show t.name <> ", packages : " <> show t.packages <> "}"

@@ -114,3 +114,8 @@ getVersionedPackageName :: Uri -> Maybe { packageName :: PackageName, packageVer
 getVersionedPackageName = toMaybe <<< getVersionedPackageName_
 
 foreign import getVersionedPackageName_ :: Uri -> Nullable { packageName :: PackageName, packageVersion :: VersionName }
+
+getPackageName :: Uri -> Maybe PackageName
+getPackageName = toMaybe <<< getPackageName_
+
+foreign import getPackageName_ :: Uri -> Nullable PackageName

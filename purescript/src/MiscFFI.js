@@ -71,10 +71,12 @@ exports.setDocumentTitle = function (title) {
 };
 
 exports.autocomplete_ = function (jq, source, select) {
+  console.log("autocomplete_");
   return function () {
+    console.log("autocomplete_()");
     jq.autocomplete
       ( { source : source
-        , select : function (_, v) { select()(v); }
+        , select : function (_, v) { console.log("autocomplete select", v, select); select(v)(); }
         }
       )
   };
