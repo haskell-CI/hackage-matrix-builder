@@ -1,5 +1,7 @@
 module Main (main) where
 
+import Data.Foldable
+import Data.Traversable
 import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Class
@@ -56,17 +58,17 @@ boot api = do
               }
   liftEff $ do
     log "Got everything from the API"
-  setupRouting
+  setupRouting state
   setupPicker state
 
-setupRouting :: forall e . Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
-setupRouting = do
+setupRouting :: forall e . State -> Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
+setupRouting state = do
   liftEff $ log "setupRouting"
   liftEff $ Misc.onPopstate $ \pev -> log "onPopState"
   bd :: JQuery <- liftEff body
   liftEff $ do
     currentUri <- Uri.newUri <$> Uri.windowUri
-    fromUri currentUri true true
+    fromUri state currentUri true true
     Misc.delegate2 bd "a" "click" $ \e -> do
       log "clicked an anchor"
       thisAnchor <- Misc.selectElement =<< Misc.target e
@@ -93,10 +95,10 @@ setupRouting = do
           Misc.delay $ do
             log "delay"
             linkUri <- newUri <$> Misc.getAttr "href" thisAnchor
-            fromUri linkUri false false
+            fromUri state linkUri false false
 
-fromUri :: forall e . Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
-fromUri uri force isPopping = do
+fromUri :: forall e . State -> Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+fromUri state uri force isPopping = do
   log "fromUri"
   let justTitle t = { title : Just t, packageName : Nothing }
   currentUri <- newUri <$> Uri.windowUri
@@ -115,14 +117,14 @@ fromUri uri force isPopping = do
             let title = pkgName <> " - package"
             -- TODO was: packageUri(pkgName, tmp.packageVersion);
             let uri = packageUri pkgName Nothing
-            selectedPackage pkgName
+            selectedPackage state pkgName
             pure { title : Just title, packageName : Just pkgName }
           Nothing ->
             case getPackageName uri of
               Just pkgName -> do
                 let title = pkgName <> " - package"
                 let uri = packageUri pkgName Nothing
-                selectedPackage pkgName
+                selectedPackage state pkgName
                 pure { title : Just title, packageName : Just pkgName }
               Nothing ->
                 if Uri.path uri == Just "/latest"
@@ -167,39 +169,23 @@ renderNotFound :: forall e . Maybe PackageName -> Eff (console :: CONSOLE, dom :
 renderNotFound mPkgName = do
   log $ "renderNotFound: " <> show mPkgName
   hidePages
-  pure unit
   msg <- case mPkgName of
     Nothing -> do
-      el <- J.create "div"
+      el <- J.create "<div>"
       appendText "Page not found, sorry!" el
       pure el
     Just pkgName -> do
-      el <- J.create "div"
+      el <- J.create "<div>"
       J.appendText "The package " el
-      strongName <- J.create "strong"
+      strongName <- J.create "<strong>"
       J.appendText pkgName strongName
       J.append strongName el
       J.appendText " could not be found." el
       pure el
-  msgContainer <- select "#page-notfound .message"
+  msgContainer <- J.select "#page-notfound .main-header-subtext"
   J.setHtml "" msgContainer
   J.append msg msgContainer
-  select "#page-notfound" >>= J.display
-
-  -- $ unsafeThrow "renderNotFound"
-
---  function renderNotFound (pkgName) {
---    hidePages();
---
---    var msg = "Page not found, sorry!";
---    if (pkgName) {
---      msg = $("<div>").append("The package ", $("<strong>").text(pkgName), " could not be found.");
---    }
---
---    $("#page-notfound .message").html("").append(msg);
---    $("#page-notfound").show();
---  }
-
+  J.select "#page-notfound" >>= J.display
 
 renderHome :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderHome = do
@@ -227,11 +213,10 @@ renderUser _ = do
   pure unit -- $ unsafeThrow "renderUser"
 
 setupPicker :: forall e . State -> Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
-setupPicker st = liftEff $ do
-  let items = st.allPackages
+setupPicker state = liftEff $ do
   select "#search" >>= Misc.autocomplete
-    { source : st.allPackages
-    , select : \v -> fromUri (packageUri v.item.value Nothing) false false
+    { source : state.allPackages
+    , select : \v -> fromUri state (packageUri v.item.value Nothing) false false
     }
 -- TODO
 -- $("#search").keydown(function (e) {
@@ -271,8 +256,23 @@ packageUri pkgName ghcAndPkgVersion =
 cellHash :: { packageName :: PackageName, ghcVersion :: VersionName, packageVersion :: VersionName } -> String
 cellHash r = "GHC-" <> r.ghcVersion <> "/" <> r.packageName <> "-" <> r.packageVersion
 
-selectedPackage :: forall e . PackageName -> Eff (console :: CONSOLE | e) Unit
-selectedPackage pkgName = do
+selectedPackage :: forall e . State -> PackageName -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+selectedPackage state pkgName = do
   log $ "selectedPackage: " <> show pkgName
   pure unit
+  if pkgName `notElem` state.allPackages
+    then renderNotFound (Just pkgName)
+    else do
+      log $ "found package: " <> pkgName
   -- unsafeThrow "selectedPackage"
+
+-- function selectedPackage (pkgName) {
+--   $("#select-package").val(pkgName);
+--   if (window.allPackages.indexOf(pkgName) === -1) {
+--     renderNotFound(pkgName);
+--     return;
+--   }
+--   api.Package.byName(pkgName).get(function (pkg) {
+--     api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName, pkg), renderPackage.bind(null, pkgName, pkg, null));
+--   }, renderPackage.bind(null, pkgName, null, null, null));
+-- }
