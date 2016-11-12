@@ -16,9 +16,5 @@
     "purescript-jquery": "^3.0.0",
     "purescript-arrays": "^3.0.0",
     "purescript-aff": "^2.0.1"
-  },
-  "resolutions": {
-    "purescript-dom": "^1.0.0",
-    "purescript-js-date": "^2.0.0"
   }
 }

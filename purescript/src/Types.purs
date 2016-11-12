@@ -6,6 +6,7 @@ import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
 import Data.Date (Date)
+import Data.Foreign.Undefined
 
 data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 
@@ -16,24 +17,24 @@ type Tag =
 
 type PackageMeta =
   { name   :: PackageName
-  , report :: Maybe Date
+  , report :: Maybe String
   , tags   :: Array TagName
   }
 
 data ReportMeta = ReportMeta
   { rmPackageName :: PackageName
-  , rmModified    :: Date
+  , rmModified    :: String
   }
 
 data Report = Report
   { rPackageName :: PackageName
-  , rModified    :: Date
+  , rModified    :: String
   , rResults     :: Array GHCResult
   }
 
 data ShallowReport = ShallowReport
  { sPackageName :: PackageName
- , sModified    :: Date
+ , sModified    :: String
  , sResults     :: Array ShallowGhcResult
  }
 
@@ -75,13 +76,13 @@ data GHCResult = GHCResult
   { ghcVersion     :: VersionName
   , ghcFullVersion :: VersionName
   , resultsA       :: Array VersionResult
-  , resultsB       :: Array (Tuple PkgVerPfx (Maybe VersionName))
+  , resultsB       :: Array (Tuple PkgVerPfx (Undefined VersionName))
   }
 
 data SingleResult = SingleResult
   { srGhcVersion     :: VersionName
   , srGhcFullVersion :: VersionName
-  , srResultA        :: Maybe VersionResult
+  , srResultA        :: Undefined VersionResult
   }
 
 data VersionResult = VersionResult
@@ -139,4 +140,4 @@ type Word = Int
 
 type ApiList a = { offset :: Int, count :: Int, items :: Array a }
 
-type Range = { count :: Maybe Int, offset :: Maybe Int }
+type Range = { count :: Undefined Int, offset :: Undefined Int }

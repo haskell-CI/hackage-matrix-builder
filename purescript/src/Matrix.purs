@@ -4,9 +4,11 @@ import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
-import Data.Nullable
+import Data.Foreign.Undefined
+import MiscFFI
 import Data.Function.Uncurried
 import Data.Maybe
+import Data.Nullable
 import Prelude
 import Types
 import Uri (Uri)
@@ -57,14 +59,24 @@ packageList :: forall e
   -> Range
   -> Aff (api :: API | e) (ApiList PackageMeta)
 packageList api range = makeAff \err succ ->
-  runFn4 packageList_ api range succ
+  runFn4 packageList_ api range
+    (\pms -> succ $ pms { items = map packageMetaFromFFI pms.items })
     (stringyErr err "Getting package list failed")
+  where
+    packageMetaFromFFI :: PackageMetaFFI -> PackageMeta
+    packageMetaFromFFI p = p { report = undefine p.report }
+
+type PackageMetaFFI =
+  { name   :: PackageName
+  , report :: Undefined String
+  , tags   :: Array TagName
+  }
 
 foreign import packageList_ :: forall eff .
   Fn4 MatrixApi
       Range
-      (ApiList PackageMeta -> ApiEff eff Unit)
-      (JQueryXHR           -> ApiEff eff Unit)
+      (ApiList PackageMetaFFI -> ApiEff eff Unit)
+      (JQueryXHR              -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
 latestReportByPackageName :: forall e

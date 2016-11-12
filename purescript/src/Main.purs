@@ -1,7 +1,5 @@
 module Main (main) where
 
-import Data.Foldable
-import Data.Traversable
 import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Class
@@ -10,18 +8,27 @@ import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
 import Control.Monad.Eff.JQuery
 import Control.Monad.Eff.JQuery as J
+import Control.Monad.ST
 import DOM
+import DOM.HTML.Types
 import Data.Array as Array
+import Data.Char
 import Data.Date
 import Data.Either
+import Data.Foldable
+import Data.Foldable as Foldable
+import Data.Foreign.Undefined
 import Data.Function.Uncurried
-import Data.List
+import Data.List ((..))
 import Data.Map
 import Data.Maybe
+import Data.Monoid
 import Data.Set (Set)
 import Data.StrMap
+import Data.String as String
 import Data.String.Regex as R
 import Data.String.Regex.Flags as RF
+import Data.Traversable
 import Data.Tuple
 import Partial.Unsafe (unsafePartial)
 import Prelude
@@ -34,34 +41,48 @@ import Types
 import Uri (Uri, newUri)
 import Uri as Uri
 
-type AllEffs e o = Eff (dom :: DOM, console :: CONSOLE, api :: API, err :: EXCEPTION) o
+type AllEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, err :: EXCEPTION, st :: ST h) o
 
-main :: forall e. AllEffs e Unit
+main :: forall e h. AllEffs e h Unit
 main = do
+  unsafeLog Nothing
+  unsafeLog (Just 1)
   api <- newApi "/api" "/api"
   log "main"
   ready do
     log "Ready"
     launchAff $ boot api
 
-boot :: forall e
+boot :: forall e h
    . MatrixApi
-  -> Aff (dom :: DOM, console :: CONSOLE, api :: API | e) Unit
+  -> Aff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
 boot api = do
   liftEff $ log "bootCont"
   tl   <- Api.tagList     api
-  pl   <- Api.packageList api { count : Just 100000, offset : Nothing }
-  adam <- Api.userByName  api "AdamBergmark"
-  let state = { allTags         : tl.items
-              , allPackages     : map (\p -> p.name) pl.items
-              , allPackagesMore : pl.items
-              }
+  pl   <- Api.packageList api { count : Undefined (Just 100000), offset : Undefined Nothing }
+  liftEff $ unsafeLog pl
+  -- adam <- Api.userByName  api "AdamBergmark"
+  state <- liftEff $ newSTRef
+    ({ allTags          : tl.items
+     , allPackages      : map (\p -> p.name) pl.items
+     , allPackagesMore  : pl.items
+     , activeTagFilters : mempty
+     , selectedPrefix   : 'A'
+     } :: State)
   liftEff $ do
     log "Got everything from the API"
   setupRouting state
-  setupPicker state
+  -- setupPicker state
 
-setupRouting :: forall e . State -> Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
+-- type State =
+--   { allTags          :: Array Tag
+--   , allPackages      :: Array PackageName
+--   , allPackagesMore  :: Array PackageMeta
+--   , activeTagFilters :: Array TagName
+--   , selectedPrefix   :: Char
+--   }
+
+setupRouting :: forall e h . STRef h State -> Aff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
 setupRouting state = do
   liftEff $ log "setupRouting"
   liftEff $ Misc.onPopstate $ \pev -> log "onPopState"
@@ -97,9 +118,9 @@ setupRouting state = do
             linkUri <- newUri <$> Misc.getAttr "href" thisAnchor
             fromUri state linkUri false false
 
-fromUri :: forall e . State -> Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+fromUri :: forall e h . STRef h State -> Uri -> Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
 fromUri state uri_ force isPopping = do
-  log "fromUri"
+  log $ "fromUri"
   let justTitle t = { title : Just t, packageName : Nothing }
   currentUri <- newUri <$> Uri.windowUri
   unsafeLog $ Tuple (Uri.path uri_) (Uri.path currentUri)
@@ -129,7 +150,7 @@ fromUri state uri_ force isPopping = do
               Nothing ->
                 if Uri.path uri_ == Just "/latest"
                 then do
-                  renderLatest
+                  renderLatest state
                   pure $ justTitle "latest"
                 else do
                   case R.match (regex' "^/user/([^/]+)" RF.noFlags) <$> Uri.path uri_ of
@@ -142,7 +163,7 @@ fromUri state uri_ force isPopping = do
                     _ ->
                       if Uri.path uri_ == Just "/packages"
                         then do
-                          renderPackages
+                          renderPackages state
                           pure $ justTitle "packages"
                         else do
                           renderNotFound Nothing
@@ -197,25 +218,156 @@ hidePages :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
 hidePages = do
   J.select ".page" >>= J.hide
 
-renderPackages :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
-renderPackages = do
-  log "renderPackages"
-  pure unit -- $ unsafeThrow "renderPackages"
-
-renderLatest :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
-renderLatest = do
+renderLatest :: forall e h . STRef h State -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h| e) Unit
+renderLatest state = do
   log "renderLatest"
-  pure unit -- $ unsafeThrow "renderLatest"
+  pure unit
+
+renderPackages :: forall e h . STRef h State -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+renderPackages state = do
+  log "renderPackages"
+  hidePages
+  st <- readSTRef state
+  page <- J.select "#page-packages"
+  tags <- J.find ".tag-filter" page
+  setHtml "" tags
+
+  headersEl <- J.find ".headers" page
+  setHtml "" headersEl
+  pkgList <- J.find ".packages" page
+  onlyReports <- J.find ".packages-only-reports" page
+  let headers = map fromCharCode (65..90)
+  J.removeClass "active" tags
+  setHtml "" tags
+
+  tagsCont <- tagsContent state onlyReports pkgList
+  traverse_ (\t -> J.append t tags *> pure unit) tagsCont
+--  -- page.find(".headers").append [...]
+--  -- onlyReports.change(showPrefix);
+  showPrefix state onlyReports pkgList
+--  pure unit
+  J.select "#page-packages" >>= J.display
+
+click' :: forall e
+   . (JQueryEvent -> JQuery -> Eff (console :: CONSOLE, dom :: DOM | e) Unit)
+  -> JQuery
+  -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+click' f = on "click" (\ev el -> stopPropagation ev *> preventDefault ev *> f ev el)
+
+tagsContent :: forall e h . STRef h State -> JQuery -> JQuery -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Array JQuery)
+tagsContent state onlyReports pkgList = do
+  st <- readSTRef state
+  traverse renderedTag <<< Array.filter (\t -> Array.length t.packages > 0) $ st.allTags
+  where
+    renderedTag :: Tag -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) JQuery
+    renderedTag t = do
+      el <- renderTag t.name
+      click' click el
+      pure el
+    click :: JQueryEvent -> JQuery -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+    click ev el = do
+      unsafeLog { ev : ev, el : el }
+      tagEl :: JQuery <- Misc.selectElement =<< Misc.target ev
+      tagName :: String <- Misc.getAttr "data-tag-name" tagEl
+      st <- readSTRef state
+      let tagIndex = Array.elemIndex tagName st.activeTagFilters
+      case tagIndex of
+        Nothing -> do
+          writeSTRef state $ st { activeTagFilters = tagName Array.: st.activeTagFilters }
+          J.addClass "active" tagEl
+        Just ti -> do
+          writeSTRef state $ st { activeTagFilters = Array.delete tagName st.activeTagFilters }
+          J.removeClass "active" tagEl
+      showPrefix state onlyReports pkgList
+
+showPrefix :: forall e h . STRef h State -> JQuery -> JQuery -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+showPrefix state onlyReports pkgList = do
+  log "showPrefix"
+  showOnlyReports <- Misc.is ":checked" onlyReports
+  st :: State <- readSTRef state
+  filterByTags <- pure (Array.length st.activeTagFilters >= 1)
+  setHtml "" pkgList
+  pkgListContents <- mkPkgListContents filterByTags showOnlyReports
+  traverse_ (\v -> J.append v pkgList) pkgListContents
+  pure unit
+  where
+    mkPkgListContents :: Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Array JQuery)
+    mkPkgListContents filterByTags showOnlyReports = do
+      st <- readSTRef state
+      map Array.catMaybes <<< traverse m2 <<< Array.filter (fv st filterByTags showOnlyReports) $ st.allPackages
+    m2 :: PackageName -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Maybe JQuery)
+    m2 pn = do
+      pure Nothing
+      st <- readSTRef state
+      case Array.find (\v -> v.name == pn) st.allPackagesMore of
+        Nothing -> pure Nothing
+        Just pkgMore -> do
+          mDate :: Maybe String <- pure pkgMore.report
+          li <- J.create "<li>"
+          pl <- packageLink pn Nothing
+          renderedTags :: Array JQuery <- case Array.find (\v -> v.name == pn) st.allPackagesMore of
+            Nothing -> pure mempty
+            Just p -> do
+              res <- traverse renderTag p.tags
+              pure res
+          msmall <- case mDate of
+            Nothing -> pure Nothing
+            Just date -> do
+              small <- J.create "<small>"
+              J.setText (" - last built: " <> Misc.formatDate date) small
+              pure (Just small)
+          J.append pl li
+          traverse_ (\t -> J.append t li) renderedTags
+          traverse_ (\s -> J.append s li) msmall
+          pure $ Just li
+    fv :: State -> Boolean -> Boolean -> PackageName -> Boolean
+    fv st filterByTags showOnlyReports v =
+      ( if filterByTags
+          then
+            case Array.find (\w -> w.name == v) st.allPackagesMore of
+              Just x -> Array.length (Array.filter (\t -> Array.elem t st.activeTagFilters) x.tags) > 0
+              Nothing -> false
+          else
+            map (\x -> x.head) (String.uncons v) == Just st.selectedPrefix
+      ) && (not showOnlyReports || hasReportForPackage st v)
+
+-- map(function (v) {
+--   var date = window.allPackagesMore[v].report;
+--   return $("<li>").append
+--     ( packageLink(v)
+--     , window.allPackagesMore[v].tags.map(renderTag)
+--     , date && $("<small>").text(" - last built: " + formatDate(date))
+--     );
+-- })
+
+hasReportForPackage :: State -> PackageName -> Boolean
+hasReportForPackage st pn =
+  case Array.find (\v -> v.name == pn) st.allPackagesMore of
+    Nothing -> false
+    Just pm -> isJust pm.report
+
+fromJustNote :: forall a . String -> Maybe a -> a
+fromJustNote msg = fromMaybe (unsafeThrow msg)
+
+renderTag :: forall e . String -> Eff (console :: CONSOLE, dom :: DOM | e) JQuery
+renderTag tagName = do
+  log $ "renderTag: " <> tagName
+  a <- J.create "<a>"
+  J.addClass "tag-item" a
+  J.setAttr "data-tag-name" tagName a
+  J.setText tagName a
+  pure a
 
 renderUser :: forall e . String -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderUser _ = do
   log "renderUser"
   pure unit -- $ unsafeThrow "renderUser"
 
-setupPicker :: forall e . State -> Aff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
+setupPicker :: forall e h . STRef h State -> Aff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
 setupPicker state = liftEff $ do
+  st <- readSTRef state
   select "#search" >>= Misc.autocomplete
-    { source : state.allPackages
+    { source : st.allPackages
     , select : \v -> fromUri state (packageUri v.item.value Nothing) false false
     }
 -- TODO
@@ -236,10 +388,22 @@ ghcVersions :: Array String
 ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0"]
 
 type State =
-  { allTags         :: Array Tag
-  , allPackages     :: Array PackageName
-  , allPackagesMore :: Array PackageMeta
+  { allTags          :: Array Tag
+  , allPackages      :: Array PackageName
+  , allPackagesMore  :: Array PackageMeta
+  , activeTagFilters :: Array TagName
+  , selectedPrefix   :: Char
   }
+
+packageLink :: forall e
+  . PackageName
+ -> Maybe { ghcVersion :: VersionName, packageVersion :: VersionName }
+ -> Eff (dom :: DOM | e) JQuery
+packageLink pkgName versions = do
+  a <- J.create "<a>"
+  setAttr "href" (Uri.toString (packageUri pkgName versions)) a
+  setText pkgName a
+  pure a
 
 packageUri :: PackageName -> Maybe { ghcVersion :: VersionName, packageVersion :: VersionName } -> Uri
 packageUri pkgName ghcAndPkgVersion =
@@ -256,11 +420,12 @@ packageUri pkgName ghcAndPkgVersion =
 cellHash :: { packageName :: PackageName, ghcVersion :: VersionName, packageVersion :: VersionName } -> String
 cellHash r = "GHC-" <> r.ghcVersion <> "/" <> r.packageName <> "-" <> r.packageVersion
 
-selectedPackage :: forall e . State -> PackageName -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+selectedPackage :: forall e h . STRef h State -> PackageName -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
 selectedPackage state pkgName = do
+  st <- readSTRef state
   log $ "selectedPackage: " <> show pkgName
   pure unit
-  if pkgName `notElem` state.allPackages
+  if pkgName `notElem` st.allPackages
     then renderNotFound (Just pkgName)
     else do
       log $ "found package: " <> pkgName

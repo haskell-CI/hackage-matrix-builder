@@ -46,9 +46,24 @@ exports.unsafeLog = function (a) {
   };
 };
 
+exports.unsafeTrace = function (a) {
+  console.log(a);
+  return a;
+};
+
 exports.delay = function (f) {
   return function () {
     setTimeout(f, 0);
+  };
+};
+
+exports.is = function (s) {
+  return function (j) {
+    return function () {
+      var b = j.is(s)
+      console.log(j, "is", s, " = ", b);
+      return b;
+    };
   };
 };
 
@@ -71,13 +86,28 @@ exports.setDocumentTitle = function (title) {
 };
 
 exports.autocomplete_ = function (jq, source, select) {
-  console.log("autocomplete_");
   return function () {
-    console.log("autocomplete_()");
     jq.autocomplete
       ( { source : source
-        , select : function (_, v) { console.log("autocomplete select", v, select); select(v)(); }
+        , select : function (_, v) { select(v)(); }
         }
       )
+  };
+};
+
+exports.formatDate = function (d) {
+  return (new Date(d)).toLocaleString().replace("T", " ");
+};
+
+exports.undefine_ = function (a) {
+  return function (nothing) {
+    return function (just) {
+      if (a === undefined) {
+        return nothing;
+      } else {
+        just.value0 = a
+        return just;
+      }
+    };
   };
 };
