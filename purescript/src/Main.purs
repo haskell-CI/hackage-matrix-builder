@@ -243,7 +243,7 @@ renderPackages state = do
   tagsCont <- tagsContent state onlyReports pkgList
   traverse_ (\t -> J.append t tags *> pure unit) tagsCont
 --  -- page.find(".headers").append [...]
---  -- onlyReports.change(showPrefix);
+  on "change" (\_ _ -> showPrefix state onlyReports pkgList) onlyReports
   showPrefix state onlyReports pkgList
 --  pure unit
   J.select "#page-packages" >>= J.display
