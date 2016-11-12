@@ -294,51 +294,30 @@ showPrefix state onlyReports pkgList = do
     mkPkgListContents :: Boolean -> Boolean -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Array JQuery)
     mkPkgListContents filterByTags showOnlyReports = do
       st <- readSTRef state
-      map Array.catMaybes <<< traverse m2 <<< Array.filter (fv st filterByTags showOnlyReports) $ st.allPackages
-    m2 :: PackageName -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Maybe JQuery)
-    m2 pn = do
+      map Array.catMaybes <<< traverse m2 <<< Array.filter (fv st filterByTags showOnlyReports) $ st.allPackagesMore
+    m2 :: PackageMeta -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Maybe JQuery)
+    m2 pm = do
       pure Nothing
       st <- readSTRef state
-      case Array.find (\v -> v.name == pn) st.allPackagesMore of
+      li <- J.create "<li>"
+      pl <- packageLink pm.name Nothing
+      renderedTags :: Array JQuery <- traverse renderTag pm.tags
+      msmall <- case pm.report of
         Nothing -> pure Nothing
-        Just pkgMore -> do
-          mDate :: Maybe String <- pure pkgMore.report
-          li <- J.create "<li>"
-          pl <- packageLink pn Nothing
-          renderedTags :: Array JQuery <- case Array.find (\v -> v.name == pn) st.allPackagesMore of
-            Nothing -> pure mempty
-            Just p -> do
-              res <- traverse renderTag p.tags
-              pure res
-          msmall <- case mDate of
-            Nothing -> pure Nothing
-            Just date -> do
-              small <- J.create "<small>"
-              J.setText (" - last built: " <> Misc.formatDate date) small
-              pure (Just small)
-          J.append pl li
-          traverse_ (\t -> J.append t li) renderedTags
-          traverse_ (\s -> J.append s li) msmall
-          pure $ Just li
-    fv :: State -> Boolean -> Boolean -> PackageName -> Boolean
-    fv st filterByTags showOnlyReports v =
+        Just date -> do
+          small <- J.create "<small>"
+          J.setText (" - last built: " <> Misc.formatDate date) small
+          pure (Just small)
+      J.append pl li
+      traverse_ (\t -> J.append t li) renderedTags
+      traverse_ (\s -> J.append s li) msmall
+      pure $ Just li
+    fv :: State -> Boolean -> Boolean -> PackageMeta -> Boolean
+    fv st filterByTags showOnlyReports pm =
       ( if filterByTags
-          then
-            case Array.find (\w -> w.name == v) st.allPackagesMore of
-              Just x -> Array.length (Array.filter (\t -> Array.elem t st.activeTagFilters) x.tags) > 0
-              Nothing -> false
-          else
-            map (\x -> x.head) (String.uncons v) == Just st.selectedPrefix
-      ) && (not showOnlyReports || hasReportForPackage st v)
-
--- map(function (v) {
---   var date = window.allPackagesMore[v].report;
---   return $("<li>").append
---     ( packageLink(v)
---     , window.allPackagesMore[v].tags.map(renderTag)
---     , date && $("<small>").text(" - last built: " + formatDate(date))
---     );
--- })
+          then Array.any (\t -> Array.elem t st.activeTagFilters) pm.tags
+          else map (\x -> x.head) (String.uncons pm.name) == Just st.selectedPrefix
+      ) && (not showOnlyReports || hasReportForPackage st pm.name)
 
 hasReportForPackage :: State -> PackageName -> Boolean
 hasReportForPackage st pn =
