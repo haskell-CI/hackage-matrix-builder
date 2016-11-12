@@ -239,14 +239,34 @@ renderPackages state = do
   let headers = map fromCharCode (65..90)
   J.removeClass "active" tags
   setHtml "" tags
+  let showPrefix_ = showPrefix state onlyReports pkgList
 
   tagsCont <- tagsContent state onlyReports pkgList
   traverse_ (\t -> J.append t tags *> pure unit) tagsCont
---  -- page.find(".headers").append [...]
-  on "change" (\_ _ -> showPrefix state onlyReports pkgList) onlyReports
-  showPrefix state onlyReports pkgList
---  pure unit
+  traverse_ (\h ->
+    do t <- charHeader showPrefix_ h
+       J.append t headersEl) headers
+  on "change" (\_ _ -> showPrefix_) onlyReports
+  showPrefix_
   J.select "#page-packages" >>= J.display
+  where
+    charHeader ::
+         Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+      -> Char
+      -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) JQuery
+    charHeader showPrefix_ v = do
+      li :: JQuery <- J.create "<li>"
+      a <- J.create "<a>"
+      J.setAttr "data-prefix" v a
+      J.addClass "header" a
+      J.setAttr "href" "" a
+      J.setText (String.singleton v) a
+      click' (clickChar showPrefix_ v) a
+      J.append a li
+      pure li
+    clickChar showPrefix_ char _ev _el = do
+      modifySTRef state \st -> st { selectedPrefix = char }
+      showPrefix_
 
 click' :: forall e
    . (JQueryEvent -> JQuery -> Eff (console :: CONSOLE, dom :: DOM | e) Unit)
