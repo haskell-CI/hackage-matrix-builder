@@ -25,7 +25,6 @@ exports.delegate2 = function (_sel1) {
 };
 
 exports.delegate_ = function (el,  sel, eventName, cb) {
-  debugger;
   return function () {
     return $(el).delegate(sel, eventName, cb);
   };

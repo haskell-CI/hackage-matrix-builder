@@ -43,10 +43,23 @@ exports.latestReportByPackageName_ = function (api, pkgName, ok, err) {
   };
 };
 
-exports.packageByName_ = function (api, pkgName, ok, err) {
+exports.packageByName_ = function (api, pkgName, ok, err, normal, unPreferred, deprecated) {
   return function () {
     api.Package.byName(pkgName).get
-      ( function (v) { ok(v)(); }
+      ( function (v) {
+        v.versions = v.versions.map(function (w) {
+          return (
+            { version  : w.version
+            , revision : w.revision
+            , preference
+              : w.preference == "normal" ? normal
+              : w.preference == "unPreferred" ? unPreferred
+              : w.preference == "deprecated" ? deprecated
+              : (function () { throw new Error("Unexpected preference: " + JSON.stringify(w.preference)) })()
+            });
+        })
+        ok(v)();
+      }
       , function (e) { er(e)(); }
       );
   };
@@ -66,16 +79,16 @@ function fromRange (range) {
 exports.getVersionedPackageName_ = function (uri) {
   var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
   var m = uri.path().match(reg)
-  console.log("getVersionedPackageName", uri.path(), m, [RegExp.$1, RegExp.$2])
-  return (reg.test(uri.path())
-       && RegExp.$1 && RegExp.$2
-       && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
+  console.log("getVersionedPackageName", uri.path(), m, m && m[1], m && m[2])
+  return (m
+       && m[1] && m[2]
+       && { packageName : m[1], packageVersion : m[2] }
          ) || null;
 };
 
 exports.getPackageName_ = function (uri) {
   var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)$/
   var m = uri.path().match(reg)
-  console.log("getPackageName", uri.path(), m, RegExp.$1)
-  return (reg.test(uri.path()) && RegExp.$1) || null;
+  console.log("getPackageName", uri.path(), m, m && m[1])
+  return (m && m[1]) || null;
 };

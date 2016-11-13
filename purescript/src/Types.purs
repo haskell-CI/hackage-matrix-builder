@@ -1,12 +1,11 @@
 module Types where
 
--- import Data.Set (Set)
--- import Data.List (List)
+import Data.Eq
+import Data.Foreign.Undefined
+import Data.Generic
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
-import Data.Date (Date)
-import Data.Foreign.Undefined
 
 data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 
@@ -69,6 +68,8 @@ data Preference
   = Normal
   | UnPreferred
   | Deprecated
+
+derive instance eqPreference :: Eq Preference
 
 type GHCResult =
   { ghcVersion     :: VersionName

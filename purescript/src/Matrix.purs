@@ -102,17 +102,23 @@ packageByName :: forall e
   -> PackageName
   -> Aff (api :: API | e) Package
 packageByName api pkgName = makeAff \err succ ->
-  runFn4 packageByName_
+  runFn7 packageByName_
     api
     pkgName
     succ
     (stringyErr err "getting package by name failed")
+    Normal
+    UnPreferred
+    Deprecated
 
 foreign import packageByName_ :: forall eff .
-  Fn4 MatrixApi
+  Fn7 MatrixApi
       PackageName
-      (Package   -> ApiEff eff Unit)
+      (Package -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
+      Preference
+      Preference
+      Preference
       (ApiEff eff Unit)
 
 stringyErr :: forall e
@@ -120,7 +126,7 @@ stringyErr :: forall e
   -> String
   -> JQueryXHR
   -> Eff (api :: API | e) Unit
-stringyErr err s = err <<< const (error "Getting user failed")
+stringyErr err s = err <<< const (error s)
 
 getVersionedPackageName :: Uri -> Maybe { packageName :: PackageName, packageVersion :: VersionName }
 getVersionedPackageName = toMaybe <<< getVersionedPackageName_
