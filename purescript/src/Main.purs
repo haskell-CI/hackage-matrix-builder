@@ -440,3 +440,40 @@ selectedPackage state pkgName = do
 --     api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName, pkg), renderPackage.bind(null, pkgName, pkg, null));
 --   }, renderPackage.bind(null, pkgName, null, null, null));
 -- }
+
+renderPackage :: forall e
+   . PackageName
+  -> Maybe Package
+  -> Maybe Report
+  -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderPackage pkgName mp mr = unsafeThrow "renderPackage" {-do
+  hidePages
+  J.setText pkgName =<< J.select "#page-package .main-header"
+  J.setHtml "" =<< J.select "#package"
+
+  case Tuple mp mr of
+    Tuple (Just pkg) (Just report) -> do
+      renderTable pkgName pkg
+      let s = "Last build: " <> Misc.formatDate report.modified
+      J.setText s =<< J.select("#page-package .main-header-subtext.last-build")
+      renderSingleVersionMatrix pkgName pkg report
+      J.display =<< J.select ".package-header"
+      J.display =<< J.select ".logs-header"
+      J.hide =<< J.select "#package-not-built"
+    Tuple (Just pkg) Nothing -> do
+      J.hide =<< J.select ".package-header"
+      J.hide =<< J.select ".logs-header"
+      renderTable pkgName pkg
+      J.display =<< J.select "#package-not-built"
+    Tuple _ _ -> unsafeThrow "renderPackage case"
+  setupBuildQueuer pkgName
+  setupTagger pkgName
+  cleanupTabs
+  J.display =<< J.select "#buildreport"
+  J.display =<< J.select "#page-package"
+-}
+setupBuildQueuer = unsafeThrow "setupBuildQueuer"
+renderTable = unsafeThrow "renderTable"
+renderSingleVersionMatrix = unsafeThrow "renderSingleVersionMatrix"
+setupTagger = unsafeThrow "setupTagger"
+cleanupTabs = unsafeThrow "cleanupTabs"
