@@ -45,8 +45,6 @@ type AllEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, err :: EXC
 
 main :: forall e h. AllEffs e h Unit
 main = do
-  unsafeLog Nothing
-  unsafeLog (Just 1)
   api <- newApi "/api" "/api"
   log "main"
   ready do

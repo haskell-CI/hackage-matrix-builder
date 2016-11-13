@@ -26,28 +26,28 @@ data ReportMeta = ReportMeta
   , rmModified    :: String
   }
 
-data Report = Report
-  { rPackageName :: PackageName
-  , rModified    :: String
-  , rResults     :: Array GHCResult
+type Report =
+  { packageName :: PackageName
+  , modified    :: String
+  , results     :: Array GHCResult
   }
 
-data ShallowReport = ShallowReport
- { sPackageName :: PackageName
- , sModified    :: String
- , sResults     :: Array ShallowGhcResult
+type ShallowReport =
+ { packageName :: PackageName
+ , modified    :: String
+ , results     :: Array ShallowGhcResult
  }
 
-data ShallowGhcResult = ShallowGhcResult
-  { sGhcVersion     :: VersionName
-  , sGhcFullVersion :: VersionName
-  , sGhcResult      :: Array ShallowVersionResult
+type ShallowGhcResult =
+  { ghcVersion     :: VersionName
+  , ghcFullVersion :: VersionName
+  , ghcResult      :: Array ShallowVersionResult
   }
 
-data ShallowVersionResult = ShallowVersionResult
- { sPackageVersion  :: VersionName
- , sPackageRevision :: Revision
- , sResult          :: ShallowResult
+type ShallowVersionResult =
+ { packageVersion  :: VersionName
+ , packageRevision :: Revision
+ , result          :: ShallowResult
  }
 
 data ShallowResult
@@ -59,8 +59,7 @@ data ShallowResult
   | ShallowFail
   | ShallowFailDeps Word
 
-
-data VersionInfo = VersionInfo
+type VersionInfo =
   { version    :: VersionName
   , revision   :: Revision
   , preference :: Preference
@@ -71,21 +70,20 @@ data Preference
   | UnPreferred
   | Deprecated
 
-
-data GHCResult = GHCResult
+type GHCResult =
   { ghcVersion     :: VersionName
   , ghcFullVersion :: VersionName
   , resultsA       :: Array VersionResult
   , resultsB       :: Array (Tuple PkgVerPfx (Undefined VersionName))
   }
 
-data SingleResult = SingleResult
-  { srGhcVersion     :: VersionName
-  , srGhcFullVersion :: VersionName
-  , srResultA        :: Undefined VersionResult
+type SingleResult =
+  { ghcVersion     :: VersionName
+  , ghcFullVersion :: VersionName
+  , resultA        :: Undefined VersionResult
   }
 
-data VersionResult = VersionResult
+type VersionResult =
   { packageVersion  :: VersionName
   , packageRevision :: Revision
   , result          :: Result
@@ -100,15 +98,15 @@ data Result
   | Fail String
   | FailDeps (Array DepFailure)
 
-data DepFailure = DepFailure
-  { dfPackageName    :: PackageName
-  , dfPackageVersion :: VersionName
-  , dfMessage        :: String
+type DepFailure =
+  { packageName    :: PackageName
+  , packageVersion :: VersionName
+  , message        :: String
   }
 
-data Package = Package
-  { pName     :: PackageName
-  , pVersions :: Array VersionInfo
+type Package =
+  { name     :: PackageName
+  , versions :: Array VersionInfo
   }
 
 type Username = String
@@ -120,10 +118,10 @@ type User =
 
 -- TODO Remove prefixes
 
-data HackageUserRep = HackageUserRep
-  { hugroups   :: Array String
-  , huusername :: String
-  , huuserid   :: Word
+type HackageUserRep =
+  { groups   :: Array String
+  , username :: String
+  , userid   :: Word
   }
 
 type PackageName = String
