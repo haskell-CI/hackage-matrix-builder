@@ -47,11 +47,11 @@ type AllEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, err :: EXC
 
 main :: forall e h. AllEffs e h Unit
 main = do
-  api <- newApi "/api" "/api"
-  log "main"
-  ready do
-    log "Ready"
-    launchAff $ boot api
+ api <- newApi "/api" "/api"
+ log "main"
+ ready do
+   log "Ready"
+   launchAff $ boot api
 
 boot :: forall e h
    . MatrixApi
@@ -73,14 +73,6 @@ boot api = do
     log "Got everything from the API"
   setupRouting api state
   setupPicker api state
-
--- type State =
---   { allTags          :: Array Tag
---   , allPackages      :: Array PackageName
---   , allPackagesMore  :: Array PackageMeta
---   , activeTagFilters :: Array TagName
---   , selectedPrefix   :: Char
---   }
 
 setupRouting :: forall e h . MatrixApi -> STRef h State -> Aff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
 setupRouting api state = do
@@ -379,12 +371,11 @@ setupPicker api state = liftEff $ do
 --   }
 -- });
 
-
 showTag :: Tag -> String
 showTag t = "{ name : " <> show t.name <> ", packages : " <> show t.packages <> "}"
 
 ghcVersions :: Array String
-ghcVersions = ["7.0", "7.2", "7.4", "7.6", "7.8", "7.10", "8.0"]
+ghcVersions = ["8.0", "7.10", "7.8", "7.6", "7.4", "7.2", "7.0"]
 
 type State =
   { allTags          :: Array Tag
@@ -511,14 +502,7 @@ renderTable pkgName pkg = do
     J.setText ghcVersion th
     pure th
 
-  thead <- do
-    thead <- J.create "<thead>"
-    tr <- J.create "<tr>"
-    J.append corner tr
-    traverse (\h -> J.append h tr) headers
-    J.append tr thead
-    pure thead
-
+  thead <- J.create "<thead>"
   firstRow <- do
     tr <- J.create "<tr>"
     J.append corner tr
@@ -560,6 +544,7 @@ renderTable pkgName pkg = do
             J.setAttr "href" (hackageUrl pkgName versionName) a
             J.setText versionName a
             pure a
+
           supRevision <- case revision of
             0 -> pure Nothing
             rev -> do
@@ -577,12 +562,46 @@ renderTable pkgName pkg = do
           J.append aHackageUrl th
           traverse (\s -> J.append s th) supRevision
           pure th
+
+        tds <- flip traverse ghcVersions \ghcVersionName -> do
+          td <- J.create "<td>"
+          J.addClass "stcell" td
+          J.addClass "fail-unknown" td
+          J.setAttr "data-ghc-version" ghcVersionName td
+          J.setAttr "data-package-version" versionName td
+          pure td
+
         tr <- do
           tr <- J.create "<tr>"
           J.addClass "solver-row" tr
           J.append th tr
+          traverse_ (\x -> J.append x tr) tds
           pure tr
+
+        let prev = (\x -> splitVersion x.version) <$> (pkg.versions !! (row + 1))
+        let curr = splitVersion v.version
+
+        when (newMajor prev curr) do
+          J.addClass "first-major" tr
+        when (newMinor prev curr) do
+          J.addClass "first-minor" tr
+
         J.append tr t
+
+splitVersion :: VersionName -> Array String
+splitVersion v = String.split (String.Pattern ".") v
+
+newMajor :: Maybe (Array String) -> Array String -> Boolean
+newMajor ma b = case ma of
+  Nothing -> true
+  Just a -> (a !! 0) /= (b !! 0)
+         || (fromMaybe "0" (a !! 1) /= fromMaybe "0" (b !! 1))
+
+newMinor :: Maybe (Array String) -> Array String -> Boolean
+newMinor ma b = case ma of
+  Nothing -> true
+  Just a -> newMajor ma b
+         || ((fromMaybe "0" (a !! 2)) /= (fromMaybe "0" (b !! 2)))
 
 hdiffUrl :: PackageName -> VersionName -> Maybe VersionName -> Uri
 hdiffUrl pkgName versionName prevVersionName =
