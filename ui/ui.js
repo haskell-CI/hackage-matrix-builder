@@ -14,7 +14,7 @@
 
   function getVersionedPackageName (uri)
   {
-    var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
+    var reg = /^\/package\/((?:[^\/\d-][^\/-]*)(?:-(?:[^\/\d-][^\/-]*))*)-([\d.]+)$/ ;
     return (reg.test(uri.path())
          && RegExp.$1 && RegExp.$2
          && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
@@ -23,7 +23,7 @@
 
   function getPackageName (uri)
   {
-    var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)$/
+    var reg = /^\/package\/((?:[^\/\d-][^\/-]*)(?:-(?:[^\/\d-][^\/-]*))*)$/;
     return (reg.test(uri.path()) && RegExp.$1) || null;
 
   }
