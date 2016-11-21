@@ -8,13 +8,15 @@
   ],
   "dependencies": {
     "purescript-dom": "^3.1.0",
-    "purescript-foreign": "^3.0.0",
+    "purescript-foreign": "^3.0.1",
     "purescript-transformers": "^2.0.2",
     "purescript-sets": "^2.0.0",
     "purescript-prelude": "^2.1.0",
     "purescript-console": "^2.0.0",
     "purescript-jquery": "^3.0.0",
-    "purescript-arrays": "^3.0.0",
-    "purescript-aff": "^2.0.1"
+    "purescript-arrays": "^3.0.1",
+    "purescript-aff": "^2.0.1",
+    "purescript-globals": "^2.0.0",
+    "purescript-st": "^2.0.0"
   }
 }

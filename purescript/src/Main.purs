@@ -3,6 +3,7 @@ module Main (main) where
 import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Class
+import Unsafe.Coerce
 import Control.Monad.Eff.Console (CONSOLE, log, logShow)
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
@@ -22,16 +23,17 @@ import Data.Foreign.Undefined
 import Data.Function.Uncurried
 import Data.List ((..))
 import Data.List as List
-import Data.Map
+import Data.Map as Map
 import Data.Maybe
 import Data.Monoid
 import Data.Set (Set)
-import Data.StrMap
+import Data.StrMap as StrMap
 import Data.String as String
 import Data.String.Regex as R
 import Data.String.Regex.Flags as RF
 import Data.Traversable
 import Data.Tuple
+import Global as Global
 import Partial.Unsafe (unsafePartial)
 import Prelude
 
@@ -461,7 +463,7 @@ renderPackage pkgName pr = do
       renderTable pkgName pkg
       let s = "Last build: " <> Misc.formatDate report.modified
       J.setText s =<< J.select("#page-package .main-header-subtext.last-build")
-      -- renderSingleVersionMatrix pkgName pkg report
+      renderSingleVersionMatrix pkgName pkg report
       J.display =<< J.select ".package-header"
       J.display =<< J.select ".logs-header"
       J.hide =<< J.select "#package-not-built"
@@ -619,5 +621,53 @@ revisionsUrl :: PackageName -> VersionName -> Uri
 revisionsUrl pkgName versionName =
   Uri.newUri $ "https://hackage.haskell.org/package/" <> pkgName <> "-" <> versionName <> "/revisions"
 
--- renderSingleVersionMatrix :: forall e .PackageName -> Package -> Report -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
--- renderSingleVersionMatrix pkgName pkg report = unsafeThrow "renderSingleVersionMatrix"
+renderSingleVersionMatrix :: forall e
+   . PackageName
+  -> Package
+  -> Report
+  -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+renderSingleVersionMatrix pkgName pkg report = do
+  when (Array.null report.results) $ unsafeThrow "empty reports array"
+  flip traverseWithIndex report.results \i ghcResult -> do
+    let ghcVersionName = ghcResult.ghcVersion
+    let ghcFullVersionName = ghcResult.ghcFullVersion
+    flip traverseWithIndex ghcResult.resultsA \j versionResult -> do
+      versionName :: VersionName <- pure versionResult.packageVersion
+      revision :: Revision <- pure versionResult.packageRevision
+      res :: Result <- pure versionResult.result -- TODO Fix ADT deserialization
+
+      th <- J.select $ "#package .pkgv .revision[data-version='" <> versionName <> "']"
+      newestRevision <- Global.readInt 10 <$> Misc.getAttr "data-revision" th
+
+      unless (unsafeCoerce revision == newestRevision) $
+        J.addClass "newer-revision" th
+
+      mtd <- selectFirst $ "#package td[data-ghc-version='" <> ghcVersionName <> "'][data-package-version='" <> versionName <> "']"
+      td <- case mtd of
+        Nothing -> unsafeThrow $ "Could not find cell for "
+                <> (cellHash { packageName = pkgName
+                             , ghcVersion = ghcVersionName
+                             , packageVersion = versionName
+                             })
+        Just td -> pure td
+
+      let onlyHighlight = highlightCell ghcVersionName versionName
+      pure unit
+    pure unit
+  pure unit
+
+highlightCell :: forall e . VersionName -> VersionName -> Eff (dom :: DOM | e) Int
+highlightCell = do
+  pure $ unsafeThrow "highlightCell"
+
+traverseWithIndex :: forall a b m
+   . (Applicative m)
+  => (Int -> a -> m b)
+  -> Array a
+  -> m (Array b)
+traverseWithIndex f = sequence <<< Array.mapWithIndex f
+
+selectFirst :: forall e
+   . String
+  -> Eff (dom :: DOM | e) (Maybe JQuery)
+selectFirst = map Array.head <<< J.toArray <=< J.select
