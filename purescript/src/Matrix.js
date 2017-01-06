@@ -38,42 +38,43 @@ exports.latestReportByPackageName_ = function (api, pkgName, okF, err, ok, nop, 
   return function () {
     api.Package.byName(pkgName).Report.latest().get
       ( function (shallowReport) {
-        val v =
-          { packageName : shallowReport.packageName
-          , modified    : shallowReport.modified
-          , results     : shallowReport.results.map
-            ( function (shallowGhcResult) {
-              return(
-                { ghcVersion : shallowGhcResult.ghcVersion
-//                , ghcFullVersion : shallowGhcResult.ghcFullVersion
-//                , ghcResult : shallowGhcResult.ghcResult.map
-//                  ( function (shallowVersionResult) {
-//                    val s = shallowVersionResult;
-//                    return (
-//                      { packageVersion : s.packageVersion
-//                      , packageRevision : s.packageRevision
-//                      , result
-//                        : s.ok ? ok
-//                        : s.nop ? nop
-//                        : s.noIp ? noIp
-//                        : s.noIpBjLimit ? noIpBjLimit(s.noIpBjLimit)
-//                        : s.noIpFail ? noIpFail
-//                        : s.fail ? fail
-//                        : s.failDeps ? failDeps(s.failDeps)
-//                        : (function () { throw new Error("Unexpected ShallowVersionResult: " + JSON.stringify(s)) })()
-//                      });
-//                    }
-//                  )
-                });
-              }
-            )
-          };
-        okF(v)();
-      }
-      , function (e) { er(e)(); }
+          var v = (
+            { packageName : shallowReport.packageName
+            , modified    : shallowReport.modified
+            , results     : shallowReport.results.map
+              ( function (shallowGhcResult) {
+                  return(
+                    { ghcVersion : shallowGhcResult.ghcVersion
+                    , ghcFullVersion : shallowGhcResult.ghcFullVersion
+                    , ghcResult : shallowGhcResult.ghcResult.map
+                      ( function (shallowVersionResult) {
+                        var r = shallowVersionResult.result;
+                        return (
+                          { packageVersion : shallowVersionResult.packageVersion
+                          , packageRevision : shallowVersionResult.packageRevision
+                          , result
+                            : r.ok ? ok
+                            : r.nop ? nop
+                            : r.noIp ? noIp
+                            : r.noIpBjLimit ? noIpBjLimit(r.noIpBjLimit)
+                            : r.noIpFail ? noIpFail
+                            : r.fail ? fail
+                            : r.failDeps ? failDeps(r.failDeps)
+                            : (function () { throw new Error("Unexpected ShallowVersionResult: " + JSON.stringify(r)) })()
+                          });
+                      })
+                  });
+                }
+              )
+            });
+          okF(v)();
+        }
+      , function (e) { err(e)(); }
       );
   };
 };
+
+
 
 exports.packageByName_ = function (api, pkgName, ok, err, normal, unPreferred, deprecated) {
   return function () {

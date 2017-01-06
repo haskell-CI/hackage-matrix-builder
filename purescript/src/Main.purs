@@ -637,10 +637,16 @@ renderSingleVersionMatrix pkgName pkg report = do
       _ :: ShallowVersionResult <- pure versionResult
       versionName :: VersionName <- pure versionResult.packageVersion
       revision :: Revision <- pure versionResult.packageRevision
-      res :: ShallowResult <- pure versionResult.result -- TODO Fix ADT deserialization (?)
+      res :: ShallowResult <- pure versionResult.result
+      unsafeLog $ Tuple "res" res
 
-      th <- J.select $ "#package .pkgv .revision[data-version='" <> versionName <> "']"
+      let ss = "#package .pkgv .revision[data-version='" <> versionName <> "']"
+      th <- J.select $ ss
+      mth <- selectFirst $ ss
+      unsafeLog $ ss
+      unsafeLog $ Tuple "mth" mth
       newestRevision <- Global.readInt 10 <$> Misc.getAttr "data-revision" th
+      unsafeLog $ Tuple "newestRevision" newestRevision
 
       unless (unsafeCoerce revision == newestRevision) $
         J.addClass "newer-revision" th
@@ -654,9 +660,31 @@ renderSingleVersionMatrix pkgName pkg report = do
                              })
         Just td -> pure td
 
-      let onlyHighlight = highlightCell ghcVersionName versionName
       J.removeClass "fail-unknown" td
-      -- unsafeLog (Tuple "res" res (res == )
+      let f cls txt = do
+            J.addClass cls td
+            J.setText txt td
+      let onlyHighlight = highlightCell ghcVersionName versionName
+      let onlyHighlightClick = click' (\_ _ -> onlyHighlight) td
+      case res of
+        ShallowOk -> do
+          f "pass-build" "OK"
+          onlyHighlightClick
+        ShallowNop -> do
+          f "pass-no-op" "OK (boot)"
+          onlyHighlightClick
+        ShallowNoIp -> do
+          f "pass-no-ip" "OK (no-ip)"
+          onlyHighlightClick
+        ShallowNoIpBjLimit w -> do
+          f "fail-bj" ("FAIL (BJ " <> show w <> ")")
+          onlyHighlightClick
+        ShallowNoIpFail -> do
+          f "fail-no-ip" "FAIL (no-ip)"
+        ShallowFail ->
+          f "fail-build" "FAIL (pkg)"
+        ShallowFailDeps w ->
+          f "Fail-dep-build" ("FAIL (" <> show w <> " deps)")
       pure unit
     pure unit
   pure unit
