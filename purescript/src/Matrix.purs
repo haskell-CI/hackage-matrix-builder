@@ -82,20 +82,35 @@ foreign import packageList_ :: forall eff .
 latestReportByPackageName :: forall e
    . MatrixApi
   -> PackageName
-  -> Aff (api :: API | e) Report
+  -> Aff (api :: API | e) ShallowReport
 latestReportByPackageName api pkgName = makeAff \err succ ->
-  runFn4 latestReportByPackageName_
+  runFn11
+    latestReportByPackageName_
     api
     pkgName
     succ
     (stringyErr err "getting latest report by package name failed")
+    ShallowOk
+    ShallowNop
+    ShallowNoIp
+    ShallowNoIpBjLimit
+    ShallowNoIpFail
+    ShallowFail
+    ShallowFailDeps
 
 foreign import latestReportByPackageName_ :: forall eff .
-  Fn4 MatrixApi
-      PackageName
-      (Report    -> ApiEff eff Unit)
-      (JQueryXHR -> ApiEff eff Unit)
-      (ApiEff eff Unit)
+  Fn11 MatrixApi
+       PackageName
+       (ShallowReport -> ApiEff eff Unit)
+       (JQueryXHR     -> ApiEff eff Unit)
+       ShallowResult
+       ShallowResult
+       ShallowResult
+       (Int -> ShallowResult)
+       ShallowResult
+       ShallowResult
+       (Int -> ShallowResult)
+       (ApiEff eff Unit)
 
 packageByName :: forall e
    . MatrixApi
@@ -137,3 +152,7 @@ getPackageName :: Uri -> Maybe PackageName
 getPackageName = toMaybe <<< getPackageName_
 
 foreign import getPackageName_ :: Uri -> Nullable PackageName
+
+foreign import data Fn11 :: * -> * -> * -> * -> * -> * -> * -> * -> * -> * -> * -> * -> *
+
+foreign import runFn11 :: forall a b c d e f g h i j k l. Fn11 a b c d e f g h i j k l -> a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l

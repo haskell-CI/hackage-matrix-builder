@@ -4,7 +4,7 @@ import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Class
 import Unsafe.Coerce
-import Control.Monad.Eff.Console (CONSOLE, log, logShow)
+import Control.Monad.Eff.Console (CONSOLE, log, logShow, warn)
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
 import Control.Monad.Eff.JQuery
@@ -422,15 +422,15 @@ selectedPackage api state pkgName = do
     else do
       log $ "found package: " <> pkgName
       void $ runAff onErr onOk $ do
-        p :: Either Error Package <- attempt $ Api.packageByName api pkgName
-        r :: Either Error Report <- attempt $ Api.latestReportByPackageName api pkgName
+        p :: Either Error Package       <- attempt $ Api.packageByName api pkgName
+        r :: Either Error ShallowReport <- attempt $ Api.latestReportByPackageName api pkgName
         pure { package : p, report : r }
   where
     onErr :: forall e1 . Error -> Eff (console :: CONSOLE | e1) Unit
     onErr e = unsafeLog { a : "onErr", error: e }
     onOk :: forall e2
        . { package :: Either Error Package
-         , report  :: Either Error Report
+         , report  :: Either Error ShallowReport
          }
       -> Eff (console :: CONSOLE, dom :: DOM | e2) Unit
     onOk pr = renderPackage pkgName $ either (const Nothing) (\p' -> Just { package : p', report : eToMay pr.report }) pr.package
@@ -451,7 +451,7 @@ eToMay = either (const Nothing) Just
 
 renderPackage :: forall e
    . PackageName
-  -> Maybe { package :: Package, report :: Maybe Report }
+  -> Maybe { package :: Package, report :: Maybe ShallowReport }
   -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderPackage pkgName pr = do
   hidePages
@@ -624,17 +624,20 @@ revisionsUrl pkgName versionName =
 renderSingleVersionMatrix :: forall e
    . PackageName
   -> Package
-  -> Report
+  -> ShallowReport
   -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderSingleVersionMatrix pkgName pkg report = do
-  when (Array.null report.results) $ unsafeThrow "empty reports array"
+  when (Array.null report.results) $ warn "empty reports array"
   flip traverseWithIndex report.results \i ghcResult -> do
-    let ghcVersionName = ghcResult.ghcVersion
+    g :: ShallowGhcResult <- pure ghcResult
+    unsafeLog (Tuple i ghcResult)
+    let ghcVersionName = ghcResult.ghcVersion :: String
     let ghcFullVersionName = ghcResult.ghcFullVersion
-    flip traverseWithIndex ghcResult.resultsA \j versionResult -> do
+    flip traverseWithIndex ghcResult.ghcResult \j versionResult -> do
+      _ :: ShallowVersionResult <- pure versionResult
       versionName :: VersionName <- pure versionResult.packageVersion
       revision :: Revision <- pure versionResult.packageRevision
-      res :: Result <- pure versionResult.result -- TODO Fix ADT deserialization
+      res :: ShallowResult <- pure versionResult.result -- TODO Fix ADT deserialization (?)
 
       th <- J.select $ "#package .pkgv .revision[data-version='" <> versionName <> "']"
       newestRevision <- Global.readInt 10 <$> Misc.getAttr "data-revision" th
@@ -645,20 +648,27 @@ renderSingleVersionMatrix pkgName pkg report = do
       mtd <- selectFirst $ "#package td[data-ghc-version='" <> ghcVersionName <> "'][data-package-version='" <> versionName <> "']"
       td <- case mtd of
         Nothing -> unsafeThrow $ "Could not find cell for "
-                <> (cellHash { packageName = pkgName
-                             , ghcVersion = ghcVersionName
-                             , packageVersion = versionName
+                <> (cellHash { packageName : pkgName
+                             , ghcVersion : ghcVersionName
+                             , packageVersion : "versionName"
                              })
         Just td -> pure td
 
       let onlyHighlight = highlightCell ghcVersionName versionName
+      J.removeClass "fail-unknown" td
+      -- unsafeLog (Tuple "res" res (res == )
       pure unit
     pure unit
   pure unit
 
-highlightCell :: forall e . VersionName -> VersionName -> Eff (dom :: DOM | e) Int
-highlightCell = do
-  pure $ unsafeThrow "highlightCell"
+highlightCell :: forall e . VersionName -> VersionName -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+highlightCell ghcVersion packageVersion = do
+  J.removeClass "highlight" =<< J.select "#page-package .stcell.highlight"
+  tableCell <- selectFirst $ "#page-package .stcell[data-package-version='" <> packageVersion <> "'][data-ghc-version='" <> ghcVersion <> "']"
+  case tableCell of
+    Nothing -> warn $ "Could not find table cell for highlighting, ghcVersion: " <> ghcVersion <> ", packageVersion: " <> packageVersion
+    Just c -> J.addClass "highlight" c
+  pure unit
 
 traverseWithIndex :: forall a b m
    . (Applicative m)

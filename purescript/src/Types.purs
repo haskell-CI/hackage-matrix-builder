@@ -43,6 +43,13 @@ type ShallowGhcResult =
   , ghcResult      :: Array ShallowVersionResult
   }
 
+type GHCResult =
+  { ghcVersion     :: VersionName
+  , ghcFullVersion :: VersionName
+  , results        :: Array VersionResult
+  , resultsB       :: Array (Tuple PkgVerPfx (Undefined VersionName))
+  }
+
 type ShallowVersionResult =
  { packageVersion  :: VersionName
  , packageRevision :: Revision
@@ -70,13 +77,6 @@ data Preference
   | Deprecated
 
 derive instance eqPreference :: Eq Preference
-
-type GHCResult =
-  { ghcVersion     :: VersionName
-  , ghcFullVersion :: VersionName
-  , resultsA       :: Array VersionResult
-  , resultsB       :: Array (Tuple PkgVerPfx (Undefined VersionName))
-  }
 
 type SingleResult =
   { ghcVersion     :: VersionName

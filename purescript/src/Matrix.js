@@ -34,10 +34,42 @@ exports.packageList_ = function (api, range, ok, err) {
   };
 };
 
-exports.latestReportByPackageName_ = function (api, pkgName, ok, err) {
+exports.latestReportByPackageName_ = function (api, pkgName, okF, err, ok, nop, noIp, noIpBjLimit, noIpFail, fail, failDeps) {
   return function () {
     api.Package.byName(pkgName).Report.latest().get
-      ( function (v) { ok(v)(); }
+      ( function (shallowReport) {
+        val v =
+          { packageName : shallowReport.packageName
+          , modified    : shallowReport.modified
+          , results     : shallowReport.results.map
+            ( function (shallowGhcResult) {
+              return(
+                { ghcVersion : shallowGhcResult.ghcVersion
+//                , ghcFullVersion : shallowGhcResult.ghcFullVersion
+//                , ghcResult : shallowGhcResult.ghcResult.map
+//                  ( function (shallowVersionResult) {
+//                    val s = shallowVersionResult;
+//                    return (
+//                      { packageVersion : s.packageVersion
+//                      , packageRevision : s.packageRevision
+//                      , result
+//                        : s.ok ? ok
+//                        : s.nop ? nop
+//                        : s.noIp ? noIp
+//                        : s.noIpBjLimit ? noIpBjLimit(s.noIpBjLimit)
+//                        : s.noIpFail ? noIpFail
+//                        : s.fail ? fail
+//                        : s.failDeps ? failDeps(s.failDeps)
+//                        : (function () { throw new Error("Unexpected ShallowVersionResult: " + JSON.stringify(s)) })()
+//                      });
+//                    }
+//                  )
+                });
+              }
+            )
+          };
+        okF(v)();
+      }
       , function (e) { er(e)(); }
       );
   };
@@ -60,7 +92,7 @@ exports.packageByName_ = function (api, pkgName, ok, err, normal, unPreferred, d
         })
         ok(v)();
       }
-      , function (e) { er(e)(); }
+      , function (e) { err(e)(); }
       );
   };
 };
@@ -91,4 +123,30 @@ exports.getPackageName_ = function (uri) {
   var m = uri.path().match(reg)
   console.log("getPackageName", uri.path(), m, m && m[1])
   return (m && m[1]) || null;
+};
+
+exports.runFn11 = function (fn) {
+  return function (a) {
+    return function (b) {
+      return function (c) {
+        return function (d) {
+          return function (e) {
+            return function (f) {
+              return function (g) {
+                return function (h) {
+                  return function (i) {
+                    return function (j) {
+                      return function (k) {
+                        return fn(a, b, c, d, e, f, g, h, i, j, k);
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+  };
 };
