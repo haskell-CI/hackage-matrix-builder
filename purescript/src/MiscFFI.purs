@@ -115,3 +115,5 @@ undefine :: forall a . Undefined a -> Maybe a
 undefine u = undefine_ u Nothing (Just unit)
 
 foreign import undefine_ :: forall a b . Undefined a -> Maybe b -> Maybe b -> Maybe a
+
+foreign import tabs :: forall e . JQuery -> Eff (dom :: DOM | e) Unit

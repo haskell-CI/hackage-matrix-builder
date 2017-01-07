@@ -110,3 +110,9 @@ exports.undefine_ = function (a) {
     };
   };
 };
+
+exports.tabs = function (t) {
+  return function () {
+    t.tabs();
+  };
+};

@@ -81,7 +81,7 @@ derive instance eqPreference :: Eq Preference
 type SingleResult =
   { ghcVersion     :: VersionName
   , ghcFullVersion :: VersionName
-  , resultA        :: Undefined VersionResult
+  , resultA        :: Maybe VersionResult
   }
 
 type VersionResult =
@@ -137,6 +137,15 @@ type PkgVerPfx = Array Word
 
 type Word = Int
 
-type ApiList a = { offset :: Int, count :: Int, items :: Array a }
+type ApiList a =
+  { offset :: Int
+  , count :: Int
+  , items :: Array a
+  }
 
-type Range = { count :: Undefined Int, offset :: Undefined Int }
+type Range =
+  { count :: Undefined Int
+  , offset :: Undefined Int
+  }
+
+type Cell = String

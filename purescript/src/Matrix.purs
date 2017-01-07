@@ -59,7 +59,10 @@ packageList :: forall e
   -> Range
   -> Aff (api :: API | e) (ApiList PackageMeta)
 packageList api range = makeAff \err succ ->
-  runFn4 packageList_ api range
+  runFn4
+    packageList_
+    api
+    range
     (\pms -> succ $ pms { items = map packageMetaFromFFI pms.items })
     (stringyErr err "Getting package list failed")
   where
@@ -78,6 +81,47 @@ foreign import packageList_ :: forall eff .
       (ApiList PackageMetaFFI -> ApiEff eff Unit)
       (JQueryXHR              -> ApiEff eff Unit)
       (ApiEff eff Unit)
+
+singleResult :: forall e
+  . MatrixApi
+  -> PackageName
+  -> Cell
+  -> Aff (api :: API | e) SingleResult
+singleResult api pkgName cell = makeAff \err succ ->
+  runFn14
+    singleResult_
+    api
+    pkgName
+    cell
+    succ
+    (stringyErr err "Getting single result failed")
+    Nothing
+    Just
+    Ok
+    Nop
+    NoIp
+    NoIpBjLimit
+    NoIpFail
+    Fail
+    FailDeps
+
+foreign import singleResult_ :: forall eff .
+  Fn14
+    MatrixApi
+    PackageName
+    Cell
+    (SingleResult -> ApiEff eff Unit)
+    (JQueryXHR    -> ApiEff eff Unit)
+    (Maybe VersionResult)
+    (VersionResult -> Maybe VersionResult)
+    Result
+    Result
+    Result
+    (Int -> Result)
+    ({ err :: String, out :: String } -> Result)
+    (String -> Result)
+    (Array DepFailure -> Result)
+    (ApiEff eff Unit)
 
 latestReportByPackageName :: forall e
    . MatrixApi
@@ -153,6 +197,57 @@ getPackageName = toMaybe <<< getPackageName_
 
 foreign import getPackageName_ :: Uri -> Nullable PackageName
 
-foreign import data Fn11 :: * -> * -> * -> * -> * -> * -> * -> * -> * -> * -> * -> * -> *
+foreign import data Fn11
+  :: *
+  -> * -> * -> * -> * -> * -> *
+  -> * -> * -> * -> * -> *
+  -> *
 
-foreign import runFn11 :: forall a b c d e f g h i j k l. Fn11 a b c d e f g h i j k l -> a -> b -> c -> d -> e -> f -> g -> h -> i -> j -> k -> l
+foreign import runFn11 :: forall a b c d e f g h i j k l
+             . Fn11 a b c d e f g h i j k l
+  -> a -> b -> c -> d -> e -> f
+  -> g -> h -> i -> j -> k
+  -> l
+
+foreign import data Fn12
+  :: *
+  -> * -> * -> * -> *
+  -> * -> * -> * -> *
+  -> * -> * -> * -> *
+  -> *
+
+foreign import runFn12 :: forall a b c d e f g h i j k l m
+             . Fn12 a b c d e f g h i j k l m
+  -> a -> b -> c -> d
+  -> e -> f -> g -> h
+  -> i -> j -> k -> l
+  -> m
+
+
+foreign import data Fn13
+  :: *
+  -> * -> * -> * -> *
+  -> * -> * -> * -> *
+  -> * -> * -> * -> * -> *
+  -> *
+
+foreign import runFn13 :: forall a b c d e f g h i j k l m n
+             . Fn13 a b c d e f g h i j k l m n
+  -> a -> b -> c -> d
+  -> e -> f -> g -> h
+  -> i -> j -> k -> l -> m
+  -> n
+
+foreign import data Fn14
+  :: *
+  -> * -> * -> * -> *
+  -> * -> * -> * -> *
+  -> * -> * -> * -> * -> * -> *
+  -> *
+
+foreign import runFn14 :: forall a b c d e f g h i j k l m n o
+             . Fn14 a b c d e f g h i j k l m n o
+  -> a -> b -> c -> d
+  -> e -> f -> g -> h
+  -> i -> j -> k -> l -> m -> n
+  -> o

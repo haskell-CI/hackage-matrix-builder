@@ -45,9 +45,9 @@ import Types
 import Uri (Uri, newUri)
 import Uri as Uri
 
-type AllEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, err :: EXCEPTION, st :: ST h) o
+type MainEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) o
 
-main :: forall e h. AllEffs e h Unit
+main :: forall e h. MainEffs (err :: EXCEPTION | e) h Unit
 main = do
  api <- newApi "/api" "/api"
  log "main"
@@ -217,7 +217,7 @@ renderLatest state = do
   log "renderLatest"
   pure unit
 
-renderPackages :: forall e h . STRef h State -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+renderPackages :: forall e h . STRef h State -> MainEffs e h Unit
 renderPackages state = do
   log "renderPackages"
   hidePages
@@ -245,9 +245,9 @@ renderPackages state = do
   J.select "#page-packages" >>= J.display
   where
     charHeader ::
-         Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+         Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
       -> Char
-      -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) JQuery
+      -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) JQuery
     charHeader showPrefix_ v = do
       li :: JQuery <- J.create "<li>"
       a <- J.create "<a>"
@@ -258,27 +258,34 @@ renderPackages state = do
       click' (clickChar showPrefix_ v) a
       J.append a li
       pure li
+    clickChar ::
+         Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+      -> Char
+      -> JQueryEvent
+      -> JQuery
+      -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
     clickChar showPrefix_ char _ev _el = do
       modifySTRef state \st -> st { selectedPrefix = char }
       showPrefix_
 
+-- TODO: Shouldn't need to mention the api effect
 click' :: forall e
-   . (JQueryEvent -> JQuery -> Eff (console :: CONSOLE, dom :: DOM | e) Unit)
+   . (JQueryEvent -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit)
   -> JQuery
-  -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+  -> Eff (api :: API, console :: CONSOLE, dom :: DOM | e) Unit
 click' f = on "click" (\ev el -> stopPropagation ev *> preventDefault ev *> f ev el)
 
-tagsContent :: forall e h . STRef h State -> JQuery -> JQuery -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) (Array JQuery)
+tagsContent :: forall e h . STRef h State -> JQuery -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) (Array JQuery)
 tagsContent state onlyReports pkgList = do
   st <- readSTRef state
   traverse renderedTag <<< Array.filter (\t -> Array.length t.packages > 0) $ st.allTags
   where
-    renderedTag :: Tag -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) JQuery
+    renderedTag :: Tag -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) JQuery
     renderedTag t = do
       el <- renderTag t.name
       click' click el
       pure el
-    click :: JQueryEvent -> JQuery -> Eff (console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+    click :: JQueryEvent -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
     click ev el = do
       unsafeLog { ev : ev, el : el }
       tagEl :: JQuery <- Misc.selectElement =<< Misc.target ev
@@ -426,34 +433,24 @@ selectedPackage api state pkgName = do
         r :: Either Error ShallowReport <- attempt $ Api.latestReportByPackageName api pkgName
         pure { package : p, report : r }
   where
-    onErr :: forall e1 . Error -> Eff (console :: CONSOLE | e1) Unit
+    onErr :: forall e1 h1 . Error -> MainEffs e1 h1 Unit
     onErr e = unsafeLog { a : "onErr", error: e }
-    onOk :: forall e2
+    onOk :: forall e2 h2
        . { package :: Either Error Package
          , report  :: Either Error ShallowReport
          }
-      -> Eff (console :: CONSOLE, dom :: DOM | e2) Unit
-    onOk pr = renderPackage pkgName $ either (const Nothing) (\p' -> Just { package : p', report : eToMay pr.report }) pr.package
-
--- function selectedPackage (pkgName) {
---   $("#select-package").val(pkgName);
---   if (window.allPackages.indexOf(pkgName) === -1) {
---     renderNotFound(pkgName);
---     return;
---   }
---   api.Package.byName(pkgName).get(function (pkg) {
---     api.Package.byName(pkgName).Report.latest().get(renderPackage.bind(null, pkgName, pkg), renderPackage.bind(null, pkgName, pkg, null));
---   }, renderPackage.bind(null, pkgName, null, null, null));
--- }
+      -> MainEffs e2 h2 Unit
+    onOk pr = renderPackage api pkgName $ either (const Nothing) (\p' -> Just { package : p', report : eToMay pr.report }) pr.package
 
 eToMay :: forall e a . Either e a -> Maybe a
 eToMay = either (const Nothing) Just
 
-renderPackage :: forall e
-   . PackageName
+renderPackage :: forall e h
+   . MatrixApi
+  -> PackageName
   -> Maybe { package :: Package, report :: Maybe ShallowReport }
-  -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
-renderPackage pkgName pr = do
+  -> MainEffs e h Unit
+renderPackage api pkgName pr = do
   hidePages
   J.setText pkgName =<< J.select "#page-package .main-header"
   J.setHtml "" =<< J.select "#package"
@@ -463,7 +460,7 @@ renderPackage pkgName pr = do
       renderTable pkgName pkg
       let s = "Last build: " <> Misc.formatDate report.modified
       J.setText s =<< J.select("#page-package .main-header-subtext.last-build")
-      renderSingleVersionMatrix pkgName pkg report
+      renderSingleVersionMatrix api pkgName pkg report
       J.display =<< J.select ".package-header"
       J.display =<< J.select ".logs-header"
       J.hide =<< J.select "#package-not-built"
@@ -475,7 +472,7 @@ renderPackage pkgName pr = do
     Nothing -> unsafeThrow "renderPackage didn't get a Package"
 --  setupBuildQueuer pkgName
 --  setupTagger pkgName
---  cleanupTabs
+  cleanupTabs
   J.display =<< J.select "#buildreport"
   J.display =<< J.select "#page-package"
 
@@ -483,8 +480,6 @@ renderPackage pkgName pr = do
 setupBuildQueuer _pkgName = unsafeThrow "setupBuildQueuer"
 
 setupTagger _pkgName = unsafeThrow "setupTagger"
--- cleanupTabs :: forall e . Eff (console :: CONSOLE, dom :: DOM | e) Unit
--- cleanupTabs = unsafeThrow "cleanupTabs"
 
 renderTable :: forall e .PackageName -> Package -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderTable pkgName pkg = do
@@ -621,12 +616,13 @@ revisionsUrl :: PackageName -> VersionName -> Uri
 revisionsUrl pkgName versionName =
   Uri.newUri $ "https://hackage.haskell.org/package/" <> pkgName <> "-" <> versionName <> "/revisions"
 
-renderSingleVersionMatrix :: forall e
-   . PackageName
+renderSingleVersionMatrix :: forall e h
+   . MatrixApi
+  -> PackageName
   -> Package
   -> ShallowReport
-  -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
-renderSingleVersionMatrix pkgName pkg report = do
+  -> MainEffs e h Unit
+renderSingleVersionMatrix api pkgName pkg report = do
   when (Array.null report.results) $ warn "empty reports array"
   flip traverseWithIndex report.results \i ghcResult -> do
     g :: ShallowGhcResult <- pure ghcResult
@@ -681,13 +677,143 @@ renderSingleVersionMatrix pkgName pkg report = do
           onlyHighlightClick
         ShallowNoIpFail -> do
           f "fail-no-ip" "FAIL (no-ip)"
-        ShallowFail ->
+          noIpFailClick pkgName td
+        ShallowFail -> do
           f "fail-build" "FAIL (pkg)"
-        ShallowFailDeps w ->
-          f "Fail-dep-build" ("FAIL (" <> show w <> " deps)")
+          failClick api pkgName td
+        ShallowFailDeps w -> do
+          f "fail-dep-build" ("FAIL (" <> show w <> " deps)")
+          failDepsClick td
       pure unit
     pure unit
   pure unit
+
+-- TODO untested
+noIpFailClick :: forall e h . PackageName -> JQuery -> MainEffs e h Unit
+noIpFailClick pkgName td = do
+  click' f td
+  where
+    f ev _el = do
+      el <- Misc.selectElement =<< Misc.target ev
+      ghcVersion <- Misc.getAttr "data-ghc-version" el
+      packageVersion <- Misc.getAttr "data-package-version" el
+      let p = { packageName : pkgName
+              , ghcVersion : ghcVersion
+              , packageVersion : packageVersion
+              }
+      setHash $ cellHash p
+      setupFailTabs p ""
+      {- (r.err <> "\n" <> r.out) -}
+
+failClick :: forall e h . MatrixApi -> PackageName -> JQuery -> MainEffs e h Unit
+failClick api pkgName td = do
+  click' f td
+  where
+    f ev _el = do
+      el <- Misc.selectElement =<< Misc.target ev
+      ghcVersion <- Misc.getAttr "data-ghc-version" el
+      packageVersion <- Misc.getAttr "data-package-version" el
+      let p = { packageName : pkgName
+              , ghcVersion : ghcVersion
+              , packageVersion : packageVersion
+              }
+      let ident = ghcVersion <> "-" <> packageVersion
+      setHash $ cellHash p
+      void <<< runAff onErr (onOk p) $ do
+        res <- Api.singleResult api pkgName ident
+        liftEff $ unsafeLog { a: "aff", res: res }
+        pure res
+    onOk :: forall e2 h2
+       . { ghcVersion :: VersionName
+         , packageName :: PackageName
+         , packageVersion :: VersionName
+         }
+      -> SingleResult
+      -> MainEffs e2 h2 Unit
+    onOk p sr = do
+      unsafeLog $ Tuple "onOk SingleResult" sr
+      case sr.resultA of
+        Nothing -> unsafeLog "resultA was Nothing"
+        Just vr ->
+          case vr.result of
+            Fail err -> do
+              unsafeLog "Successfully fetched SingleResult"
+              setupFailTabs p err
+            r -> unsafeLog
+              { a : "Unexpected result, wanted Fail but got: "
+              , result: vr
+              }
+      pure unit
+    onErr e = unsafeLog
+      { a     : "Loading cell data failed"
+      , error : e
+      }
+
+failDepsClick :: forall e . JQuery -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+failDepsClick td = pure unit
+
+setHash :: forall e . String -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
+setHash hash = pure unit
+-- function setHash (hash)
+-- {
+--   var uri = new Uri(window.location.href);
+--   if (uri.anchor() == hash) {
+--     return;
+--   }
+--   uri.anchor(hash);
+--   window.history.replaceState(null, "", uri.toString());
+-- }
+
+setupFailTabs :: forall e h
+   . { ghcVersion :: VersionName
+     , packageName :: PackageName
+     , packageVersion :: VersionName
+     }
+  -> String
+  -> MainEffs e h Unit
+setupFailTabs p r = do
+  unsafeLog "setupFailTabs"
+  pre <- J.create "<pre>"
+  J.addClass "log-entry" pre
+  J.setText r pre
+  let label = cellHash p
+  setupTabs [{ label : label, contents : pre }]
+  highlightCell p.ghcVersion p.packageVersion
+
+setupTabs :: forall e h . Array { label :: String, contents :: JQuery } -> MainEffs e h Unit
+setupTabs messages = do
+  unsafeLog "setupTabs"
+  cleanupTabs
+  tabs <- do
+    tabs <- J.create "<div>"
+    J.setAttr "id" "tabs" tabs
+    pure tabs
+  ul <- J.create "<ul>"
+  headers <- flip traverseWithIndex messages \i v -> do
+    a <- do
+      a <- J.create "<a>"
+      let fragment = "#fragment-" <> show (i + 1)
+      J.setAttr "href" fragment a
+      J.setText v.label a
+      pure a
+    li <- J.create "<li>"
+    J.append a li
+    pure li
+  content <- flip traverseWithIndex messages \i v -> do
+    div <- J.create "<div>"
+    let fragment = "fragment-" <> show (i + 1)
+    J.setAttr "id" fragment div
+    J.append v.contents div
+    pure div
+  traverse_ (\h -> J.append h ul) headers
+  J.append ul tabs
+  traverse (\c -> J.append c tabs) content
+  Misc.tabs tabs
+  tabsContainer <- J.select "#tabs-container"
+  J.append tabs tabsContainer
+
+cleanupTabs :: forall e h . MainEffs e h Unit
+cleanupTabs = J.setHtml "" =<< J.select "#tabs-container"
 
 highlightCell :: forall e . VersionName -> VersionName -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 highlightCell ghcVersion packageVersion = do
