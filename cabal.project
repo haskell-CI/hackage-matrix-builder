@@ -4,5 +4,10 @@ packages: cabal/Cabal/
 tests: false
 benchmarks: false
 
--- workaround cabal new-build bug
-constraints: setup.cabal-doctest <0
+-- workaround https://github.com/haskell/cabal/issues/4432
+constraints: setup.Cabal <1.25
+
+allow-newer: Cabal:directory
+
+package Cabal
+  flags: -old-directory
