@@ -7,16 +7,16 @@
     "output"
   ],
   "dependencies": {
-    "purescript-dom": "^3.1.0",
-    "purescript-foreign": "^3.0.1",
-    "purescript-transformers": "^2.0.2",
-    "purescript-sets": "^2.0.0",
-    "purescript-prelude": "^2.1.0",
-    "purescript-console": "^2.0.0",
-    "purescript-jquery": "^3.0.0",
-    "purescript-arrays": "^3.0.1",
-    "purescript-aff": "^2.0.1",
-    "purescript-globals": "^2.0.0",
-    "purescript-st": "^2.0.0"
+    "purescript-dom": "^3.8.1",
+    "purescript-foreign": "^4.0.0",
+    "purescript-transformers": "^3.1.0",
+    "purescript-sets": "^3.0.0",
+    "purescript-prelude": "^3.0.0",
+    "purescript-console": "^3.0.0",
+    "purescript-jquery": "^3.1.0",
+    "purescript-arrays": "^4.0.1",
+    "purescript-aff": "^2.0.3",
+    "purescript-globals": "^3.0.0",
+    "purescript-st": "^3.0.0"
   }
 }

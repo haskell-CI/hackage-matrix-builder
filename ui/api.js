@@ -205,24 +205,24 @@ MatrixApi.prototype.Package.byName =
     accessor.get =
       function (success, error, params, callOpts)
       {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
   };
 MatrixApi.prototype.Package.list =
   function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list/', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list/', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Package.listLatestReports =
   function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list-latest-reports/', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list-latest-reports/', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Package.prototype.tags =
   function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + 'tags/', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + 'tags/', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Package.prototype.Report =
   function Report (url, secureUrl, modifyRequest)
@@ -245,7 +245,7 @@ MatrixApi.prototype.Package.prototype.Report.latest =
     accessor.get =
       function (success, error, params, callOpts)
       {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
   };
@@ -270,7 +270,7 @@ MatrixApi.prototype.Package.prototype.Report.prototype.Cell.byId =
     accessor.get =
       function (success, error, params, callOpts)
       {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
   };
@@ -295,39 +295,39 @@ MatrixApi.prototype.Queue.byName =
     accessor.get =
       function (success, error, params, callOpts)
       {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
   };
 MatrixApi.prototype.Queue.saveByName =
   function (string, json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/' + encodeURIComponent(string) + '/', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/' + encodeURIComponent(string) + '/', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Queue.saveManyByName =
   function (json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Queue.removeManyByName =
   function (json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("DELETE", this.contextUrl + 'name/', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("DELETE", this.contextUrl + 'name/', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Queue.list =
   function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list/', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list/', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Queue.create =
   function (json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + '', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Queue.prototype.remove =
   function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("DELETE", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("DELETE", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Tag =
   function Tag (url, secureUrl, modifyRequest)
@@ -350,34 +350,34 @@ MatrixApi.prototype.Tag.byName =
     accessor.get =
       function (success, error, params, callOpts)
       {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
   };
 MatrixApi.prototype.Tag.saveByName =
   function (string, json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/' + encodeURIComponent(string) + '/', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/' + encodeURIComponent(string) + '/', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Tag.saveManyByName =
   function (json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("PUT", this.contextUrl + 'name/', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Tag.removeManyByName =
   function (json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("DELETE", this.contextUrl + 'name/', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("DELETE", this.contextUrl + 'name/', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Tag.list =
   function (success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list/', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("POST", this.contextUrl + 'list/', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.Tag.prototype.remove =
   function (json, success, error, params, callOpts)
   {
-    return MatrixApi.ajaxCall("DELETE", this.contextUrl + '', params, success, error, "text/json", "text/json", JSON.stringify(json), callOpts, this.modifyRequest);
+    return MatrixApi.ajaxCall("DELETE", this.contextUrl + '', params, success, error, "application/json", "application/json", JSON.stringify(json), callOpts, this.modifyRequest);
   };
 MatrixApi.prototype.User =
   function User (url, secureUrl, modifyRequest)
@@ -400,7 +400,7 @@ MatrixApi.prototype.User.byName =
     accessor.get =
       function (success, error, params, callOpts)
       {
-        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "text/json", undefined, callOpts, this.modifyRequest);
+        return MatrixApi.ajaxCall("GET", this.contextUrl + '', params, success, error, "text/plain", "application/json", undefined, callOpts, this.modifyRequest);
       };
     return accessor;
   };  return new MatrixApi (url, secureUrl, modifyRequest);

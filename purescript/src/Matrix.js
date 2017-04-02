@@ -54,13 +54,13 @@ exports.singleResult_ =
                   { packageVersion : vr.packageVersion
                   , packageRevesion : vr.packageRevision
                   , result
-                    : r.ok ? ok
-                    : r.nop ? nop
-                    : r.noIp ? noIp
-                    : r.noIpBjLimit ? noIpBjLimit(r.noIpBjLimit)
-                    : r.noIpFail ? noIpFail({ err : r.noIpFail.err, out : r.noIpFail.out })
-                    : r.fail ? fail(r.fail)
-                    : r.failDeps ? failDeps(r.failDeps)
+                    : "ok" in r ? ok
+                    : "nop" in r ? nop
+                    : "noIp" in r ? noIp
+                    : "noIpBjLimit" in r ? noIpBjLimit(r.noIpBjLimit)
+                    : "noIpFail" in r ? noIpFail({ err : r.noIpFail.err, out : r.noIpFail.out })
+                    : "fail" in r ? fail(r.fail)
+                    : "failDeps" in r ? failDeps(r.failDeps)
                     : (function () { throw new Error("Unexpected ShallowVersionResult: " + JSON.stringify(r)) })()
                   }
                 );
