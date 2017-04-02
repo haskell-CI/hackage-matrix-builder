@@ -42,7 +42,7 @@ import MatrixApi as Api
 import MiscFFI (unsafeLog)
 import MiscFFI as Misc
 import Types
-import Uri (Uri, newUri)
+import Uri (Uri, newUri, windowUri)
 import Uri as Uri
 
 type MainEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) o
@@ -117,7 +117,6 @@ fromUri api state uri_ force isPopping = do
   log $ "fromUri"
   let justTitle t = { title : Just t, packageName : Nothing }
   currentUri <- newUri <$> Uri.windowUri
-  unsafeLog $ Tuple (Uri.path uri_) (Uri.path currentUri)
   unless (not force && Uri.path uri_ == Uri.path currentUri) $ do
     r :: { title :: Maybe String, packageName :: Maybe String } <-
       if Uri.path uri_ == Just "/"
@@ -163,7 +162,6 @@ fromUri api state uri_ force isPopping = do
                           renderNotFound Nothing
                           pure $ justTitle "404'd!"
     let title = maybe "" (\v -> v <> " - ") r.title <> "Hackage Matrix Builder"
-    unsafeLog $ Tuple "title" title
     let history = if isPopping
                     then Misc.historyReplaceState
                     else Misc.historyPushState
@@ -287,7 +285,6 @@ tagsContent state onlyReports pkgList = do
       pure el
     click :: JQueryEvent -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
     click ev el = do
-      unsafeLog { ev : ev, el : el }
       tagEl :: JQuery <- Misc.selectElement =<< Misc.target ev
       tagName :: String <- Misc.getAttr "data-tag-name" tagEl
       st <- readSTRef state
@@ -396,7 +393,9 @@ type State =
 
 packageLink :: forall e
   . PackageName
- -> Maybe { ghcVersion :: VersionName, packageVersion :: VersionName }
+ -> Maybe { ghcVersion :: VersionName
+          , packageVersion :: VersionName
+          }
  -> Eff (dom :: DOM | e) JQuery
 packageLink pkgName versions = do
   a <- J.create "<a>"
@@ -416,7 +415,10 @@ packageUri pkgName ghcAndPkgVersion =
         , packageVersion : r.packageVersion
         }
 
-cellHash :: { packageName :: PackageName, ghcVersion :: VersionName, packageVersion :: VersionName } -> String
+cellHash :: { packageName    :: PackageName
+            , ghcVersion     :: VersionName
+            , packageVersion :: VersionName
+            } -> String
 cellHash r = "GHC-" <> r.ghcVersion <> "/" <> r.packageName <> "-" <> r.packageVersion
 
 selectedPackage :: forall e h . MatrixApi -> STRef h State -> PackageName -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
@@ -626,7 +628,6 @@ renderSingleVersionMatrix api pkgName pkg report = do
   when (Array.null report.results) $ warn "empty reports array"
   flip traverseWithIndex report.results \i ghcResult -> do
     g :: ShallowGhcResult <- pure ghcResult
-    unsafeLog (Tuple i ghcResult)
     let ghcVersionName = ghcResult.ghcVersion :: String
     let ghcFullVersionName = ghcResult.ghcFullVersion
     flip traverseWithIndex ghcResult.ghcResult \j versionResult -> do
@@ -634,15 +635,11 @@ renderSingleVersionMatrix api pkgName pkg report = do
       versionName :: VersionName <- pure versionResult.packageVersion
       revision :: Revision <- pure versionResult.packageRevision
       res :: ShallowResult <- pure versionResult.result
-      unsafeLog $ Tuple "res" res
 
       let ss = "#package .pkgv .revision[data-version='" <> versionName <> "']"
       th <- J.select $ ss
       mth <- selectFirst $ ss
-      unsafeLog $ ss
-      unsafeLog $ Tuple "mth" mth
       newestRevision <- Global.readInt 10 <$> Misc.getAttr "data-revision" th
-      unsafeLog $ Tuple "newestRevision" newestRevision
 
       unless (unsafeCoerce revision == newestRevision) $
         J.addClass "newer-revision" th
@@ -683,7 +680,7 @@ renderSingleVersionMatrix api pkgName pkg report = do
           failClick api pkgName td
         ShallowFailDeps w -> do
           f "fail-dep-build" ("FAIL (" <> show w <> " deps)")
-          failDepsClick td
+          failDepsClick api pkgName td
       pure unit
     pure unit
   pure unit
@@ -706,8 +703,7 @@ noIpFailClick pkgName td = do
       {- (r.err <> "\n" <> r.out) -}
 
 failClick :: forall e h . MatrixApi -> PackageName -> JQuery -> MainEffs e h Unit
-failClick api pkgName td = do
-  click' f td
+failClick api pkgName = click' f
   where
     f ev _el = do
       el <- Misc.selectElement =<< Misc.target ev
@@ -721,7 +717,6 @@ failClick api pkgName td = do
       setHash $ cellHash p
       void <<< runAff onErr (onOk p) $ do
         res <- Api.singleResult api pkgName ident
-        liftEff $ unsafeLog { a: "aff", res: res }
         pure res
     onOk :: forall e2 h2
        . { ghcVersion :: VersionName
@@ -731,14 +726,11 @@ failClick api pkgName td = do
       -> SingleResult
       -> MainEffs e2 h2 Unit
     onOk p sr = do
-      unsafeLog $ Tuple "onOk SingleResult" sr
       case sr.resultA of
         Nothing -> unsafeLog "resultA was Nothing"
         Just vr ->
           case vr.result of
-            Fail err -> do
-              unsafeLog "Successfully fetched SingleResult"
-              setupFailTabs p err
+            Fail err -> setupFailTabs p err
             r -> unsafeLog
               { a : "Unexpected result, wanted Fail but got: "
               , result: vr
@@ -749,20 +741,51 @@ failClick api pkgName td = do
       , error : e
       }
 
-failDepsClick :: forall e . JQuery -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
-failDepsClick td = pure unit
+failDepsClick :: forall e h . MatrixApi -> PackageName -> JQuery -> MainEffs e h Unit
+failDepsClick api pkgName = click' f
+  where
+    f ev _el = do
+      el <- Misc.selectElement =<< Misc.target ev
+      ghcVersion <- Misc.getAttr "data-ghc-version" el
+      packageVersion <- Misc.getAttr "data-package-version" el
+      let p = { packageName : pkgName
+              , ghcVersion : ghcVersion
+              , packageVersion : packageVersion
+              }
+      setHash $ cellHash p
+      let ident = ghcVersion <> "-" <> packageVersion
+      void <<< runAff onErr (onOk p) $
+        Api.singleResult api pkgName ident
+    onOk :: forall e2 h2
+       . { ghcVersion :: VersionName
+         , packageName :: PackageName
+         , packageVersion :: VersionName
+         }
+      -> SingleResult
+      -> MainEffs e2 h2 Unit
+    onOk p sr = do
+      case sr.resultA of
+        Nothing -> unsafeLog "resultA was Nothing"
+        Just vr ->
+          case vr.result of
+            FailDeps dfs -> do
+              unsafeLog "Successfully fetched FailDeps SingleResult"
+              setupFailDepsTabs p dfs
+            r -> unsafeLog
+              { a : "Unexpected result, wanted Fail but got: "
+              , result: vr
+              }
+      pure unit
+    onErr e = unsafeLog
+      { a     : "Loading cell data failed"
+      , error : e
+      }
 
 setHash :: forall e . String -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
-setHash hash = pure unit
--- function setHash (hash)
--- {
---   var uri = new Uri(window.location.href);
---   if (uri.anchor() == hash) {
---     return;
---   }
---   uri.anchor(hash);
---   window.history.replaceState(null, "", uri.toString());
--- }
+setHash hash = do
+  uri <- Uri.newUri <$> windowUri
+  unless (Uri.anchor uri == Just hash) do
+    Misc.historyReplaceState "" $ Uri.withAnchor hash uri
 
 setupFailTabs :: forall e h
    . { ghcVersion :: VersionName
@@ -778,6 +801,38 @@ setupFailTabs p r = do
   J.setText r pre
   let label = cellHash p
   setupTabs [{ label : label, contents : pre }]
+  highlightCell p.ghcVersion p.packageVersion
+
+setupFailDepsTabs :: forall e h
+   . { ghcVersion :: VersionName
+     , packageName :: PackageName
+     , packageVersion :: VersionName
+     }
+  -> Array DepFailure
+  -> MainEffs e h Unit
+setupFailDepsTabs p dfs = do
+  xs <- flip traverseWithIndex dfs $ \i df -> do
+    contents <- do
+      div <- do
+        div <- J.create "<div>"
+        let pkgLink = packageLink df.packageName $ Just { ghcVersion : p.ghcVersion, packageVersion : df.packageVersion }
+        -- J.setText pkgLink div
+        pure div
+      pre <- do
+        pre <- J.create "<pre>"
+        J.addClass "log-entry" pre
+        J.setText df.message pre
+        pure pre
+      J.append pre div
+      pure div
+    let hash = cellHash { ghcVersion     : p.ghcVersion
+                        , packageName    : df.packageName
+                        , packageVersion : df.packageVersion
+                        }
+    pure { label    : hash
+         , contents : contents
+         }
+  setupTabs xs
   highlightCell p.ghcVersion p.packageVersion
 
 setupTabs :: forall e h . Array { label :: String, contents :: JQuery } -> MainEffs e h Unit
@@ -811,6 +866,7 @@ setupTabs messages = do
   Misc.tabs tabs
   tabsContainer <- J.select "#tabs-container"
   J.append tabs tabsContainer
+  -- $(window).scrollTo("#tabs-container");
 
 cleanupTabs :: forall e h . MainEffs e h Unit
 cleanupTabs = J.setHtml "" =<< J.select "#tabs-container"

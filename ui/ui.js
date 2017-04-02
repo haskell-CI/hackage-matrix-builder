@@ -537,6 +537,7 @@
 
     $(window).scrollTo("#tabs-container");
   }
+
   function cleanupTabs () {
     $("#tabs-container").html("");
   }
