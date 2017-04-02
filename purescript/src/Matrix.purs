@@ -54,6 +54,31 @@ foreign import tagList_ :: forall eff .
       (JQueryXHR   -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
+queueByName :: forall e
+  . MatrixApi
+  -> PackageName
+  -> Aff (api :: API | e) QueueItem
+queueByName api pkgName = makeAff \err succ ->
+  runFn7
+    queueByName_
+    api
+    pkgName
+    succ
+    (stringyErr err "Getting queue item by name failed")
+    Low
+    Medium
+    High
+
+foreign import queueByName_ :: forall eff .
+  Fn7 MatrixApi
+      PackageName
+      (QueueItem -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      Priority
+      Priority
+      Priority
+      (ApiEff eff Unit)
+
 packageList :: forall e
    . MatrixApi
   -> Range

@@ -149,3 +149,14 @@ type Range =
   }
 
 type Cell = String
+
+data Priority
+  = Low
+  | Medium
+  | High
+
+type QueueItem =
+  { packageName :: PackageName
+  , modified :: String
+  , priority :: Priority
+  }

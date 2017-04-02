@@ -472,14 +472,34 @@ renderPackage api pkgName pr = do
       renderTable pkgName pkg
       J.display =<< J.select "#package-not-built"
     Nothing -> unsafeThrow "renderPackage didn't get a Package"
---  setupBuildQueuer pkgName
+  setupBuildQueuer pkgName
 --  setupTagger pkgName
   cleanupTabs
   J.display =<< J.select "#buildreport"
   J.display =<< J.select "#page-package"
 
+setupBuildQueuer pkgName = do
+  log $ "setupBuildQueuer for " <> pkgName
+  cleanupBuildQueuer
+  void <<< runAff onErr (onOk p) $
+        Api.queueByName api pkgName
+  where
+    onOk :: forall e2 h2
+       . QueueItem
+      -> MainEffs e2 h2 Unit
+    onOk qi = unsafeThrow "onOk"
+    onErr e = unsafeLog
+      { a     : "Loading queue data for package failed"
+      , error : e
+      }
 
-setupBuildQueuer _pkgName = unsafeThrow "setupBuildQueuer"
+
+cleanupBuildQueuer = do
+  J.display =<< J.select "#queueing .form"
+  -- TODO $("#queueing .action").off("click");
+  J.hide =<< J.select "#queueing .success"
+  J.hide =<< J.select "#queueing .error"
+  J.hide =<< J.select "#queueing .already-queued"
 
 setupTagger _pkgName = unsafeThrow "setupTagger"
 

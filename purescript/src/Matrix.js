@@ -24,6 +24,27 @@ exports.tagList_ = function (api, ok, er) {
   };
 };
 
+exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high) {
+  return function () {
+    api.Queue.byName(pkgName).get
+      ( function (v) {
+        var qi = (
+          { packageName : v.packageName
+          , modified : v.modified
+          , priority
+            : v.priority === "low" ? low
+            : v.priority === "medium" ? medium
+            : v.priority === "high" ? high
+            : (function () { throw new Error("Unexpected Priority: " + JSON.stringify(r)) })()
+          }
+        );
+        ok(qi)();
+      }
+      , function (e) { err(e)(); }
+      );
+  };
+};
+
 exports.packageList_ = function (api, range, ok, err) {
   return function () {
     api.Package.list
