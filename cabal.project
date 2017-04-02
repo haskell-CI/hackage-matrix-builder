@@ -4,4 +4,5 @@ packages: cabal/Cabal/
 tests: false
 benchmarks: false
 
--- build-log: buildlogs/$libname.log
+-- workaround cabal new-build bug
+constraints: setup.cabal-doctest <0
