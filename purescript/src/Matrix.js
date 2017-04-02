@@ -24,7 +24,7 @@ exports.tagList_ = function (api, ok, er) {
   };
 };
 
-exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high) {
+exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high, just, nothing) {
   return function () {
     api.Queue.byName(pkgName).get
       ( function (v) {
@@ -38,9 +38,24 @@ exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high) {
             : (function () { throw new Error("Unexpected Priority: " + JSON.stringify(r)) })()
           }
         );
-        ok(qi)();
+        ok(just(qi))();
       }
-      , function (e) { err(e)(); }
+      , function (e) {
+        if (e && e.responseJSON && e.responseJSON.notFound)
+          ok(nothing)();
+        else
+          err(e)();
+      });
+
+  };
+};
+
+exports.queueCreate_ = function (api, pkgName, prio, ok, err) {
+  return function () {
+    api.Queue.create
+      ( { packageName : pkgName, priority : prio }
+      , function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
       );
   };
 };

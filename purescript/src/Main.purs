@@ -472,27 +472,51 @@ renderPackage api pkgName pr = do
       renderTable pkgName pkg
       J.display =<< J.select "#package-not-built"
     Nothing -> unsafeThrow "renderPackage didn't get a Package"
-  setupBuildQueuer pkgName
+  setupBuildQueuer api pkgName
 --  setupTagger pkgName
   cleanupTabs
   J.display =<< J.select "#buildreport"
   J.display =<< J.select "#page-package"
 
-setupBuildQueuer pkgName = do
+setupBuildQueuer api pkgName = do
   log $ "setupBuildQueuer for " <> pkgName
   cleanupBuildQueuer
-  void <<< runAff onErr (onOk p) $
-        Api.queueByName api pkgName
+  void <<< runAff onErr onOk $ Api.queueByName api pkgName
+  click' click =<< J.select "#queueing .action"
   where
+    click :: forall h e . JQueryEvent -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+    click ev el = do
+      prio' <- Misc.val =<< J.select "#queueing .prio"
+      log prio'
+      let prio = case prio' of
+                   "low" -> Low
+                   "medium" -> Medium
+                   "high" -> High
+                   s -> unsafeThrow $ "Invalid value in queue priority select box: " <> s
+      unsafeLog prio
+      void <<< runAff onErr' onOk' $ Api.queueCreate api pkgName prio
+      where
+        onOk' :: forall e2 h2 . Unit -> MainEffs e2 h2 Unit
+        onOk' _ = do
+          log "Queued package"
+        onErr' e = unsafeLog
+          { a     : "Creating queue item failed"
+          , error : e
+          }
     onOk :: forall e2 h2
-       . QueueItem
+       . Maybe QueueItem
       -> MainEffs e2 h2 Unit
-    onOk qi = unsafeThrow "onOk"
+    onOk mqi = do
+      case mqi of
+        Nothing ->
+          log "Queued"
+        Just qi -> do
+          unsafeLog { queueItem : qi }
+          J.display =<< J.select "#queueing .already-queued"
     onErr e = unsafeLog
       { a     : "Loading queue data for package failed"
       , error : e
       }
-
 
 cleanupBuildQueuer = do
   J.display =<< J.select "#queueing .form"

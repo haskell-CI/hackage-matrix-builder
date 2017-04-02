@@ -56,6 +56,12 @@ exports.delay = function (f) {
   };
 };
 
+exports.val = function (s) {
+  return function () {
+    return $(s).val();
+  };
+}
+
 exports.is = function (s) {
   return function (j) {
     return function () {

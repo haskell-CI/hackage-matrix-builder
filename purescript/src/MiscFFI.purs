@@ -73,6 +73,8 @@ foreign import unsafeTrace :: forall a . a -> a
 
 foreign import delay :: forall e . Eff (dom :: DOM | e) Unit -> Eff (dom :: DOM | e) Unit
 
+foreign import val :: forall e . JQuery -> Eff (dom :: DOM | e) String
+
 foreign import is :: forall e . String -> JQuery -> Eff (dom :: DOM | e) Boolean
 
 historyPushState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
