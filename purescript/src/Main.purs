@@ -19,7 +19,6 @@ import Data.Date
 import Data.Either
 import Data.Foldable
 import Data.Foldable as Foldable
-import Data.Foreign.Undefined
 import Data.Function.Uncurried
 import Data.List ((..))
 import Data.List as List
@@ -42,6 +41,7 @@ import MatrixApi as Api
 import MiscFFI (unsafeLog)
 import MiscFFI as Misc
 import Types
+import Undefined
 import Uri (Uri, newUri, windowUri)
 import Uri as Uri
 

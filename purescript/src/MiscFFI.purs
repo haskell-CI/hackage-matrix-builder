@@ -5,13 +5,13 @@ import Control.Monad.Eff.Console
 import Control.Monad.Eff.JQuery
 import DOM
 import DOM.HTML.Types
-import Data.Foreign.Undefined
 import Data.Function.Uncurried
 import Data.Maybe
 import Data.Nullable
 import Prelude
 import Uri (Uri)
 import Uri as Uri
+import Undefined
 import Unsafe.Coerce
 
 foreign import onPopstate :: forall e
@@ -19,7 +19,8 @@ foreign import onPopstate :: forall e
   -> Eff (dom :: DOM | e) Unit
 
 foreign import delegate2 :: forall e a b
-   . (Selectable a, Selectable b)
+   . Selectable a
+  => Selectable b
   => a
   -> b
   -> String -- e.g. "click"
@@ -27,7 +28,8 @@ foreign import delegate2 :: forall e a b
   -> (Eff (dom :: DOM | e) Unit)
 
 delegate :: forall e a b
-   . (Selectable a, Selectable b)
+   . Selectable a
+  => Selectable b
   => a
   -> b
   -> String -- e.g. "click"
@@ -45,7 +47,8 @@ instance selectableString      :: Selectable String where
   e = id
 
 foreign import delegate_ :: forall e a b
-   . (Selectable a, Selectable b)
+   . Selectable a
+  => Selectable b
   => Fn4 a
          b
          String -- e.g. "click"

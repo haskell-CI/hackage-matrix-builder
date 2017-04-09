@@ -10,7 +10,7 @@ import Prelude
 
 -- | Creation and conversion
 
-foreign import data Uri :: *
+foreign import data Uri :: Type
 
 foreign import windowUri :: forall e . Eff (dom :: DOM | e) String
 

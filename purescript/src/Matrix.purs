@@ -4,25 +4,25 @@ import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
-import Data.Foreign.Undefined
 import MiscFFI
 import Data.Function.Uncurried
 import Data.Maybe
 import Data.Nullable
 import Prelude
 import Types
+import Undefined
 import Uri (Uri)
 
-foreign import data MatrixApi :: *
+foreign import data MatrixApi :: Type
 
-foreign import data API :: !
+foreign import data API :: Effect
 
 foreign import newApi :: forall eff
    . String
   -> String
   -> Eff (api :: API | eff) MatrixApi
 
-foreign import data JQueryXHR :: *
+foreign import data JQueryXHR :: Type
 
 type ApiEff e o = Eff (api :: API | e) o
 
@@ -252,10 +252,10 @@ getPackageName = toMaybe <<< getPackageName_
 foreign import getPackageName_ :: Uri -> Nullable PackageName
 
 foreign import data Fn11
-  :: *
-  -> * -> * -> * -> * -> * -> *
-  -> * -> * -> * -> * -> *
-  -> *
+  :: Type
+  -> Type -> Type -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type -> Type
+  -> Type
 
 foreign import runFn11 :: forall a b c d e f g h i j k l
              . Fn11 a b c d e f g h i j k l
@@ -264,11 +264,11 @@ foreign import runFn11 :: forall a b c d e f g h i j k l
   -> l
 
 foreign import data Fn12
-  :: *
-  -> * -> * -> * -> *
-  -> * -> * -> * -> *
-  -> * -> * -> * -> *
-  -> *
+  :: Type
+  -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type
+  -> Type
 
 foreign import runFn12 :: forall a b c d e f g h i j k l m
              . Fn12 a b c d e f g h i j k l m
@@ -279,11 +279,11 @@ foreign import runFn12 :: forall a b c d e f g h i j k l m
 
 
 foreign import data Fn13
-  :: *
-  -> * -> * -> * -> *
-  -> * -> * -> * -> *
-  -> * -> * -> * -> * -> *
-  -> *
+  :: Type
+  -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type -> Type
+  -> Type
 
 foreign import runFn13 :: forall a b c d e f g h i j k l m n
              . Fn13 a b c d e f g h i j k l m n
@@ -293,11 +293,11 @@ foreign import runFn13 :: forall a b c d e f g h i j k l m n
   -> n
 
 foreign import data Fn14
-  :: *
-  -> * -> * -> * -> *
-  -> * -> * -> * -> *
-  -> * -> * -> * -> * -> * -> *
-  -> *
+  :: Type
+  -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type
+  -> Type -> Type -> Type -> Type -> Type -> Type
+  -> Type
 
 foreign import runFn14 :: forall a b c d e f g h i j k l m n o
              . Fn14 a b c d e f g h i j k l m n o
