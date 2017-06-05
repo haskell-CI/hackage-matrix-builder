@@ -10,34 +10,33 @@
 {-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE ViewPatterns      #-}
 
 module Main where
 
 import           Prelude.Local
 
-import qualified Data.List.NonEmpty as NonEmpty
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           System.IO.Unsafe (unsafePerformIO)
 import           Control.Monad.State
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy as LBS
-import qualified Data.IntMap.Strict as IntMap
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import qualified Data.Aeson as J
+import qualified Data.Aeson                        as J
+import qualified Data.ByteString.Char8             as BS
+import qualified Data.ByteString.Lazy              as LBS
+import qualified Data.IntMap.Strict                as IntMap
+import qualified Data.List.NonEmpty                as NonEmpty
+import qualified Data.Map.Strict                   as Map
+import qualified Data.Set                          as Set
+import qualified Data.Text                         as T
+import           System.IO.Unsafe                  (unsafePerformIO)
 -- import qualified Data.Text.Encoding as T
-import qualified Data.Text.IO as T
+import qualified Data.Text.IO                      as T
 import           Distribution.Verbosity
-import qualified Network.HTTP.Types as HTTP
+import qualified Network.HTTP.Types                as HTTP
 import           Servant
 import           Snap.Core
-import           Snap.Http.Server (defaultConfig)
-import qualified Snap.Http.Server.Config as Config
+import           Snap.Http.Server                  (defaultConfig)
+import qualified Snap.Http.Server.Config           as Config
 import           Snap.Snaplet
-import qualified System.IO.Streams as Streams
+import qualified System.IO.Streams                 as Streams
 -- import qualified System.IO.Streams.List as Streams
 -- import           System.IO.Streams.Process
 -- import           System.IO.Unsafe (unsafePerformIO)
@@ -45,19 +44,19 @@ import qualified System.Info
 -- import           System.Exit
 -- import           System.Process
 
-import System.Posix.Files
-import System.Posix.User
+import           System.Posix.Files
+import           System.Posix.User
 
-import           Distribution.Simple.GHC as GHC
-import           Distribution.Simple.Program
-import           Distribution.Simple.Compiler
+import qualified Config                            as Cfg
+import qualified Config.Lens                       as Cfg
 import           Distribution.InstalledPackageInfo
+import           Distribution.Simple.Compiler
+import           Distribution.Simple.GHC           as GHC
 import           Distribution.Simple.PackageIndex
-import qualified Config as Cfg
-import qualified Config.Lens as Cfg
+import           Distribution.Simple.Program
 
-import           Control.Concurrent.ReadWriteLock        ( RWLock )
-import qualified Control.Concurrent.ReadWriteLock as RWL
+import           Control.Concurrent.ReadWriteLock  (RWLock)
+import qualified Control.Concurrent.ReadWriteLock  as RWL
 
 import           Data.Ratio
 import           IndexHelper
@@ -67,17 +66,17 @@ import           PlanJson
 import           WorkerApi
 
 data App = App
-    { _appBootTime    :: POSIXTime
-    , _appGhcVersions :: (Map.Map CompilerID (FilePath,ProgramDb,[GPkgInfo]))
+    { _appBootTime       :: POSIXTime
+    , _appGhcVersions    :: (Map.Map CompilerID (FilePath,ProgramDb,[GPkgInfo]))
 
-    , _appJobs        :: TVar (Map.Map JobId Job)
+    , _appJobs           :: TVar (Map.Map JobId Job)
 
     -- TODO/FIXME: make locks this per-compilerid;
     -- jobs aquire write-lock during build-phases
     , _appStoreBuildLock :: RWLock
     -- jobs aquire read-lock; pkg deletion aquires write-lock
-    , _appStoreDelLock :: RWLock
-    , _appWorkDir     :: FilePath
+    , _appStoreDelLock   :: RWLock
+    , _appWorkDir        :: FilePath
     }
 -- makeLenses ''App
 
@@ -317,7 +316,7 @@ server =
 
         case res of
           Just (Just v) -> pure v
-          _ -> throwServantErr' err503
+          _             -> throwServantErr' err503
 
     -- FIXME: invariant: must not occur while jobs exist
     destroyPkgDbStoreH :: CompilerID -> AppHandler NoContent
@@ -390,13 +389,13 @@ throwServantErr0 ServantErr{..} = do
 ----------------------------------------------------------------------------
 
 data Job = Job
-    { jobId     :: JobId
-    , jobPkgId  :: PkgId
-    , jobGhcVer :: CompilerID
-    , jobGhcExe :: FilePath
-    , jobIdxTs  :: PkgIdxTs
-    , jobFolder :: FilePath
-    , jobBuildLock :: RWLock
+    { jobId            :: JobId
+    , jobPkgId         :: PkgId
+    , jobGhcVer        :: CompilerID
+    , jobGhcExe        :: FilePath
+    , jobIdxTs         :: PkgIdxTs
+    , jobFolder        :: FilePath
+    , jobBuildLock     :: RWLock
 
     -- each step depends on the previous one being completed
     , jobStepFetch     :: MVar (Task JobStep)
@@ -466,6 +465,8 @@ getStep step (Job{..}) = do
   where
     wdir     = jobFolder
     pkgIdTxt = T.pack $ display jobPkgId
+    -- PkgId pkgn0 _ = jobPkgId
+    -- pkgnTxt  = T.pack $ display pkgn0
 
     run' step' = do
         putStrLn (concat ["[",show jobId, "] starting ", show step])
@@ -502,7 +503,9 @@ getStep step (Job{..}) = do
 
             runStep cabalExe [ "new-build"
                              , "--verbose=normal+nowrap+timestamp"
-                             , "--dry"]
+                             , "--dry"
+                             , pkgIdTxt
+                             ]
 
     run StepFetchDeps = do
         msolve <- getStep StepSolve (Job{..})
@@ -546,7 +549,7 @@ getJobSolve (Job{..}) = do
       Just _  -> do
         planJsonRaw <- try $ LBS.readFile (wdir </> "dist-newstyle" </> "cache" </> "plan.json")
         case planJsonRaw of
-          Left e -> (e::SomeException) `seq` pure Nothing -- fixme
+          Left e  -> (e::SomeException) `seq` pure Nothing -- fixme
           Right x -> evaluate $ J.decode x
 
     pure (JobSolve{..})
@@ -560,7 +563,7 @@ getJobBuildDeps (Job{..}) = do
 
     unitids0 <- try $ mapMaybe (stripExtension "log") <$> listDirectory (wdir </> "logs")
     let unitids = case unitids0 of
-                    Left e -> (e :: SomeException) `seq` mempty
+                    Left e  -> (e :: SomeException) `seq` mempty
                     Right v -> v
 
     xs <- forM unitids $ \unitid -> do
@@ -696,6 +699,22 @@ parseCompBlog t0 = case go Nothing [] . linesTS $ t0 of
       | k:ks <- reverse ls0 = [(cn0,k:|ks)]
       | otherwise           = []
     go cn0 ls0 (tsmsg1@(_,(line1:|_)):rest)
+      | ("Configuring":"library":"for":pid'':[]) <- T.words line1
+      , Just pid <- T.stripSuffix ".." pid''
+        = case reverse ls0 of
+            k:ks -> (cn0,k:|ks) : go (Just $ mkCN pid CompNameLib) [tsmsg1] rest
+            []   -> go (Just $ mkCN pid CompNameLib) [tsmsg1] rest
+
+      | ("Configuring":ckind:qcname:"for":pid'':[]) <- T.words line1
+      , Just pid <- T.stripSuffix ".." pid''
+        = case (parseCompName2 ckind qcname) of
+            Nothing -> error "parseCompName2: unvalid compname"
+            Just cn
+              | k:ks <- reverse ls0
+                -> (cn0,k:|ks) : go (Just $ mkCN pid cn) [tsmsg1] rest
+              | otherwise     -> go (Just $ mkCN pid cn) [tsmsg1] rest
+
+        -- old log format
       | ("Configuring":"component":cname:"from":pid:_) <- T.words line1
         = case (parseCompName cname) of
             Nothing -> error "parseCompName: unvalid compname"
@@ -710,8 +729,19 @@ parseCompBlog t0 = case go Nothing [] . linesTS $ t0 of
       where
         pid = maybe pid0 id $ T.stripSuffix "..." pid0
 
-    j (Just k,v) = Just (k,v)
+    j (Just k,v)  = Just (k,v)
     j (Nothing,_) = Nothing
+
+
+parseCompName2 :: Text -> Text -> Maybe CompName
+parseCompName2 ckind qcname'' = do
+    qcname' <- T.stripSuffix "'" qcname''
+    qcname  <- T.stripPrefix "'" qcname'
+
+    case ckind of
+      "library"    -> pure $ CompNameSubLib  qcname
+      "executable" -> pure $ CompNameExe qcname
+      _            -> Nothing -- TODO
 
 -- parseBLog :: T.Text -> [(UnitID,Text)]
 -- parseBLog txt = map go (drop 1 $ T.splitOn ("\nConfiguring ") txt)
@@ -774,7 +804,7 @@ linesTS = go0 . T.lines
 
     go :: Maybe POSIXTime -> [Text] -> [Text] -> [TsMsg]
     go pt      ls [] = case ls of
-                         [] -> []
+                         []     -> []
                          (x:xs) -> [(pt,x:|xs)]
     go Nothing [] (x:xs)
       | Just (pt,l) <- splitTS x = go (Just pt) [l] xs

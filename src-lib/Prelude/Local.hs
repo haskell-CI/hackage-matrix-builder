@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Prelude.Local
     ( T.Text
@@ -70,47 +71,50 @@ module Prelude.Local
 import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
-import           Control.Exception hiding (Handler)
-import           Control.Lens hiding ((<.>))
+import           Control.Exception        hiding (Handler)
+import           Control.Lens             hiding ((<.>))
 import           Control.Monad
 import           Control.Monad.IO.Class
-import qualified Crypto.Hash.SHA256 as SHA256
+import qualified Crypto.Hash.SHA256       as SHA256
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.Bits
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Short as SBS
-import           Data.Char (isUpper,toLower,isDigit)
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Lazy     as BSL
+import qualified Data.ByteString.Short    as SBS
+import           Data.Char                (isDigit, isUpper, toLower)
 import           Data.Foldable
-import qualified Data.Graph as G
+import qualified Data.Graph               as G
 import           Data.Hashable
 import           Data.Int
-import           Data.Ord
-import           Data.IntMap (IntMap)
-import           Data.List hiding (uncons)
-import           Data.List.NonEmpty (NonEmpty(..))
-import           Data.Map (Map)
-import qualified Data.Map.Strict as Map
+import           Data.IntMap              (IntMap)
+import           Data.List                hiding (uncons)
+import           Data.List.NonEmpty       (NonEmpty (..))
+import           Data.Map                 (Map)
+import qualified Data.Map.Strict          as Map
 import           Data.Maybe
 import           Data.Monoid
+import           Data.Ord
 import           Data.Proxy
 import           Data.Semigroup
-import           Data.Set (Set)
-import qualified Data.Set as Set
-import qualified Data.Text as T
-import           Data.Time.Clock (UTCTime,getCurrentTime, NominalDiffTime, diffUTCTime)
-import           Data.Time.Clock.POSIX (POSIXTime, getPOSIXTime,posixSecondsToUTCTime, utcTimeToPOSIXSeconds)
-import qualified Data.UUID.Types as UUID
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
+import qualified Data.Text                as T
+import           Data.Time.Clock          (NominalDiffTime, UTCTime,
+                                           diffUTCTime, getCurrentTime)
+import           Data.Time.Clock.POSIX    (POSIXTime, getPOSIXTime,
+                                           posixSecondsToUTCTime,
+                                           utcTimeToPOSIXSeconds)
+import qualified Data.UUID.Types          as UUID
 import           Data.Word
-import qualified Distribution.Text as C
+import qualified Distribution.Text        as C
 import           GHC.Generics
 import           System.Directory
 import           System.Environment
 import           System.Exit
 import           System.FilePath
-import           System.IO.Streams (InputStream, OutputStream)
+import           System.IO.Streams        (InputStream, OutputStream)
 import           Text.Read
 
 myToJSON, myToJSONCml :: (Generic a, GToJSON Zero (Rep a)) => a -> Value
@@ -130,7 +134,7 @@ labelMod    = camelTo2 '_' . dropWhile (not . isUpper)
 tagMod    = camelTo2 '_' . dropWhile isUpper
 labelModCml = uncap        . dropWhile (not . isUpper)
   where
-    uncap [] = []
+    uncap []     = []
     uncap (c:cs) = toLower c : cs
 
 uuidNil :: UUID.UUID

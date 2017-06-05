@@ -1,17 +1,17 @@
-{-# LANGUAGE DataKinds         #-}
-{-# LANGUAGE TypeOperators     #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE PolyKinds         #-}
-{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE DataKinds     #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PolyKinds     #-}
+{-# LANGUAGE StrictData    #-}
+{-# LANGUAGE TypeOperators #-}
 
 module WorkerApi where
 
-import Servant.API
-import qualified Data.Aeson as J
+import qualified Data.Aeson    as J
+import           Servant.API
 
-import Job
-import PkgId
-import Prelude.Local
+import           Job
+import           PkgId
+import           Prelude.Local
 
 type TsMsg = (Maybe POSIXTime,NonEmpty Text)
 

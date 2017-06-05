@@ -1,9 +1,9 @@
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE StrictData #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE StrictData                 #-}
 
 module PlanJson
     ( PlanJson(..)
@@ -16,11 +16,11 @@ module PlanJson
 import           Prelude.Local
 
 import           Data.Aeson
-import           Data.Aeson.Types -- (Parser)
-import qualified Data.Map as M
-import qualified Data.Set as S
-import           Data.Text (Text)
-import qualified Data.Text as T
+import           Data.Aeson.Types
+import qualified Data.Map                           as M
+import qualified Data.Set                           as S
+import           Data.Text                          (Text)
+import qualified Data.Text                          as T
 -- import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
 

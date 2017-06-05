@@ -35,6 +35,14 @@ internal, internal, internal, internal),
 -- uuid     -> 128bit
 -- enums    -> 32bit
 
+CREATE OR REPLACE FUNCTION table_event_notify() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  -- PERFORM pg_notify('table_event', json_build_object('table', TG_TABLE_NAME, 'op', TG_OP)::text);
+  PERFORM pg_notify('table_event', TG_TABLE_NAME::text);
+  RETURN NEW;
+END;
+$$;
+
 -- encodes valid(!) versions both as string & array
 CREATE TABLE version (
     pver text PRIMARY KEY,
@@ -113,17 +121,23 @@ CREATE INDEX ON pkgindex(powner);
 CREATE INDEX ON pkgindex(pname,pver);
 CREATE INDEX ON pkgindex(ptime);
 
+DROP TRIGGER   pkgindex_event_notify ON pkgindex;
+CREATE TRIGGER pkgindex_event_notify AFTER INSERT OR UPDATE ON pkgindex
+  EXECUTE PROCEDURE table_event_notify();
+
 ----------------------------------------------------------------------------
 
 CREATE TABLE hscompiler (
     compiler text PRIMARY KEY
+    ui_ver   text UNIQUE, -- manual mapping
 );
 
-INSERT INTO hscompiler (compiler) VALUES ('ghc-7.8.4');
-INSERT INTO hscompiler (compiler) VALUES ('ghc-7.10.3');
-INSERT INTO hscompiler (compiler) VALUES ('ghc-8.0.1');
-INSERT INTO hscompiler (compiler) VALUES ('ghc-7.4.2');
-INSERT INTO hscompiler (compiler) VALUES ('ghc-7.6.3');
+INSERT INTO hscompiler (compiler,ui_ver) VALUES ('ghc-7.8.4','7.8');
+INSERT INTO hscompiler (compiler,ui_ver) VALUES ('ghc-7.10.3','7.10');
+INSERT INTO hscompiler (compiler)        VALUES ('ghc-8.0.1');
+INSERT INTO hscompiler (compiler,ui_ver) VALUES ('ghc-8.0.2', '8.0');
+INSERT INTO hscompiler (compiler,ui_ver) VALUES ('ghc-7.4.2', '7.4');
+INSERT INTO hscompiler (compiler,ui_ver) VALUES ('ghc-7.6.3', '7.6');
 
 ----------------------------------------------------------------------------
 
@@ -139,10 +153,31 @@ CREATE INDEX ON pname_tag(tagname);
 ----------------------------------------------------------------------------
 
 CREATE TABLE queue (
-    pname    text        PRIMARY KEY REFERENCES pkgname(pname),
+    pname    text    NOT NULL REFERENCES pkgname(pname),
     prio     int     NOT NULL,
     modified timestamptz NOT NULL DEFAULT now(),
-    ptime    int     NOT NULL REFERENCES idxstate(ptime) DEFAULT max_ptime()
+    ptime    int     NOT NULL REFERENCES idxstate(ptime) DEFAULT max_ptime(),
+    PRIMARY KEY (pname, ptime) -- for now
+);
+
+DROP TRIGGER   queue_event_notify ON queue;
+CREATE TRIGGER queue_event_notify AFTER INSERT OR UPDATE ON queue
+  EXECUTE PROCEDURE table_event_notify();
+
+----------------------------------------------------------------------------
+
+CREATE TYPE wstate AS enum('idle','init','solve','build-deps','build','done','error');
+
+CREATE TABLE worker (
+    wid      int    PRIMARY KEY,
+    mtime    int    NOT NULL DEFAULT unix_now(), -- last time this row was updated
+    wstate   wstate NOT NULL,
+
+    pname    text   NULL,
+    pver     text   NULL,
+    FOREIGN KEY(pname,pver) REFERENCES pkgver(pname,pver),
+    ptime    int    NULL REFERENCES idxstate(ptime),
+    compiler text   NULL REFERENCES hscompiler(compiler) -- TODO: os/arch
 );
 
 ----------------------------------------------------------------------------

@@ -1,28 +1,29 @@
 module WorkerApi.Client where
 
-import Prelude.Local
+import           Prelude.Local
 
--- import Control.Monad.Except (ExceptT, runExceptT)
--- import Data.Aeson
-import Network.HTTP.Client (Manager)
-import Servant.API
-import Servant.Client
+import           Control.Monad.Except (ExceptT (..))
+import           Network.HTTP.Client  (Manager)
+import           Servant.API
+import           Servant.Client
 
-import WorkerApi
-import PkgId
+import           PkgId
+import           WorkerApi
 
+runClientM' :: Manager -> BaseUrl -> ClientM a -> ExceptT ServantError IO a
+runClientM' manager baseurl act = ExceptT (runClientM act (ClientEnv manager baseurl))
 
-getWorkerInfo       ::                 Manager -> BaseUrl -> ClientM WorkerInfo
-getJobsInfo         ::                 Manager -> BaseUrl -> ClientM [JobId]
-createJob           :: CreateJobReq -> Manager -> BaseUrl -> ClientM CreateJobRes
-getJobSolveInfo     :: JobId ->        Manager -> BaseUrl -> ClientM JobSolve
-getJobBuildDepsInfo :: JobId ->        Manager -> BaseUrl -> ClientM JobBuildDeps
-getJobBuildInfo     :: JobId ->        Manager -> BaseUrl -> ClientM JobBuild
-destroyJob          :: JobId ->        Manager -> BaseUrl -> ClientM NoContent
-listCompilers       ::                 Manager -> BaseUrl -> ClientM [CompilerID]
-listPkgDbGlobal     :: CompilerID ->   Manager -> BaseUrl -> ClientM [GPkgInfo]
-listPkgDbStore      :: CompilerID ->   Manager -> BaseUrl -> ClientM [SPkgInfo]
-destroyPkgDbStore   :: CompilerID ->   Manager -> BaseUrl -> ClientM NoContent
+getWorkerInfo       ::                 ClientM WorkerInfo
+getJobsInfo         ::                 ClientM [JobId]
+createJob           :: CreateJobReq -> ClientM CreateJobRes
+getJobSolveInfo     :: JobId ->        ClientM JobSolve
+getJobBuildDepsInfo :: JobId ->        ClientM JobBuildDeps
+getJobBuildInfo     :: JobId ->        ClientM JobBuild
+destroyJob          :: JobId ->        ClientM NoContent
+listCompilers       ::                 ClientM [CompilerID]
+listPkgDbGlobal     :: CompilerID ->   ClientM [GPkgInfo]
+listPkgDbStore      :: CompilerID ->   ClientM [SPkgInfo]
+destroyPkgDbStore   :: CompilerID ->   ClientM NoContent
 
 getWorkerInfo          :<|>
    getJobsInfo         :<|>

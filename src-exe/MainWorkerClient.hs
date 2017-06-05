@@ -1,23 +1,24 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeOperators   #-}
 
 module Main where
 
-import Prelude.Local
+import           Prelude.Local
 
-import Control.Monad.Except (ExceptT, runExceptT)
+import           Control.Monad.Except (ExceptT (..), runExceptT)
 -- import Data.Aeson
-import Network.HTTP.Client (Manager, newManager, defaultManagerSettings, managerResponseTimeout, responseTimeoutNone)
-
-import Servant.Client
-import Text.Groom
-
-import WorkerApi
-import WorkerApi.Client
-import PkgId
+import           Network.HTTP.Client  (Manager, defaultManagerSettings,
+                                       managerResponseTimeout, newManager,
+                                       responseTimeoutNone)
+import           Servant.Client
+-- import           Text.Groom
 import qualified Data.ByteString.Lazy as BL
+
+import           PkgId
+import           WorkerApi
+import           WorkerApi.Client
 
 queries :: Maybe PkgIdxTs -> ([CompilerID],[PkgId]) -> Manager -> BaseUrl -> ExceptT ServantError IO ()
 queries idxts (ghcvers,pkgids) manager baseurl = do
@@ -25,25 +26,26 @@ queries idxts (ghcvers,pkgids) manager baseurl = do
         print ghcvers
         print pkgids
 
-    pretty =<< getWorkerInfo manager baseurl
+    pretty =<< runClientM'' getWorkerInfo
 
     forM_ ghcvers $ \gv -> do
         forM_ pkgids $ \pid -> do
-            CreateJobRes jobid <- createJob (CreateJobReq gv idxts pid) manager baseurl
-            res1 <- getJobSolveInfo jobid manager baseurl
+            CreateJobRes jobid <- runClientM'' $ createJob (CreateJobReq gv idxts pid)
+            res1 <- runClientM'' $ getJobSolveInfo jobid
             pretty res1
-            res2 <- getJobBuildDepsInfo jobid manager baseurl
+            res2 <- runClientM'' $ getJobBuildDepsInfo jobid
             pretty res2
-            res3 <- getJobBuildInfo jobid manager baseurl
+            res3 <- runClientM'' $ getJobBuildInfo jobid
             pretty res3
-            destroyJob jobid manager baseurl
-
+            runClientM'' $ destroyJob jobid
 
             -- get (CreateJobReq gv Nothing pid) manager baseurl
 
     return ()
   where
-    pretty x = liftIO (putStrLn (groom x))
+    pretty x = liftIO (putStrLn (show x))
+
+    runClientM'' = runClientM' manager baseurl
 
 main :: IO ()
 main = do
@@ -55,7 +57,7 @@ main = do
 
 
     manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-    res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "matrix-wrk1" 8001 "/api"))
+    res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "matrix-wrk6" 8001 "/api"))
     case res of
       Left (FailureResponse {..}) -> do
           putStrLn $ "Error:\n"
@@ -65,7 +67,7 @@ main = do
           BL.putStr responseBody
           putStrLn "\n----"
       Left err -> do
-          putStrLn $ "Error:\n" ++ groom err
+          putStrLn $ "Error:\n" ++ show err
       Right () -> putStrLn "DONE"
 
 

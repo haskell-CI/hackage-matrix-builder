@@ -1,6 +1,6 @@
-{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StrictData        #-}
+{-# LANGUAGE StrictData                 #-}
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -29,11 +29,13 @@ import           Prelude.Local
 
 import           Data.Aeson
 import           Data.String
-import qualified Data.Text as T
+import qualified Data.Text                            as T
+import           Distribution.Compiler                (CompilerFlavor (..),
+                                                       CompilerId (..))
 import           Distribution.Package
-import           Distribution.Compiler (CompilerId(..),CompilerFlavor(..))
-import           Distribution.Text (disp, parse, display, simpleParse)
-import qualified Distribution.Text as C
+import           Distribution.Text                    (disp, display, parse,
+                                                       simpleParse)
+import qualified Distribution.Text                    as C
 import           Distribution.Version
 
 import           Database.PostgreSQL.Simple.FromField
@@ -172,7 +174,7 @@ compilerVer (CompilerID v) = v
 
 compilerIDFromCompilerId :: CompilerId -> Maybe CompilerID
 compilerIDFromCompilerId (CompilerId GHC v) = CompilerID <$> verFromVersion v
-compilerIDFromCompilerId _ = Nothing
+compilerIDFromCompilerId _                  = Nothing
 
 instance C.Text CompilerID where
     disp = disp . PkgId (PkgN (mkPackageName "ghc")) . compilerVer

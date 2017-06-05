@@ -1,8 +1,7 @@
-{-# LANGUAGE StrictData #-}
+{-# LANGUAGE BangPatterns       #-}
+{-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE StrictData         #-}
 
 module IndexHelper
     ( readIndexTimeMap
@@ -18,15 +17,15 @@ module IndexHelper
 
 import           Prelude.Local
 
-import qualified Codec.Archive.Tar as Tar
+import qualified Codec.Archive.Tar       as Tar
 import qualified Codec.Archive.Tar.Entry as Tar
 -- import           Control.Exception
-import qualified Data.ByteString.Lazy as BSL
-import qualified Data.IntMap as IntMap
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
+import qualified Data.ByteString.Lazy    as BSL
+import qualified Data.IntMap             as IntMap
+import qualified Data.Map.Strict         as Map
+import qualified Data.Set                as Set
 import           Data.String
-import qualified Data.Text as T
+import qualified Data.Text               as T
 import           System.IO.Unsafe
 
 import           PkgId
@@ -89,7 +88,7 @@ readIndexTuples idxtar = do
           !rev = Map.findWithDefault undefined nv m'
 
           upd :: Maybe Word -> Maybe Word
-          upd Nothing = Just 0
+          upd Nothing  = Just 0
           upd (Just j) = Just $! (j+1)
 
 ----------------------------------------------------------------------------

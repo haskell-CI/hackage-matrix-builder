@@ -1,8 +1,8 @@
 {-# LANGUAGE BangPatterns      #-}
-{-# LANGUAGE RecordWildCards      #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE OverloadedStrings      #-}
-{-# LANGUAGE LambdaCase      #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE StrictData        #-}
 
 module Job
@@ -14,15 +14,15 @@ module Job
 
 import           Prelude.Local
 
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import qualified Data.Text                 as T
+import qualified Data.Text.Encoding        as T
 -- import qualified Data.Text.IO as T
 import           System.IO
-import qualified System.IO.Streams as Streams
+import qualified System.IO.Streams         as Streams
 -- import qualified System.IO.Streams.List as Streams
+import           Control.Concurrent.Async
 import           System.IO.Streams.Process
 import           System.Process
-import           Control.Concurrent.Async
 
 data JobStep = JobStep
     { jsExitCode :: Int
@@ -77,7 +77,7 @@ runProc exe args = do
 
 
 ec2int :: ExitCode -> Int
-ec2int ExitSuccess = 0
+ec2int ExitSuccess     = 0
 ec2int (ExitFailure i) = i
 
 
