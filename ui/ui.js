@@ -4,7 +4,7 @@
   var apiRootUrl = ((appConfig && appConfig.apiHost) || "") + "/api";
   var api = new MatrixApi(apiRootUrl, apiRootUrl);
 
-  window.ghcVersions = ["8.0", "7.10", "7.8", "7.6", "7.4", "7.2", "7.0"];
+  window.ghcVersions = ["8.2","8.0", "7.10", "7.8", "7.6", "7.4"];
 
   function fail (msg) {
     return function () {
@@ -14,7 +14,7 @@
 
   function getVersionedPackageName (uri)
   {
-    var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)-([\d.]+)$/;
+    var reg = /^\/package\/((?:[^\/\d-][^\/-]*)(?:-(?:[^\/\d-][^\/-]*))*)-([\d.]+)$/ ;
     return (reg.test(uri.path())
          && RegExp.$1 && RegExp.$2
          && { packageName : RegExp.$1, packageVersion : RegExp.$2 }
@@ -23,7 +23,7 @@
 
   function getPackageName (uri)
   {
-    var reg = /^\/package\/((?:[^\/\d-][^\/-]+)(?:-(?:[^\/\d-][^\/-]+))*)$/
+    var reg = /^\/package\/((?:[^\/\d-][^\/-]*)(?:-(?:[^\/\d-][^\/-]*))*)$/;
     return (reg.test(uri.path()) && RegExp.$1) || null;
 
   }
