@@ -332,10 +332,10 @@ scheduler App{..} = do
                       -- TODO: update entries with NULL status
 
                       let rows2 = concatMap snd dbunits
-                      (dt2,foo2) <- timeIt $ PGS.executeMany dbconn (doNothing db_iplan_comp_insert) $
+                      (dt2,foo2) <- timeIt $ PGS.executeMany dbconn (doNothing db_iplan_comp_dep_insert) $
                               concatMap snd dbunits
 
-                      logJob jspec $ T.pack ("iplan_comp insert -> " ++ show (foo2,length rows2,dt2))
+                      logJob jspec $ T.pack ("iplan_comp_dep insert -> " ++ show (foo2,length rows2,dt2))
 
                       (dt3,foo3) <- timeIt $ PGS.execute dbconn (doNothing db_iplan_job_insert) $
                               DB_iplan_job dbJobId pidn pidv (pjCompilerId pj) jplan (UUIDs dbJobUids)
@@ -348,7 +348,7 @@ scheduler App{..} = do
                           (dt5,foo5) <- timeIt $ PGS.execute_ dbconn
                                                       "UPDATE iplan_unit SET bstatus = 'fail_deps' \
                                                       \WHERE xunitid IN (SELECT DISTINCT a.xunitid FROM iplan_unit a \
-                                                                        \JOIN unit_dep ON (a.xunitid = parent) \
+                                                                        \JOIN iplan_comp_dep ON (a.xunitid = parent) \
                                                                         \JOIN iplan_unit b ON (b.xunitid = child) \
                                                                         \WHERE a.bstatus IS NULL AND b.bstatus IN ('fail','fail_deps'))"
                           logJob jspec $ T.pack ("iplan_unit UPDATE => " ++ show (foo5,dt5))
@@ -398,7 +398,7 @@ planJsonIdGrap :: PlanJson -> Map UnitID (Set UnitID)
 planJsonIdGrap PlanJson{..} = Map.map planItemAllDeps pjItems
 
 -- NB: emits DB rows in topological order, i.e. not violating FK-constraints
-planJson2DbUnitComps :: Map UnitID (IPStatus,Text,Maybe NominalDiffTime) -> PlanJson -> [(DB_iplan_unit,[DB_iplan_comp])]
+planJson2DbUnitComps :: Map UnitID (IPStatus,Text,Maybe NominalDiffTime) -> PlanJson -> [(DB_iplan_unit,[DB_iplan_comp_dep])]
 planJson2DbUnitComps smap PlanJson{..} = go mempty topoUnits
     -- let rootunits = [ piId | PlanItem{..} <- Map.elems pjItems, piType == PILocal ]
     -- print rootunits
@@ -408,7 +408,7 @@ planJson2DbUnitComps smap PlanJson{..} = go mempty topoUnits
   where
     topoUnits = toposort (planJsonIdGrap PlanJson{..})
 
-    go :: (Map UnitID UUID) -> [UnitID] -> [(DB_iplan_unit,[DB_iplan_comp])]
+    go :: (Map UnitID UUID) -> [UnitID] -> [(DB_iplan_unit,[DB_iplan_comp_dep])]
     go _ [] = []
     go m (uid0:uids) = (DB_iplan_unit xuid piId pjCompilerId piType pn pv jflags pkind logmsg dt, cs)
                        : go (Map.insert uid0 xuid m) uids
@@ -440,6 +440,8 @@ planJson2DbUnitComps smap PlanJson{..} = go mempty topoUnits
         cs' = [ (cn,(sort $ map lupUUID $ Set.toList ciLibDeps),(sort $ map lupUUID $ Set.toList ciExeDeps))
               | (cn,CompInfo{..}) <- Map.toAscList piComps ]
 
-        cs = [ DB_iplan_comp xuid cn (UUIDs ldeps) (UUIDs edeps) | (cn,ldeps,edeps) <- cs' ]
+        -- cs = [ DB_iplan_comp xuid cn (UUIDs ldeps) (UUIDs edeps) | (cn,ldeps,edeps) <- cs' ]
+        cs = [ DB_iplan_comp_dep xuid cn DepKindLib child  | (cn,ldeps,_) <- cs', child <- ldeps ] ++
+             [ DB_iplan_comp_dep xuid cn DepKindExe child  | (cn,_,edeps) <- cs', child <- edeps ]
 
         lupUUID k = Map.findWithDefault (error "lupUUID") k m
