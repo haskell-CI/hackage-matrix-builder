@@ -8,8 +8,7 @@
 
 -- https://www.postgresql.org/message-id/CADCw5QZctww5Q1MiTEx9OtOhT4g421Ftds%3D1MtTepqM2hLnrCQ%40mail.gmail.com
 
-/*
-Needs db admin privs
+/* Needs db admin privs */
 
 CREATE OPERATOR CLASS _uuid_ops DEFAULT
   FOR TYPE _uuid USING gin AS
@@ -19,13 +18,10 @@ CREATE OPERATOR CLASS _uuid_ops DEFAULT
   OPERATOR 4 =(anyarray, anyarray),
   FUNCTION 1 uuid_cmp(uuid, uuid),
   FUNCTION 2 ginarrayextract(anyarray, internal, internal),
-  FUNCTION 3 ginqueryarrayextract(anyarray, internal, smallint,
-internal, internal, internal, internal),
-  FUNCTION 4 ginarrayconsistent(internal, smallint, anyarray, integer,
-internal, internal, internal, internal),
+  FUNCTION 3 ginqueryarrayextract(anyarray, internal, smallint, internal, internal, internal, internal),
+  FUNCTION 4 ginarrayconsistent(internal, smallint, anyarray, integer, internal, internal, internal, internal),
   STORAGE uuid;
 
-*/
 
 -- NB:
 --
@@ -62,6 +58,11 @@ BEFORE INSERT OR UPDATE ON version
 FOR EACH ROW EXECUTE PROCEDURE version_trigger_proc();
 
 ----------------------------------------------------------------------------
+
+CREATE FUNCTION unix_now() RETURNS integer
+    LANGUAGE plpgsql
+    AS $$ BEGIN RETURN extract(epoch from now()); END; $$;
+
 
 CREATE TABLE pkgname (
     pname text PRIMARY KEY
@@ -234,6 +235,8 @@ CREATE TABLE iplan_unit (
     ctime    int         NOT NULL DEFAULT unix_now() -- creation time of this row
 );
 
+/* (currently unused!)
+
 -- at some point we will be able to merge iplan_pkg w/ iplan_comp
 -- when per-component will support also custom-btypes
 CREATE TABLE iplan_comp (
@@ -250,6 +253,32 @@ CREATE TABLE iplan_comp (
 
 CREATE INDEX ON iplan_comp USING GIN (lib_deps);
 CREATE INDEX ON iplan_comp USING GIN (exe_deps);
+
+CREATE VIEW unit_dep AS
+ SELECT DISTINCT c.xunitid AS parent,
+    unnest(c.lib_deps || c.exe_deps) AS child
+   FROM iplan_comp c;
+
+*/
+
+-- convert iplan_comp into iplan_comp_dep
+/*
+INSERT INTO iplan_comp_dep(parent,cname,isExeDep,child) SELECT c.xunitid AS parent, cname, FALSE isExeDep, unnest(c.lib_deps) AS child FROM iplan_comp c;
+INSERT INTO iplan_comp_dep(parent,cname,isExeDep,child) SELECT c.xunitid AS parent, cname, TRUE  isExeDep, unnest(c.exe_deps) AS child FROM iplan_comp c;
+*/
+
+CREATE TABLE iplan_comp_dep (
+    parent   uuid    NOT NULL REFERENCES iplan_unit(xunitid) ON DELETE CASCADE,
+    cname    text    NOT NULL,
+    isExeDep boolean NOT NULL,
+    child    uuid    NOT NULL REFERENCES iplan_unit(xunitid), -- NB: *NO* deletion cascade
+    PRIMARY KEY (parent, cname, isExeDep, child)
+);
+
+CREATE INDEX ON iplan_comp_dep (parent);
+CREATE INDEX ON iplan_comp_dep (child);
+
+
 
 ----------------------------------------------------------------------------
 
@@ -308,11 +337,6 @@ CREATE VIEW pname_max_ptime AS
   GROUP BY t.pname;
 
 
-CREATE VIEW unit_dep AS
- SELECT DISTINCT c.xunitid AS parent,
-    unnest(c.lib_deps || c.exe_deps) AS child
-   FROM iplan_comp c;
-
 /*
 
 Reset plans
@@ -347,5 +371,10 @@ DELETE FROM iplan_unit;
 
 */
 
-
-
+-- TODO: use custom type
+-- todo: verify >= 0, and >= {0}
+CREATE FUNCTION as_ver(text) RETURNS int[]
+    AS $$ SELECT string_to_array($1,'.')::int[]; $$
+    LANGUAGE SQL
+    IMMUTABLE
+    RETURNS NULL ON NULL INPUT;
