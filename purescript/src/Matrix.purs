@@ -108,6 +108,95 @@ foreign import queueCreate_ :: forall eff .
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
+tagByName :: forall e
+  . MatrixApi
+  -> PackageName
+  -> Aff (api :: API | e) (Maybe Tag)
+tagByName api tagName = makeAff \err succ ->
+  runFn6
+    tagByName_
+    api
+    tagName
+    succ
+    (stringyErr err "Getting tag by name failed")
+    Just
+    Nothing
+
+foreign import tagByName_ :: forall eff a .
+  Fn6 MatrixApi
+      TagName
+      (Maybe Tag -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (a -> Maybe a)
+      (Maybe a)
+      (ApiEff eff Unit)
+
+tagSaveByName :: forall e
+  . MatrixApi
+  -> PackageName
+  -> Tag
+  -> Aff (api :: API | e) Unit
+tagSaveByName api pkgName tagName = makeAff \err succ ->
+  runFn5
+    tagSaveByName_
+    api
+    pkgName
+    tagName
+    succ
+    (stringyErr err "Saving Tag by name failed")
+
+foreign import tagSaveByName_ :: forall eff .
+  Fn5 MatrixApi
+      PackageName
+      Tag
+      (Unit -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+      
+tagRemove :: forall e
+   . MatrixApi
+  -> PackageName
+  -> Tag
+  -> Aff (api :: API | e) Unit
+tagRemove api pkgName tagName = makeAff \err succ ->
+  runFn5
+    tagRemove_
+    api
+    pkgName
+    tagName
+    succ
+    (stringyErr err "Removing Tag by name failed")
+
+foreign import tagRemove_ :: forall eff .
+  Fn5 MatrixApi
+      PackageName
+      Tag
+      (Unit -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
+packageTags :: forall e
+   . MatrixApi
+  -> PackageName
+  -> Tag
+  -> Aff (api :: API | e) Tag
+packageTags api pkg tag = makeAff \err succ ->
+  runFn5
+    packageTags_
+    api
+    pkg
+    tag
+    succ
+    (stringyErr err "Setting Tag failed")
+
+foreign import packageTags_ :: forall eff .
+  Fn5 MatrixApi
+      PackageName
+      Tag
+      (Tag        -> ApiEff eff Unit)
+      (JQueryXHR  -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
 packageList :: forall e
    . MatrixApi
   -> Range

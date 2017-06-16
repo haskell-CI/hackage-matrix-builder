@@ -61,7 +61,7 @@ boot :: forall e h
 boot api = do
   liftEff $ log "bootCont"
   tl   <- Api.tagList     api
-  pl   <- Api.packageList api { count : Undefined (Just 100000), offset : Undefined Nothing }
+  pl   <- Api.packageList api { count : 100000, offset : 0}
   liftEff $ unsafeLog pl
   -- adam <- Api.userByName  api "AdamBergmark"
   state <- liftEff $ newSTRef
@@ -521,11 +521,43 @@ setupBuildQueuer api pkgName = do
 cleanupBuildQueuer = do
   J.display =<< J.select "#queueing .form"
   -- TODO $("#queueing .action").off("click");
+  (J.off "click") =<< J.select "#queueing .action" 
   J.hide =<< J.select "#queueing .success"
   J.hide =<< J.select "#queueing .error"
   J.hide =<< J.select "#queueing .already-queued"
 
-setupTagger _pkgName = unsafeThrow "setupTagger"
+-- setupTagger api pkgName = unsafeThrow "setupTagger"
+setupTagger api pkgName = do
+  log $ "setupTagger for " <> pkgName
+  cleanupTagger
+  void <<< runAff onErr onOk $ packageTags api pkgName ""
+  click' click =<< J.select "#tagging .action"
+  where
+    click :: forall h e . JQueryEvent -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
+    click ev el = do
+      tagName' <- Misc.val =<< J.select "#tagging .tag-name"
+      tags' <- Api.tagByName api tagName'
+      void <<< runAff onErr' onOk' $ Api.tagSaveByName api pkgName (fromJust tags')
+      where
+        onOk' :: forall e2 h2 . Unit -> MainEffs e2 h2 Unit
+        onOk' _ = do
+          log "Tagged package"
+        onErr' e = unsafeLog
+          { a     : "Saving tag item failed"
+          , error : e
+          }
+    onOk _ = do
+      log "Tags success"
+    onErr e = unsafeLog
+      { a     : "Loading queue data for package failed"
+      , error : e
+      }
+
+cleanupTagger = do
+  -- TODO $("#tagging .action").off("click")
+  (J.off "click") =<< J.select "#tagging .action" 
+  J.hide =<< J.select "#tagging .error"
+  (J.setHtml "") =<< J.select "#tagging .tags"
 
 renderTable :: forall e .PackageName -> Package -> Eff (console :: CONSOLE, dom :: DOM | e) Unit
 renderTable pkgName pkg = do
@@ -549,7 +581,7 @@ renderTable pkgName pkg = do
   firstRow <- do
     tr <- J.create "<tr>"
     J.append corner tr
-    traverse (\th -> J.append th tr) headers
+    _ <- traverse (\th -> J.append th tr) headers
     pure tr
   J.append firstRow thead
   J.append thead t
@@ -603,7 +635,7 @@ renderTable pkgName pkg = do
           J.append aDiff th
           J.appendText " " th
           J.append aHackageUrl th
-          traverse (\s -> J.append s th) supRevision
+          _ <- traverse (\s -> J.append s th) supRevision
           pure th
 
         tds <- flip traverse ghcVersions \ghcVersionName -> do

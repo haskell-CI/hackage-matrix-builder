@@ -60,6 +60,59 @@ exports.queueCreate_ = function (api, pkgName, prio, ok, err) {
   };
 };
 
+
+exports.tagByName_ = function (api, tagName, ok, err, just, nothing) {
+  return function () {
+    api.Tag.byName(tagName).get
+      ( function (v) {
+        var tg = (
+          { name : v.name
+          , packages : v.packages
+          }
+        );
+        ok(just(tg))();
+      }
+      , function (e) {
+        if (e && e.responseJSON && e.responseJSON.notFound)
+          ok(nothing)();
+        else
+          err(e)();
+      });
+
+  };
+};
+
+exports.tagSaveByName_ = function (api, pkgName, tag, ok, err) {
+  return function () {
+    api.Tag.saveByName
+      ( pkgName
+      , { name : tag.name, packages : tag.packages }
+      , function (v) { ok(v)(); }
+      , function (e) { err(e)(); }
+      );
+  }
+}
+        
+exports.tagRemove_ = function (api, pkgName, tag, ok, err) {
+  return function () {
+    api.Tag.byName(pkgName).remove
+      ( { name : tag.name, packages : tag.packages }
+      , function (v) { ok(v)(); }
+      , function (e) { err(e)(); }
+      );
+  }
+}
+
+exports.packageTags_ = function (api, pkgName, tagName, ok, err) {
+  return function () {
+    api.Package.byName(pkgName).tags
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      , tagName
+      );
+  };
+};
+
 exports.packageList_ = function (api, range, ok, err) {
   return function () {
     api.Package.list
