@@ -47,7 +47,7 @@ import Uri as Uri
 
 type MainEffs e h o = Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) o
 
-main :: forall e h. MainEffs (exception :: EXCEPTION | e) h Unit
+main :: forall e h. MainEffs (err :: EXCEPTION | e) h Unit
 main = do
  api <- newApi "/api" "/api"
  log "main"
@@ -63,7 +63,7 @@ boot api = do
   tl   <- Api.tagList     api
   pl   <- Api.packageList api { count : 100000, offset : 0}
   liftEff $ unsafeLog pl
-  -- adam <- Api.userByName  api "AdamBergma
+  -- adam <- Api.userByName  api "AdamBergmark"
   state <- liftEff $ newSTRef
     ({ allTags          : tl.items
      , allPackages      : map (\p -> p.name) pl.items
@@ -473,7 +473,7 @@ renderPackage api pkgName pr = do
       J.display =<< J.select "#package-not-built"
     Nothing -> unsafeThrow "renderPackage didn't get a Package"
   setupBuildQueuer api pkgName
-  setupTagger api pkgName
+--  setupTagger pkgName
   cleanupTabs
   J.display =<< J.select "#buildreport"
   J.display =<< J.select "#page-package"
@@ -536,7 +536,7 @@ setupTagger api pkgName = do
     click :: forall h e . JQueryEvent -> JQuery -> Eff (api :: API, console :: CONSOLE, dom :: DOM, st :: ST h | e) Unit
     click ev el = do
       tagName' <- Misc.val =<< J.select "#tagging .tag-name"
-      tags' <- runAff onErr' onOk' (void $ Api.tagByName api tagName')
+     -- void <<< runAff onErr' onOk' $ Api.tagByName api tagName'
       _ <- runAff onErr' onOk' $ Api.tagSaveByName api pkgName { name : "lts-7", packages : ["aws","lens"] }
       pure unit
       where
@@ -703,11 +703,11 @@ renderSingleVersionMatrix :: forall e h
   -> MainEffs e h Unit
 renderSingleVersionMatrix api pkgName pkg report = do
   when (Array.null report.results) $ warn "empty reports array"
-  _ <- flip traverseWithIndex report.results \i ghcResult -> do
+  flip traverseWithIndex report.results \i ghcResult -> do
     g :: ShallowGhcResult <- pure ghcResult
     let ghcVersionName = ghcResult.ghcVersion :: String
     let ghcFullVersionName = ghcResult.ghcFullVersion
-    _ <- flip traverseWithIndex ghcResult.ghcResult \j versionResult -> do
+    flip traverseWithIndex ghcResult.ghcResult \j versionResult -> do
       _ :: ShallowVersionResult <- pure versionResult
       versionName :: VersionName <- pure versionResult.packageVersion
       revision :: Revision <- pure versionResult.packageRevision
