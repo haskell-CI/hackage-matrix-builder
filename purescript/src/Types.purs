@@ -144,8 +144,8 @@ type ApiList a =
   }
 
 type Range =
-  { count :: Undefined Int
-  , offset :: Undefined Int
+  { count :: Int
+  , offset :: Int
   }
 
 type Cell = String
