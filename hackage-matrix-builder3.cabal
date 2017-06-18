@@ -22,6 +22,8 @@ library matrix-lib
                      , PlanJson
                      , WorkerApi
                      , WorkerApi.Client
+                     , HackageApi
+                     , HackageApi.Client
 
   reexported-modules:  Servant.Client
                      , System.Path.IO
