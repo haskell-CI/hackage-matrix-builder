@@ -32,17 +32,25 @@ module Controller.WebSvc where
 
 import           Prelude.Local
 
+import           Control.Monad.Except
 import           Control.Monad.State
 import qualified Crypto.Hash.SHA256               as SHA256
 import qualified Data.ByteString.Char8            as BS
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.Map.Strict                  as Map
 import           Data.Pool
+import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
 import qualified Database.PostgreSQL.Simple       as PGS
 import           Database.PostgreSQL.Simple.Types (Only (..))
+import           Network.HTTP.Client              (defaultManagerSettings,
+                                                   managerResponseTimeout,
+                                                   newManager,
+                                                   responseTimeoutNone)
 import qualified Network.HTTP.Types.Header        as HTTP
+import qualified Network.HTTP.Types.Status        as HTTP
 import           Servant
+import           Servant.Client                   (ServantError (..))
 import           Snap.Core
 import           Snap.Http.Server                 (defaultConfig)
 import qualified Snap.Http.Server.Config          as Snap
@@ -53,6 +61,8 @@ import qualified System.IO.Streams                as Streams
 -- local modules
 import           Controller.Api
 import           Controller.Db
+import           HackageApi
+import           HackageApi.Client
 import           PkgId
 
 data App = App
@@ -73,6 +83,8 @@ runController !app port =
         addRoutes [("/api/", apiHandler)
                   ,("/package/", Snap.serveFile "ui/index.html")
                   ,("/packages/", Snap.serveFile "ui/index.html")
+                  ,("/user/", Snap.serveFile "ui/index.html")
+                  ,("/users/", Snap.serveFile "ui/index.html")
                   ,("/latest/", Snap.serveFile "ui/index.html")
                   ,("/", uiHandler)
                   ]
@@ -108,6 +120,9 @@ server = tagListH
     :<|> queGetH
     :<|> quePutH
     :<|> queDelH
+
+    :<|> usrListH
+
   where
 
     needAuth :: AppHandler a -> AppHandler a
@@ -266,7 +281,15 @@ server = tagListH
             _ <- PGS.execute dbconn "DELETE FROM queue WHERE pname = ?" (PGS.Only pkgn)
             pure ()
 
+    ----------------------------------------------------------------------------
+    -- user -------------------------------------------------------------------
 
+    usrListH :: UserName -> Handler App App UserPkgs
+    usrListH uname = do
+        mpkgs <- liftIO $ getUserInfoIO uname
+        case mpkgs of
+          Just pkgs -> pure (UserPkgs uname (uiPackages pkgs))
+          Nothing   -> throwServantErr' err404
 
 
 withDbc :: (PGS.Connection -> IO a) -> AppHandler a
@@ -309,3 +332,34 @@ throwServantErr0 ServantErr{..} = do
   where
     setHeaders :: [HTTP.Header] -> Response -> Response
     setHeaders hs r = foldl' (\r' (h, h') -> Snap.Core.addHeader h h' r') r hs
+
+
+
+----------------------------------------------------------------------------
+-- temporary implementation; long-term we need to keep the user-association replicated in our database
+
+getUsersIO :: IO [UserNameId]
+getUsersIO = do
+    manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
+    either (fail . show) pure =<< runExceptT (runClientM' manager hackageUrl $ getUsers)
+
+getUserInfoIO :: UserName -> IO (Maybe UserInfo)
+getUserInfoIO n = do
+    manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
+
+    res <- runExceptT (runClientM' manager hackageUrl $ getUserInfo n)
+
+    case res of
+      Right ui -> pure (Just ui)
+
+      Left (FailureResponse { responseStatus = HTTP.Status { statusCode = 404 }
+                            , responseBody   = "User not found: Could not find user: not presently registered\n"
+                            }) -> pure Nothing
+
+      Left err -> fail (show err)
+
+-- | Compute set of packages owned (i.e. being maintainer of) by user.
+uiPackages :: UserInfo -> Set PkgN
+uiPackages ui = Set.fromList [ pn | ["","package",pn0,"maintainers"] <- map (T.splitOn "/") (Set.toList $ uiGroups ui)
+                                  , Just pn <- [pkgNFromText pn0]
+                                  ]

@@ -94,14 +94,34 @@ instance PGS.ToRow DB_iplan_unit
 
 ----
 
-data DB_iplan_comp = DB_iplan_comp UUID CompName UUIDs UUIDs -- Vector?
-                   deriving (Show,Generic)
+-- | Represents the kind of dependency (build-tool-depends vs build-depends).
+--
+-- Note: this is not fully accurate yet; in case of libraries a
+-- package may contain more than one library; likewise a package may
+-- contain more than one executable; we will need to extend this at
+-- some point;
+data DepKind = DepKindLib | DepKindExe
+             deriving (Show,Eq)
 
--- FIXME: doesn't work with execute-many
-db_iplan_comp_insert :: PGS.Query
-db_iplan_comp_insert = "INSERT INTO iplan_comp(xunitid,cname,lib_deps,exe_deps) VALUES (?,?,?,?)"
+-- currently represented as boolean in SQL
+instance ToField DepKind where
+    toField DepKindLib = toField False
+    toField DepKindExe = toField True
 
-instance PGS.ToRow DB_iplan_comp
+-- currently represented as boolean in SQL
+instance FromField DepKind where
+    fromField f mdata = b2dk <$> fromField f mdata
+      where
+        b2dk False = DepKindLib
+        b2dk True  = DepKindExe
+
+data DB_iplan_comp_dep = DB_iplan_comp_dep {- parent :: -} UUID {- cname :: -} CompName  {- isExeDep :: -} DepKind {- child :: -} UUID
+                       deriving (Show,Generic)
+
+instance PGS.ToRow DB_iplan_comp_dep
+
+db_iplan_comp_dep_insert :: PGS.Query
+db_iplan_comp_dep_insert = "INSERT INTO iplan_comp_dep(parent,cname,isExeDep,child) VALUES (?,?,?,?)"
 
 ----
 

@@ -8,6 +8,7 @@
 
 module Controller.Api where
 
+import           HackageApi                           (UserName)
 import           PkgId
 import           Prelude.Local
 
@@ -37,9 +38,9 @@ type ControllerApi m =
   :<|> "v1.0.0" :> "queue"               :> "name" :> Capture "pkgname" PkgN :> ReqBody '[JSON] QPrio  :> Put '[JSON] QEntry
   :<|> "v1.0.0" :> "queue"               :> "name" :> Capture "pkgname" PkgN                           :> Delete '[JSON] ()
 
+  :<|> "v1.0.0" :> "user"                :> "name" :> Capture "username" UserName                      :> Get '[JSON] UserPkgs
+
 type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
-
-
 
 type TagName = Text
 
@@ -196,3 +197,13 @@ jobResOpts = J.defaultOptions { J.sumEncoding = J.ObjectWithSingleField
 
     uncap []     = []
     uncap (c:cs) = toLower c : cs
+
+
+
+data UserPkgs = UserPkgs
+  { upName     :: UserName
+  , upPackages :: Set PkgN
+  } deriving (Eq, Generic, Show)
+
+instance ToJSON   UserPkgs where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
+instance FromJSON UserPkgs where { parseJSON = myParseJSONCml }

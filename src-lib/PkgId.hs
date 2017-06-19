@@ -7,6 +7,7 @@
 module PkgId
     ( PkgN(..)
     , pkgNFromPackageName
+    , pkgNFromText
 
     , Ver(..)
     , verFromVersion
@@ -69,6 +70,9 @@ pkgNFromPackageName :: PackageName -> Maybe PkgN
 pkgNFromPackageName pn
   | pn == mkPackageName ""  = Nothing
   | otherwise               = Just (PkgN pn)
+
+pkgNFromText :: Text -> Maybe PkgN
+pkgNFromText = simpleParse . T.unpack
 
 instance IsString PkgN where
     -- TODO: validatation!
