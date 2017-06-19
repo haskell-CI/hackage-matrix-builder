@@ -11,7 +11,7 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Uri
+import Lib.Uri
 
 type State = {
   display :: String

@@ -1,11 +1,11 @@
-module Types where
+module Lib.Types where
 
 import Data.Eq
 import Data.Generic
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
-import Undefined
+import Lib.Undefined
 
 data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 

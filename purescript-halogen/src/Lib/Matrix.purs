@@ -4,7 +4,7 @@ import Control.Monad.Aff
 import Control.Monad.Eff
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
-import MiscFFI
+import Lib.MiscFFI
 import Data.Function.Uncurried
 import Data.Maybe
 import Data.Nullable

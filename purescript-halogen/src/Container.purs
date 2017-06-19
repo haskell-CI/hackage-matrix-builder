@@ -11,7 +11,7 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Uri
+import Lib.Uri
 
 
 import Components.PageError    as PageError
@@ -59,7 +59,13 @@ ui =
     render st =
       HH.div
         [ HP.id_ "container"]
-	[]
+	[ HH.slot' CP.cp1 unit PageError.component unit absurd
+	, HH.slot' CP.cp2 unit PageHome.component unit absurd
+	, HH.slot' CP.cp3 unit PageLatest.component unit absurd
+	, HH.slot' CP.cp4 unit PagePackage.component unit absurd
+	, HH.slot' CP.cp5 unit PagePackages.component unit absurd
+	, HH.slot' CP.cp6 unit PageUser.component unit absurd
+	]
 
     eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void m
     eval (ReadStates next) = do
