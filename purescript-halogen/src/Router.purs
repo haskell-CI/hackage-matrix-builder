@@ -46,8 +46,8 @@ ui =
                 ]
             , HH.h1
                 [ HP.class_ (H.ClassName "logo-text") ]
-                [ HH.text "Hackage Matrix Builder"
-                , HH.i_ [ HH.sup_ [ HH.text "3rd"] ]
+                [ HH.text "Hackage Matrix Builder "
+                , HH.i_ [ HH.text "3", HH.sup_ [ HH.text "rd"] ]
                 ]
 	    ]
         , HH.div

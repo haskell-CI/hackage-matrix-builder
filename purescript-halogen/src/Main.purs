@@ -55,7 +55,7 @@ type ChildQuery = Coproduct2 Router.Query
 
 type ChildSlot = Either2 Unit Unit
 
-ui :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi e)
+ui :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi (api :: API | e))
 ui = H.lifecycleParentComponent
   { initialState: const initialState
   , render
@@ -65,14 +65,14 @@ ui = H.lifecycleParentComponent
   , receiver: const Nothing
   }
   where
-    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (MyMatrixApi e)
+    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (MyMatrixApi (api :: API | e))
     render state =
       HH.div_
         [ HH.slot' CP.cp1 unit Router.ui unit absurd
 	, HH.slot' CP.cp2 unit Container.ui unit absurd
 	] 
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MyMatrixApi e)
+    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MyMatrixApi (api :: API | e))
     eval (Initialize next) = do
       
       pure next

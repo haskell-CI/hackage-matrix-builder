@@ -14,7 +14,7 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Data.Array ((..))
+import Data.Array ((..), take)
 import Data.String as Str
 import Data.Char
 import Lib.Uri
@@ -24,13 +24,12 @@ import Lib.MatrixApi
 import CSS.Display (Display, block, displayNone, display)
 import Halogen.HTML.CSS as CSS
 
-import Network.HTTP.Affjax (AJAX)
-
 type State =
  {
    display :: Display
  , packages :: Array PackageMeta
  , tags :: Array Tag
+ , selectedTags :: Array TagName
  }
 
 data Query a
@@ -41,7 +40,7 @@ data Query a
   | Finalize a
   | ReadStates a
   
-component :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi e)
+component :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi (api :: API | e))
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
@@ -58,6 +57,7 @@ component = H.lifecycleComponent
      display: block
    , packages: []
    , tags: []
+   , selectedTags: []
    }
 
   render :: State -> H.ComponentHTML Query
@@ -89,28 +89,25 @@ component = H.lifecycleComponent
 	      , HH.text " Only show packages with reports"
 	      ]
           , HH.ol
-              [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"]) ] $ do
-	          tags <- getTagList
-		  buildTags' <$> state.tags
+              [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"]) ] $ buildTags' <$> state.tags
 	      -- TODO: This will generate list of tags avaliable using tagList
           , HH.ol
 	      [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
 	      -- TODO: This will generate Character based sorting
           , HH.ol
-	      [ HP.class_ (H.ClassName "packages") ]
-	      []
+	      [ HP.class_ (H.ClassName "packages") ] $ take 650 $ buildPackages <$> state.packages
 	      -- TODO: This will generates all the packages based on tag-filter or alphabetically order using packageList
           ]
       ]
 
-  eval :: forall e . Query ~> H.ComponentDSL State Query Void (MyMatrixApi e)
+  eval :: forall e . Query ~> H.ComponentDSL State Query Void (MyMatrixApi (api :: API | e))
   eval (ReadStates next) = do
     pure next
   eval (Initialize next) = do
     st <- H.get
-    tagItem <- getTagList
-    pkg <- getPackageList
-    H.put $ st { display = block, packages = pkg.items, tags = tagItem.items}
+    tagItem <- H.lift getTagList
+    pkg <- H.lift getPackageList
+    newSt <- H.put $ st { display = block, packages = pkg.items, tags = tagItem.items, selectedTags = []}
     pure next
     
   eval (SelectedTag next) = do
@@ -157,20 +154,24 @@ buildTags' tag =
 
 buildPackages :: forall p i. PackageMeta -> HH.HTML p i
 buildPackages packageMeta =
-  HH.li_
+  HH.li_ $
     [ HH.a
         [ HP.href $ "/package/" <> packageMeta.name -- all of the package's name will goes here
 	-- TODO: The action onClick will be added here to direct user to package's page
-        ] <> (buildTags <$> packageMeta.tags)
-        [ HH.text $ packageMeta.name ]
-    ]
+        ]
+        [ HH.text packageMeta.name ]
+    ] <> (buildTags <$> packageMeta.tags)
 
-getTagList :: forall e m. MonadReader { matrixClient :: MatrixApi } m => MonadAff (api :: API | e) m => m (ApiList Tag)
+getTagList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+           => MonadAff (api :: API | e) m
+	   => m (ApiList Tag)
 getTagList = do
   client <- asks _.matrixClient
   liftAff (tagList client)
 
-getPackageList :: forall e m. MonadReader { matrixClient :: MatrixApi } m => MonadAff (api :: API | e) m => m (ApiList PackageMeta)
+getPackageList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+               => MonadAff (api :: API | e) m
+	       => m (ApiList PackageMeta)
 getPackageList = do
   client <- asks _.matrixClient
   liftAff (packageList client { count : (Just 100000), offset : Nothing })
