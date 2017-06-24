@@ -27,7 +27,8 @@
     "purescript-functors": "^2.1.0",
     "purescript-coroutines": "^4.0.0",
     "purescript-aff-coroutines": "^5.0.0",
-    "purescript-halogen-css": "^6.0.0"
+    "purescript-halogen-css": "^6.0.0",
+    "purescript-transformers": "^3.4.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0"

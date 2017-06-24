@@ -11,17 +11,20 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Lib.MatrixApi
 import Lib.Uri
+import CSS.Display (Display, block, displayNone, display)
+import Halogen.HTML.CSS as CSS
 
 type State = {
-  display :: String
+  display :: Display
   
 
 }
 
 data Query a = ReadStates a
 
-component :: forall m. H.Component HH.HTML Query Unit Void m
+component :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi e)
 component =
   H.component
     { initialState: const initialState
@@ -32,13 +35,14 @@ component =
   where
 
     initialState :: State
-    initialState = { display: "none" }
+    initialState = { display: displayNone }
 
     render :: State -> H.ComponentHTML Query
     render state =
       HH.div
         [ HP.id_ "page-home"
         , HP.class_ (H.ClassName "page")
+	, CSS.style $ display state.display
         ]
         [ HH.div
             [ HP.class_ (H.ClassName "leftcol") ]
@@ -119,6 +123,6 @@ component =
 	        ]
             ]   
         ]
-    eval :: Query ~> H.ComponentDSL State Query Void m
+    eval :: Query ~> H.ComponentDSL State Query Void (MyMatrixApi e)
     eval (ReadStates next) = do
       pure next

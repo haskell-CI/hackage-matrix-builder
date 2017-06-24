@@ -11,7 +11,10 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Lib.MatrixApi
 import Lib.Uri
+import CSS.Display (Display, block, displayNone)
+import Halogen.HTML.CSS
 
 
 import Components.PageError    as PageError
@@ -22,7 +25,7 @@ import Components.PagePackages as PagePackages
 import Components.PageUser     as PageUser
 
 type State = {
-  display :: String
+  display :: Display
   
 
 }
@@ -38,7 +41,7 @@ type ChildQuery = Coproduct6 PageError.Query
 
 type ChildSlot = Either6 Unit Unit Unit Unit Unit Unit
 
-ui :: forall m. Applicative m => H.Component HH.HTML Query Unit Void m
+ui :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi e)
 ui =
   H.lifecycleParentComponent
     {
@@ -52,10 +55,10 @@ ui =
   where
     initialState :: State
     initialState = {
-      display : "none"
+      display : displayNone
     }
 
-    render :: State -> H.ParentHTML Query ChildQuery ChildSlot m
+    render :: forall e . State -> H.ParentHTML Query ChildQuery ChildSlot (MyMatrixApi e)
     render st =
       HH.div
         [ HP.id_ "container"]
@@ -67,7 +70,7 @@ ui =
 	, HH.slot' CP.cp6 unit PageUser.component unit absurd
 	]
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void m
+    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MyMatrixApi e)
     eval (ReadStates next) = do
       pure next
 

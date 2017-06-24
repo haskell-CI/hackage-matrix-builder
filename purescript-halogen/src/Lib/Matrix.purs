@@ -12,6 +12,9 @@ import Prelude
 import Lib.Types
 import Lib.Undefined
 import Lib.Uri (Uri)
+import Control.Monad.Reader (ReaderT)
+
+type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi } (Aff e)
 
 foreign import data MatrixApi :: Type
 
@@ -39,19 +42,6 @@ foreign import userByName_ :: forall eff .
       String
       (User      -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
-      (ApiEff eff Unit)
-
-tagList :: forall e
-   . MatrixApi
-  -> Aff (api :: API | e) (ApiList Tag)
-tagList api = makeAff \err succ ->
-  runFn3 tagList_ api succ
-    (stringyErr err "Getting tag list failed")
-
-foreign import tagList_ :: forall eff .
-  Fn3 MatrixApi
-      (ApiList Tag -> ApiEff eff Unit)
-      (JQueryXHR   -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
 queueByName :: forall e
@@ -152,7 +142,32 @@ foreign import tagSaveByName_ :: forall eff .
       (Unit -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)
-      
+
+tagList :: forall e
+   . MatrixApi
+  -> Aff (api :: API | e) (ApiList Tag)
+tagList api = makeAff \err succ ->
+  runFn3 tagList_ api succ
+    (stringyErr err "Getting tag list failed")
+
+foreign import tagList_ :: forall eff .
+  Fn3 MatrixApi
+      (ApiList Tag -> ApiEff eff Unit)
+      (JQueryXHR   -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
+-- TODO : Delete when done
+-- type Tag =
+--  { name     :: TagName
+--  , packages :: Array PackageName
+--  }
+
+-- type ApiList a =
+--  { offset :: Int
+--  , count :: Int
+--  , items :: Array a
+--  }
+
 tagRemove :: forall e
    . MatrixApi
   -> PackageName
@@ -211,6 +226,18 @@ packageList api range = makeAff \err succ ->
   where
     packageMetaFromFFI :: PackageMetaFFI -> PackageMeta
     packageMetaFromFFI p = p { report = undefine p.report }
+
+-- TODO : Delete when done
+-- type PackageMeta =
+--  { name   :: PackageName
+--  , report :: Maybe String
+--  , tags   :: Array TagName
+--  }
+-- Type ApiList a =
+--  { offset :: Int
+--  , count :: Int
+--  , items :: Array a
+--  }
 
 type PackageMetaFFI =
   { name   :: PackageName

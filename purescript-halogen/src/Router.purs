@@ -7,7 +7,11 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 
-type State = { history :: Array String }
+type State =
+  {
+    history :: Array String
+  , currentPage :: String
+  }
 
 data Query a = ChangeRoute String a
 
@@ -21,7 +25,11 @@ ui =
     }
   where
     initialState :: State
-    initialState = { history: [] }
+    initialState =
+      {
+        history: []
+      , currentPage: "/"
+      }
 
     render :: State -> H.ComponentHTML Query
     render state =
@@ -39,18 +47,18 @@ ui =
             , HH.h1
                 [ HP.class_ (H.ClassName "logo-text") ]
                 [ HH.text "Hackage Matrix Builder"
-                , HH.i_ [ HH.text "3rd"]
+                , HH.i_ [ HH.sup_ [ HH.text "3rd"] ]
                 ]
 	    ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "#" ] [ HH.text "Home" ] ]
+	    [ HH.a [ HP.href "/" ] [ HH.text "Home" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "#latest" ] [ HH.text "Latest builds" ] ]
+	    [ HH.a [ HP.href "/latest" ] [ HH.text "Latest builds" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "#packages" ] [ HH.text "Packages" ] ]
+	    [ HH.a [ HP.href "/packages" ] [ HH.text "Packages" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","search","right","clearfix"]) ]
 	    [ HH.div

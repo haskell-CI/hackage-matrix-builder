@@ -15,14 +15,6 @@ exports.userByName_ = function (api, name, ok, err) {
   };
 };
 
-exports.tagList_ = function (api, ok, er) {
-  return function () {
-    api.Tag.list
-      ( function (v) { ok(v)(); }
-      , function (e) { er(e)(); }
-      );
-  };
-};
 
 exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high, just, nothing) {
   return function () {
@@ -92,7 +84,16 @@ exports.tagSaveByName_ = function (api, pkgName, tag, ok, err) {
       );
   }
 }
-        
+
+exports.tagList_ = function (api, ok, er) {
+  return function () {
+    api.Tag.list
+      ( function (v) { ok(v)(); }
+      , function (e) { er(e)(); }
+      );
+  };
+};
+
 exports.tagRemove_ = function (api, pkgName, tag, ok, err) {
   return function () {
     api.Tag.byName(pkgName).remove
