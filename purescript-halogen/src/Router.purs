@@ -6,6 +6,7 @@ import Data.Maybe (Maybe(..))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
+import Lib.MatrixApi
 
 type State =
   {
@@ -15,7 +16,7 @@ type State =
 
 data Query a = ChangeRoute String a
 
-ui :: forall m. H.Component HH.HTML Query Unit Void m
+ui :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 ui =
   H.component
     { initialState: const initialState
@@ -71,7 +72,7 @@ ui =
 		]
             ]
         ]
-    eval :: Query ~> H.ComponentDSL State Query Void m
+    eval :: forall e. Query ~> H.ComponentDSL State Query Void (MatrixApis e)
     eval = case _ of
       ChangeRoute msg next -> do
         -- H.modify \st -> { history: st.history `A.snoc` msg }

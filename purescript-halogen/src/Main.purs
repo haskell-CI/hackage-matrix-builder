@@ -6,12 +6,8 @@ import Control.Coroutine.Aff as CRA
 import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.AVar (AVAR)
 import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Exception (EXCEPTION)
-import Control.Monad.Eff.Ref (REF)
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Except (runExcept)
-import Control.Monad.Aff.Console (log)
-import Control.Monad.Eff.Console (CONSOLE)
 import Control.Monad.Reader (runReaderT)
 import Data.Either (Either(..))
 import Data.Either.Nested (Either2)
@@ -36,7 +32,7 @@ import Router as Router
 import CSS.Display (Display, block, displayNone)
 import Halogen.HTML.CSS as CSS
 
-import Lib.MatrixApi (MyMatrixApi, newApi, API)
+import Lib.MatrixApi (newApi, API, MatrixApis)
 
 type State =
   { display :: Display }
@@ -55,7 +51,7 @@ type ChildQuery = Coproduct2 Router.Query
 
 type ChildSlot = Either2 Unit Unit
 
-ui :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi (api :: API | e))
+ui :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 ui = H.lifecycleParentComponent
   { initialState: const initialState
   , render
@@ -65,14 +61,14 @@ ui = H.lifecycleParentComponent
   , receiver: const Nothing
   }
   where
-    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (MyMatrixApi (api :: API | e))
+    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (MatrixApis e)
     render state =
       HH.div_
         [ HH.slot' CP.cp1 unit Router.ui unit absurd
 	, HH.slot' CP.cp2 unit Container.ui unit absurd
 	] 
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MyMatrixApi (api :: API | e))
+    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MatrixApis e)
     eval (Initialize next) = do
       
       pure next
@@ -97,8 +93,6 @@ hashChangeProducer = CRA.produce \emit ->
       DOM.window
         >>= DOM.windowToEventTarget
         >>> DOM.addEventListener ET.hashchange (DOM.eventListener emitter) false
-
-type HalogenEffects eff = (console :: CONSOLE, avar :: AVAR, ref :: REF, exception :: EXCEPTION, dom :: DOM | eff)
 
 -- A consumer coroutine that takes the `query` function from our component IO
 -- record and sends `ChangeRoute` queries in when it receives inputs from the

@@ -24,7 +24,7 @@ type State = {
 
 data Query a = ReadStates a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi e)
+component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 component =
   H.component
     { initialState: const initialState
@@ -54,6 +54,6 @@ component =
             ]
 	]
 
-    eval :: Query ~> H.ComponentDSL State Query Void (MyMatrixApi e)
+    eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
     eval (ReadStates next) = do
       pure next

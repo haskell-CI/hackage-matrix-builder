@@ -41,7 +41,7 @@ type ChildQuery = Coproduct6 PageError.Query
 
 type ChildSlot = Either6 Unit Unit Unit Unit Unit Unit
 
-ui :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi (api :: API | e))
+ui :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 ui =
   H.lifecycleParentComponent
     {
@@ -58,7 +58,7 @@ ui =
       display : displayNone
     }
 
-    render :: forall e . State -> H.ParentHTML Query ChildQuery ChildSlot (MyMatrixApi (api :: API | e))
+    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (MatrixApis e)
     render st =
       HH.div
         [ HP.id_ "container"]
@@ -70,7 +70,7 @@ ui =
 	, HH.slot' CP.cp6 unit PageUser.component unit absurd
 	]
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MyMatrixApi (api :: API | e))
+    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MatrixApis e)
     eval (ReadStates next) = do
       pure next
 

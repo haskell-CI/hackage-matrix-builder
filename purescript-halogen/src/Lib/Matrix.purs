@@ -16,6 +16,8 @@ import Control.Monad.Reader (ReaderT)
 
 type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi } (Aff e)
 
+type MatrixApis eff = MyMatrixApi (api :: API | eff)
+
 foreign import data MatrixApi :: Type
 
 foreign import data API :: Effect

@@ -14,9 +14,12 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Data.Array ((..), take)
+import Data.Array as Arr
 import Data.String as Str
 import Data.Char
+import Data.Set
+import Data.Foldable
+import Data.Semigroup ((<>))
 import Lib.Uri
 import Lib.Types (PackageName, PackageMeta, Tag, TagName, ApiList)
 import Lib.Undefined
@@ -29,18 +32,20 @@ type State =
    display :: Display
  , packages :: Array PackageMeta
  , tags :: Array Tag
- , selectedTags :: Array TagName
+ , clicked :: Boolean
+ , selectedTag :: Set TagName
+ , selectedPrefix :: Set Prefixs
  }
+
+type Prefixs = String
 
 data Query a
   = Initialize a
-  | SelectedTag a
-  | SelectedPrefix a
-  | PackageList a
+  | SelectedTag TagName a
+  | SelectedPrefix Prefixs a
   | Finalize a
-  | ReadStates a
   
-component :: forall e. H.Component HH.HTML Query Unit Void (MyMatrixApi (api :: API | e))
+component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
@@ -57,7 +62,9 @@ component = H.lifecycleComponent
      display: block
    , packages: []
    , tags: []
-   , selectedTags: []
+   , clicked: false
+   , selectedTag: empty
+   , selectedPrefix: empty
    }
 
   render :: State -> H.ComponentHTML Query
@@ -89,46 +96,54 @@ component = H.lifecycleComponent
 	      , HH.text " Only show packages with reports"
 	      ]
           , HH.ol
-              [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"]) ] $ buildTags' <$> state.tags
+              [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"])
+	      ] $ ( buildTags' state) <$> state.tags 
 	      -- TODO: This will generate list of tags avaliable using tagList
           , HH.ol
 	      [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
 	      -- TODO: This will generate Character based sorting
           , HH.ol
-	      [ HP.class_ (H.ClassName "packages") ] $ take 650 $ buildPackages <$> state.packages
-	      -- TODO: This will generates all the packages based on tag-filter or alphabetically order using packageList
+	      [ HP.class_ (H.ClassName "packages") ] $
+	        Arr.take 650 $ buildPackages <$> packages'
           ]
       ]
+    where
+      packages' = (tagFilter <<< prefixFilter) state.packages
+      tagFilter = Arr.filter (tagContained state.selectedTag)
+      prefixFilter = Arr.filter (prefixContained state.selectedPrefix)
 
-  eval :: forall e . Query ~> H.ComponentDSL State Query Void (MyMatrixApi (api :: API | e))
-  eval (ReadStates next) = do
-    pure next
+      
+
+  eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
   eval (Initialize next) = do
     st <- H.get
     tagItem <- H.lift getTagList
     pkg <- H.lift getPackageList
-    newSt <- H.put $ st { display = block, packages = pkg.items, tags = tagItem.items, selectedTags = []}
+    newSt <- H.put $ st { display = block, packages = pkg.items, tags = tagItem.items, clicked = false}
     pure next
     
-  eval (SelectedTag next) = do
+  eval (SelectedTag tag next) = do
+    H.modify \st -> st { selectedTag = if (member tag st.selectedTag)
+                                          then delete tag st.selectedTag
+					  else insert tag st.selectedTag }
     pure next
-  eval (SelectedPrefix next) = do
-    pure next
-  eval (PackageList next) = do
+	
+  eval (SelectedPrefix prefix next) = do
+    H.modify \st -> st { selectedPrefix = singleton prefix }
     pure next
   eval (Finalize next) = do
     pure next
 
 prefixs :: Array String
-prefixs = Str.singleton <$> fromCharCode <$> (65 .. 90)
+prefixs = Str.singleton <$> fromCharCode <$> (Arr.(..) 65 90)
 
-buildPrefixs :: forall p i. String -> HH.HTML p i
+buildPrefixs :: forall p. String -> HH.HTML p (Query Unit)
 buildPrefixs prefix =
   HH.li_
     [ HH.a
-        [ HP.attr (H.AttrName "data-prefix") prefix
-	, HP.class_ (H.ClassName "header") 
-        , HP.href ""
+        [ HP.class_ (H.ClassName "header")
+	, HP.attr (H.AttrName "data-prefix") prefix
+	, HE.onClick $ HE.input_ (SelectedPrefix prefix)
 	-- TODO: The action onClick will be added here
         ]
         [ HH.text $ prefix ]
@@ -139,18 +154,19 @@ buildTags tag =
   HH.a
     [ HP.class_ (H.ClassName "tag-item")
     , HP.attr (H.AttrName "data-tag-name") tag
-    , HP.href ""
     ]
     [ HH.text $ tag ]
-
-buildTags' :: forall p i. Tag -> HH.HTML p i
-buildTags' tag =
+ 
+buildTags' :: forall p. State -> Tag -> HH.HTML p (Query Unit)
+buildTags' st tag =
   HH.a
-    [ HP.class_ (H.ClassName "tag-item")
+    [ HP.classes (H.ClassName <$> ["tag-item", clickStatus])
     , HP.attr (H.AttrName "data-tag-name") tag.name
-    , HP.href ""
+    , HE.onClick $ HE.input_ (SelectedTag tag.name)
     ]
     [ HH.text $ tag.name ]
+  where
+    clickStatus = if (member tag.name st.selectedTag)  then "active" else " "
 
 buildPackages :: forall p i. PackageMeta -> HH.HTML p i
 buildPackages packageMeta =
@@ -175,3 +191,13 @@ getPackageList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
 getPackageList = do
   client <- asks _.matrixClient
   liftAff (packageList client { count : (Just 100000), offset : Nothing })
+
+tagContained :: Set TagName -> PackageMeta -> Boolean
+tagContained selectedTags { tags }
+    | isEmpty selectedTags = true
+    | otherwise            = not isEmpty (fromFoldable tags `intersection` selectedTags)
+
+prefixContained :: Set Prefixs -> PackageMeta -> Boolean
+prefixContained selectedPrefix { name }
+    | isEmpty selectedPrefix = true
+    | otherwise              = member (Str.toUpper $ Str.take 1 name) selectedPrefix
