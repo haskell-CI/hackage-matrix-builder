@@ -167,7 +167,7 @@
               })();
               return $("<li>").append
                 ( packageLink(v)
-                , date && $("<small>").text(" - last built: " + formatDate(date))
+                , date && $("<small>").text(" - index-state: " + formatDate(date))
                 );
             })
           );
@@ -245,7 +245,7 @@
             return $("<li>").append
               ( packageLink(v)
               , window.allPackagesMore[v].tags.map(renderTag)
-              , date && $("<small>").text(" - last built: " + formatDate(date))
+              , date && $("<small>").text(" - index-state: " + formatDate(date))
               );
           })
         );
@@ -275,7 +275,7 @@
         ( reports.items.map(function (i) {
             return $("<li>").append
               ( packageLink(i.packageName)
-              , $("<small>").text(" - built " + formatDate(i.modified))
+              , $("<small>").text(" - index-state: " + formatDate(i.modified))
               );
           })
         );
@@ -421,7 +421,7 @@
     $("#package").html("");
     if (pkg && report) {
       renderTable(pkgName, pkg, window.ghcVersions);
-      $("#page-package .main-header-subtext.last-build").text("Last build: " + formatDate(report.modified));
+      $("#page-package .main-header-subtext.last-build").text("index-state: " + formatDate(report.modified));
       renderSingleVersionMatrix(pkgName, pkg, report, window.ghcVersions);
       $(".package-header").show();
       $(".logs-header").show();
@@ -574,7 +574,7 @@
           , $("<a>").attr("href", hackageUrl(pkgName, versionName)).text(versionName)
           , revision
               ? $("<sup>").append
-                  ( $("<a>").text("(" + revision +  ")")
+                  ( $("<a>").text("-r" + revision +  "")
                             .attr("href", revisionsUrl(pkgName, versionName))
                             .attr("data-revision", revision)
                             .attr("data-version", versionName)
@@ -784,7 +784,8 @@
 
   function formatDate (d) {
     d = new Date(d);
-    return d.toLocaleString().replace("T", " ");
+    //return d.toLocaleString().replace("T", " ");
+    return d.toISOString().split('.')[0]+"Z";
   }
 
   function hdiffUrl (pkgName, versionName, prevVersionName) {

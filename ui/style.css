@@ -252,7 +252,7 @@ body {
 }
 
 #page-package tr.first-minor { border-top: 3px solid black; }
-#page-package tr.first-major { border-top: 5px solid black; }
+#page-package tr.first-major { border-top: 7px solid black; }
 
 #page-package td.pass-build { background-color: #00ff00; }
 #page-package td.pass-no-ip { background-color: #007700; }
