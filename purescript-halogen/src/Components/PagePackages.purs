@@ -43,6 +43,7 @@ data Query a
   = Initialize a
   | SelectedTag TagName a
   | SelectedPrefix Prefixs a
+  | SelectedPackage PackageName a
   | Finalize a
   
 component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
@@ -59,7 +60,7 @@ component = H.lifecycleComponent
   initialState :: State
   initialState =
    {
-     display: block
+     display: displayNone
    , packages: []
    , tags: []
    , clicked: false
@@ -119,17 +120,19 @@ component = H.lifecycleComponent
     st <- H.get
     tagItem <- H.lift getTagList
     pkg <- H.lift getPackageList
-    newSt <- H.put $ st { display = block, packages = pkg.items, tags = tagItem.items, clicked = false}
+    initState <- H.put $ st { display = displayNone, packages = pkg.items, tags = tagItem.items, clicked = false}
     pure next
     
   eval (SelectedTag tag next) = do
     H.modify \st -> st { selectedTag = if (member tag st.selectedTag)
                                           then delete tag st.selectedTag
-					  else insert tag st.selectedTag }
+					  else insert tag st.selectedTag }				
     pure next
 	
   eval (SelectedPrefix prefix next) = do
     H.modify \st -> st { selectedPrefix = singleton prefix }
+    pure next
+  eval (SelectedPackage pkgName next) = do
     pure next
   eval (Finalize next) = do
     pure next
@@ -172,7 +175,7 @@ buildPackages :: forall p i. PackageMeta -> HH.HTML p i
 buildPackages packageMeta =
   HH.li_ $
     [ HH.a
-        [ HP.href $ "/package/" <> packageMeta.name -- all of the package's name will goes here
+        [ -- HP.href $ "/package/" <> packageMeta.name -- all of the package's name will goes here
 	-- TODO: The action onClick will be added here to direct user to package's page
         ]
         [ HH.text packageMeta.name ]

@@ -158,18 +158,6 @@ foreign import tagList_ :: forall eff .
       (JQueryXHR   -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
--- TODO : Delete when done
--- type Tag =
---  { name     :: TagName
---  , packages :: Array PackageName
---  }
-
--- type ApiList a =
---  { offset :: Int
---  , count :: Int
---  , items :: Array a
---  }
-
 tagRemove :: forall e
    . MatrixApi
   -> PackageName

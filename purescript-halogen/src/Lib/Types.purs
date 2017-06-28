@@ -14,6 +14,11 @@ type Tag =
   , packages :: Array PackageName
   }
 
+type ColumnVersion =
+  { ghcVer :: VersionName
+  , pkgVer :: VersionName
+  }
+
 type PackageMeta =
   { name   :: PackageName
   , report :: Maybe String
@@ -31,6 +36,13 @@ type Report =
   , results     :: Array GHCResult
   }
 
+type GHCResult =
+  { ghcVersion     :: VersionName
+  , ghcFullVersion :: VersionName
+  , results        :: Array VersionResult
+  , resultsB       :: Array (Tuple PkgVerPfx (Undefined VersionName))
+  }
+
 type ShallowReport =
  { packageName :: PackageName
  , modified    :: String
@@ -42,14 +54,7 @@ type ShallowGhcResult =
   , ghcFullVersion :: VersionName
   , ghcResult      :: Array ShallowVersionResult
   }
-
-type GHCResult =
-  { ghcVersion     :: VersionName
-  , ghcFullVersion :: VersionName
-  , results        :: Array VersionResult
-  , resultsB       :: Array (Tuple PkgVerPfx (Undefined VersionName))
-  }
-
+  
 type ShallowVersionResult =
  { packageVersion  :: VersionName
  , packageRevision :: Revision
@@ -64,12 +69,6 @@ data ShallowResult
   | ShallowNoIpFail
   | ShallowFail
   | ShallowFailDeps Word
-
-type VersionInfo =
-  { version    :: VersionName
-  , revision   :: Revision
-  , preference :: Preference
-  }
 
 data Preference
   = Normal
@@ -110,6 +109,12 @@ type Package =
   , versions :: Array VersionInfo
   }
 
+type VersionInfo =
+  { version    :: VersionName
+  , revision   :: Revision
+  , preference :: Preference
+  }
+
 type Username = String
 
 type User =
@@ -135,6 +140,14 @@ type TagName = String
 
 type PkgVerPfx = Array Word
 
+type HackageUrl = String
+
+type RevisionUrl = String
+
+type HdiffUrl = String
+
+type Cell = String
+
 type Word = Int
 
 type ApiList a =
@@ -147,8 +160,6 @@ type Range =
   { count :: Maybe Int
   , offset :: Maybe Int
   }
-
-type Cell = String
 
 data Priority
   = Low
