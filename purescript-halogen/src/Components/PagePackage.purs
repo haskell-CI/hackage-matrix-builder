@@ -4,10 +4,12 @@ import Prelude
 
 import Data.Either.Nested (Either3)
 import Data.Functor.Coproduct.Nested (Coproduct6)
-import Data.Maybe (Maybe(..), fromJust)
+import Data.Maybe (Maybe(..), fromMaybe, fromJust)
 import Data.Semigroup ((<>))
 import Data.String as Str
-import Data.Array as Arr
+import Data.Array (concat, reverse, (!!))
+import Data.Function (const)
+import Data.Traversable (Accum, mapAccumL)
 
 import Control.Monad.Aff.Class
 import Control.Monad.Reader.Class
@@ -39,6 +41,8 @@ data Query a
   | QueueingPackage a
   | FailingPackage a
   | HighlightCell PackageName VersionName VersionName a
+  | AddingNewTag a
+  | QueueBuild a
   | Finalize a
   
 
@@ -89,13 +93,10 @@ component = H.lifecycleComponent
             [ HH.h2
 	        [ HP.class_ (H.ClassName "main-header") ]
 		[ HH.text state.package.name ]
-            -- TODO :  <div class="main-header-subtext error" id="package-not-built">This package doesn't have a build report yet. 
-            --         You can request a report by <a href="https://github.com/hvr/hackage-matrix-builder/issues/32">
-            --         leaving a comment here</a>.</div>
-            -- 
             , HH.div
                 [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-		[]
+		[ HH.text $ "index-state: " -- <> fromDate args will be based on package meta that get passed from page-packages
+		]
             , HH.div
                 [ HP.id_ "package-buildreport" ]
                 [ HH.h3
@@ -109,9 +110,6 @@ component = H.lifecycleComponent
                 , HH.div
                     [ HP.id_ "tabs-container" ]
                     [ (renderLogResult state.logdisplay state.logmessage state.package state.columnversion) ]
-                    -- TODO : All the logs report from the build table goes here (when the column clicked). 
-                    -- From : https://matrix.hackage.haskell.org/package/AhoCorasick
-                    -- To :  https://matrix.hackage.haskell.org/package/AhoCorasick#GHC-7.10/AhoCorasick-0.0.3
                 ]
             ]
 	]
@@ -141,7 +139,7 @@ component = H.lifecycleComponent
 		        ]
 		    , HH.button
 		        [ HP.class_ (H.ClassName "action")
-                        -- HE.onClick (HE.input ...)
+                        , HE.onClick $ HE.input_ AddingNewTag
 		        -- TODO : When this button clicked, it will get text then add tag to the <ul class="tags"> above
                         ]
 		        [ HH.text "Add Tag" ]
@@ -176,7 +174,9 @@ component = H.lifecycleComponent
 			    ]
 		        ]
 		    , HH.button
-		        [ HP.class_ (H.ClassName "action") ]
+		        [ HP.class_ (H.ClassName "action")
+			, HE.onClick $ HE.input_ AddingNewTag
+			]
 		        [ HH.text "Queue build for this package" ]
 		    ]
 	        ]
@@ -187,7 +187,7 @@ component = H.lifecycleComponent
       st <- H.get
       packageByName <- H.lift $ getPackageByName "lens"
       reportPackage <- H.lift $ getLatestReportByPackageName "lens"
-      initState <- H.put $ st { display = block, package = packageByName, report = reportPackage, highlighted = false}
+      initState <- H.put $ st { display = displayNone, package = packageByName, report = reportPackage, highlighted = false}
       pure next
     eval (AddingTag tag next) = do
       pure next	
@@ -202,8 +202,24 @@ component = H.lifecycleComponent
 			 , columnversion = { ghcVer, pkgVer }
 			 }
       pure next
+    eval (AddingNewTag next) = do
+      pure next
+    eval (QueueBuild next) = do
+      pure next
     eval (Finalize next) = do
       pure next
+
+renderMissingPackage :: forall p i. PackageName -> HH.HTML p i
+renderMissingPackage pkgName =
+  HH.div
+    [ HP.classes (H.ClassName <$> ["main-header-subtext","error"])
+    , HP.id_ "package-not-built"
+    ]
+    [ HH.text "This package doesn't have a build report yet. You can request a report by"
+    , HH.a
+        [ HP.href "https://github.com/hvr/hackage-matrix-builder/issues/32"]
+	[ HH.text "leaving a comment here"]
+    ]
 
 renderLogResult :: forall p i. Display -> String -> Package -> ColumnVersion -> HH.HTML p i
 renderLogResult logdisplay log { name } { ghcVer, pkgVer } =
@@ -224,10 +240,7 @@ renderLogResult logdisplay log { name } { ghcVer, pkgVer } =
 	        [ HP.class_ (H.ClassName "ui-tabs-anchor")
 		, HP.attr (H.AttrName "role") "presentation"
 		]
-		[ HH.text $ "GHC-" <>
-		             ghcVer  <>
-			     "/" <> name <> "-" <> pkgVer
-		]
+		[ HH.text $ cellHash ghcVer name pkgVer ]
             ]
 	]
     , HH.div
@@ -266,36 +279,64 @@ renderTableMatrix state { name, versions } shallowR@{ packageName, modified, res
 		]
             ] <> ((\x -> HH.th_ $ [HH.text x]) <$> ghcVersions)
 	]
-    , HH.tbody_ $ generateTableRow state shallowR <$> (Arr.reverse versions)
+    , HH.tbody_ $ getTheResult accumResult
     ]
-		
--- newMajor :: Package -> Boolean
--- newMinor :: Package -> Boolean
--- renderLogResult ::
+  where
+    accumResult = mapAccumL (generateTableRow state shallowR) { version: "", revision: 0, preference: Normal } (reverse versions)
+    getTheResult { value } = value
 
--- packageVersioning :: Package -> Array String
--- packageVersioning pkg
---  | (newMajor pkg) && (pkg newMinor) = ["first-major", "first-minor"]
---  | newMajor pkg                     = ["first-major"]
---  | newMinor pkg                     = ["first-minor"]
---  | otherwise                        = []
-  
-generateTableRow :: forall p. State -> ShallowReport -> VersionInfo -> HH.HTML p (Query Unit)
-generateTableRow { package, report, highlighted } shallowR@{ packageName, results } verInfo@{ version, revision, preference }  =
-    HH.tr 
-      [ HP.classes (H.ClassName <$> (["solver-row"] <> [])) ] $ -- TODO: packageVersioning package
-      [ HH.th
-          [ HP.class_ (H.ClassName "pkgv") ] $
-          [ HH.a
-	      [ HP.href $ hdiffUrl package.name -- TODO: still need to implement hdiffUrl (pkgName, versionName, prevVersionName)
-	      ]
-	      [ HH.text "Δ" ]
-	  , HH.a
-	      [ HP.href $ hackageUrl package.name version ]
-	      [ HH.text version ]
-	  ] <> (if revision > 0 then [ (containedRevision packageName version revision) ] else [])
-      ] <> (generateTableColumn highlighted packageName version <$> (Arr.reverse results))
+generateTableRow :: forall p. State
+                 -> ShallowReport
+		 -> VersionInfo
+		 -> VersionInfo
+		 -> Accum VersionInfo (HH.HTML p (Query Unit))
+generateTableRow { package, highlighted } { results } prevVer currentVer  =
+  { accum: const currentVer prevVer
+  , value: HH.tr 
+             [ HP.classes (H.ClassName <$> (["solver-row"] <> packageVersioning minorCheck majorCheck)) ] $ 
+             [ HH.th
+                 [ HP.class_ (H.ClassName "pkgv") ] $
+                 [ HH.a
+	             [ HP.href $ hdiffUrl package.name prevVer currentVer
+	             ]
+	             [ HH.text "Δ" ]
+	         , HH.a
+	             [ HP.href $ hackageUrl package.name currentVer.version ]
+	             [ HH.text currentVer.version ]
+	         ] <> (if currentVer.revision > 0 then [ (containedRevision package.name currentVer.version currentVer.revision) ]
+		         else [])
+             ] <>  (generateTableColumn highlighted package.name currentVer.version <$> reverse results)
+  }
+  where
+    splitPrevVer = splitVersion prevVer.version
+    splitCurrVer = splitVersion currentVer.version
+    majorCheck = newMajor splitPrevVer splitCurrVer
+    minorCheck = newMinor splitPrevVer splitCurrVer
 
+splitVersion :: VersionName -> Array VersionName
+splitVersion v = Str.split (Str.Pattern ".") v
+
+newMajor :: Array VersionName -> Array VersionName -> Boolean
+newMajor a b
+  | a == [""] =  true   
+  | a == b    =  false
+  | otherwise =  (a !! 0) /= (b !! 0)
+              || (fromMaybe "0" (a !! 1) /= fromMaybe "0" (b !! 1))
+
+newMinor :: Array VersionName -> Array VersionName -> Boolean
+newMinor a b 
+  | a == [""] =  true
+  | a == b    =  false
+  | otherwise =  newMajor a b
+              || ((fromMaybe "0" (a !! 2)) /= (fromMaybe "0" (b !! 2)))
+
+packageVersioning :: Boolean -> Boolean  -> Array String
+packageVersioning minor major
+  | minor && major = ["first-major", "first-minor"]
+  | major          = ["first-major"]
+  | minor          = ["first-minor"]
+  | otherwise      = []
+      
 containedRevision :: forall p i. PackageName -> VersionName -> Word -> HH.HTML p i
 containedRevision pkgName verName revision =
     HH.sup_
@@ -315,7 +356,7 @@ generateTableColumn :: forall p. Boolean
 		    -> HH.HTML p (Query Unit)
 generateTableColumn highlight pkgName verName { ghcVersion, ghcResult } =
     HH.td 
-      [ HP.classes (H.ClassName <$> (["stcell"] <> (Arr.concat $ checkPassOrFail verName <$> ghcResult)))      
+      [ HP.classes (H.ClassName <$> (["stcell"] <> (concat $ checkPassOrFail verName <$> ghcResult)))      
       , HP.attr (H.AttrName "data-ghc-version") ghcVersion
       , HP.attr (H.AttrName "data-package-version") verName
       , HE.onClick $ HE.input_ (HighlightCell pkgName ghcVersion verName)
@@ -397,10 +438,16 @@ getSingleResult pkgName cellName = do
 ghcVersions :: Array VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-hdiffUrl :: PackageName -> HdiffUrl
-hdiffUrl pkgName =
-  "http://hdiff.luite.com/cgit/" <> pkgName
+hdiffUrl :: PackageName -> VersionInfo -> VersionInfo -> HdiffUrl
+hdiffUrl pkgName prevVer currVer
+  | Str.null prevVer.version           = "http://hdiff.luite.com/cgit/" <> pkgName <> "/commit?id=" <> currVer.version
+  | currVer.version == prevVer.version = "http://hdiff.luite.com/cgit/" <> pkgName <> "/diff?id=" <> currVer.version
+  | otherwise                          = "http://hdiff.luite.com/cgit/" <>
+                                         pkgName <> "/diff?id=" <>
+					 currVer.version <> "&id2="
+					 <> prevVer.version
 
+    
 hackageUrl :: PackageName -> VersionName -> HackageUrl
 hackageUrl pkgName versionName =
   "https://hackage.haskell.org/package/"  <> pkgName <>  "-" <> versionName <> "/" <> pkgName <> ".cabal/edit"
@@ -409,10 +456,11 @@ revisionsUrl :: PackageName -> VersionName -> RevisionUrl
 revisionsUrl pkgName versionName =
   "https://hackage.haskell.org/package/"  <> pkgName <>  "-" <> versionName <> "/revisions"
 
--- TODO: Implement cellHash to be added in the URI whenever column clicked
--- cellHash :: GHCResult -> PackageName -> VersionName -> Cell
--- cellHash ghc pkgName pkgVersion =
---  "GHC-" <> ghc.ghcVersion <> "/" <> pkgName <> "-" <> pkgVersion
+
+cellHash :: VersionName -> PackageName -> VersionName -> Cell
+cellHash ghcVer pkgName pkgVer =
+  "GHC-" <> ghcVer <> "/" <> pkgName <> "-" <> pkgVer
+
 
 legend =
   HH.div

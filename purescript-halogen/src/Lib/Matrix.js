@@ -10,7 +10,7 @@ exports.userByName_ = function (api, name, ok, err) {
   return function () {
     api.User.byName(name).get
       ( function (v) { ok(v)(); }
-      , function (e) { er(e)(); }
+      , function (e) { err(e)(); }
       );
   };
 };
@@ -42,12 +42,35 @@ exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high, just,
   };
 };
 
+exports.queueSaveByName_ = function (api, pkgName, queue, ok, err) {
+  return function () {
+    api.Queue.saveByName
+      ( pkgName
+      , { priority: queue.priority
+	, packageName: queue.packageName
+	, modified: queue.modified
+	}
+      , function (v) { ok(v)(); }
+      , function (e) { err(e)(); }
+      );
+  };
+};
+
+exports.queueList_ = function (api, ok, er) {
+  return function () {
+    api.Queue.list
+      ( function (v) { ok(v)(); }
+      , function (e) { err(e)(); }
+      );
+  };
+};
+
 exports.queueCreate_ = function (api, pkgName, prio, ok, err) {
   return function () {
     api.Queue.create
       ( { packageName : pkgName, priority : prio }
       , function (v) { ok(v)(); }
-      , function (e) { er(e)(); }
+      , function (e) { err(e)(); }
       );
   };
 };
@@ -85,11 +108,11 @@ exports.tagSaveByName_ = function (api, pkgName, tag, ok, err) {
   }
 }
 
-exports.tagList_ = function (api, ok, er) {
+exports.tagList_ = function (api, ok, err) {
   return function () {
     api.Tag.list
       ( function (v) { ok(v)(); }
-      , function (e) { er(e)(); }
+      , function (e) { err(e)(); }
       );
   };
 };
@@ -108,7 +131,7 @@ exports.packageTags_ = function (api, pkgName, tagName, ok, err) {
   return function () {
     api.Package.byName(pkgName).tags
       ( function (v) { ok(v)(); }
-      , function (e) { er(e)(); }
+      , function (e) { err(e)(); }
       , tagName
       );
   };
@@ -118,11 +141,21 @@ exports.packageList_ = function (api, range, ok, err) {
   return function () {
     api.Package.list
       ( function (v) { ok(v)(); }
-      , function (e) { er(e)(); }
+      , function (e) { err(e)(); }
       , fromRange(range)
       );
   };
 };
+
+exports.listLatestReports_ = function (api, range, ok, err) {
+  return function () {
+    api.Package.listLatestReports
+      ( function (v) { ok(v)(); }
+      , function (e) { err(e)(); }
+      , fromRange(range)
+      );
+  };
+};    
 
 exports.singleResult_ =
   function

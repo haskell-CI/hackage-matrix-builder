@@ -1,5 +1,7 @@
 module Lib.Types where
 
+import Prelude
+
 import Data.Eq
 import Data.Generic
 import Data.Map (Map)
@@ -25,7 +27,7 @@ type PackageMeta =
   , tags   :: Array TagName
   }
 
-data ReportMeta = ReportMeta
+type ReportMeta = 
   { rmPackageName :: PackageName
   , rmModified    :: String
   }
@@ -167,7 +169,12 @@ data Priority
   | High
 
 type QueueItem =
+  { priority :: String
+  , modified :: String
+  , packageName :: PackageName
+  }
+
+type LatestItem =
   { packageName :: PackageName
   , modified :: String
-  , priority :: Priority
   }

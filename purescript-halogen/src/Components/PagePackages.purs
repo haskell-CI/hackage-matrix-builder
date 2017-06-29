@@ -24,6 +24,7 @@ import Lib.Uri
 import Lib.Types (PackageName, PackageMeta, Tag, TagName, ApiList)
 import Lib.Undefined
 import Lib.MatrixApi
+import Lib.MiscFFI
 import CSS.Display (Display, block, displayNone, display)
 import Halogen.HTML.CSS as CSS
 
@@ -179,7 +180,7 @@ buildPackages packageMeta =
 	-- TODO: The action onClick will be added here to direct user to package's page
         ]
         [ HH.text packageMeta.name ]
-    ] <> (buildTags <$> packageMeta.tags)
+    ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (formatDate packageMeta.report) ] ]
 
 getTagList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
            => MonadAff (api :: API | e) m

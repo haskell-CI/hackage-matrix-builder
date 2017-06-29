@@ -6,7 +6,7 @@ import Control.Monad.Eff.JQuery
 import DOM
 import DOM.HTML.Types
 import Data.Function.Uncurried
-import Data.Maybe
+import Data.Maybe (Maybe(..), fromJust)
 import Data.Nullable
 import Prelude
 import Lib.Uri (Uri)
@@ -114,8 +114,14 @@ foreign import autocomplete_ :: forall e.
         -> Eff (dom :: DOM | e) Unit)
       (Eff (dom :: DOM | e) Unit)
 
-foreign import formatDate :: String -> String
+foreign import formatDate_ :: String -> String
 
+formatDate :: Maybe String -> String
+formatDate date =
+  case date of
+    Just dt -> formatDate_ dt
+    Nothing -> ""
+    
 undefine :: forall a . Undefined a -> Maybe a
 undefine u = undefine_ u Nothing (Just unit)
 

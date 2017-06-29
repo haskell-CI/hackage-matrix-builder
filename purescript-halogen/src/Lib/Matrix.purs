@@ -75,6 +75,41 @@ foreign import queueByName_ :: forall eff a .
       (Maybe a)
       (ApiEff eff Unit)
 
+queueSaveByName :: forall e
+  . MatrixApi
+  -> PackageName
+  -> QueueItem
+  -> Aff (api :: API | e) Unit
+queueSaveByName api pkgName queueItem = makeAff \err succ ->
+  runFn5
+    queueSaveByName_
+    api
+    pkgName
+    queueItem
+    succ
+    (stringyErr err "Saving Tag by name failed")
+
+foreign import queueSaveByName_ :: forall eff .
+  Fn5 MatrixApi
+      PackageName
+      QueueItem
+      (Unit -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
+queueList :: forall e
+   . MatrixApi
+  -> Aff (api :: API | e) (ApiList QueueItem)
+queueList api = makeAff \err succ ->
+  runFn3 queueList_ api succ
+    (stringyErr err "Getting queue list failed")
+
+foreign import queueList_ :: forall eff .
+  Fn3 MatrixApi
+      (ApiList QueueItem -> ApiEff eff Unit)
+      (JQueryXHR   -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
 queueCreate :: forall e
   . MatrixApi
   -> PackageName
@@ -217,18 +252,6 @@ packageList api range = makeAff \err succ ->
     packageMetaFromFFI :: PackageMetaFFI -> PackageMeta
     packageMetaFromFFI p = p { report = undefine p.report }
 
--- TODO : Delete when done
--- type PackageMeta =
---  { name   :: PackageName
---  , report :: Maybe String
---  , tags   :: Array TagName
---  }
--- Type ApiList a =
---  { offset :: Int
---  , count :: Int
---  , items :: Array a
---  }
-
 type PackageMetaFFI =
   { name   :: PackageName
   , report :: Undefined String
@@ -241,6 +264,26 @@ foreign import packageList_ :: forall eff .
       (ApiList PackageMetaFFI -> ApiEff eff Unit)
       (JQueryXHR              -> ApiEff eff Unit)
       (ApiEff eff Unit)
+
+listLatestReports :: forall e
+   . MatrixApi
+  -> Range
+  -> Aff (api :: API | e) (ApiList LatestItem)
+listLatestReports api range = makeAff \err succ ->
+  runFn4
+    listLatestReports_
+    api
+    range
+    succ
+    (stringyErr err "Getting latest reports list failed")
+
+foreign import listLatestReports_ :: forall eff .
+  Fn4 MatrixApi
+      Range
+      (ApiList LatestItem -> ApiEff eff Unit)
+      (JQueryXHR          -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+  
 
 singleResult :: forall e
   . MatrixApi

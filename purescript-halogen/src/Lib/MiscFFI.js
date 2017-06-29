@@ -100,8 +100,8 @@ exports.autocomplete_ = function (jq, source, select) {
   };
 };
 
-exports.formatDate = function (d) {
-  return (new Date(d)).toLocaleString().replace("T", " ");
+exports.formatDate_ = function (d) {
+    return (new Date(d)).toISOString().split('.')[0]+"Z";
 };
 
 exports.undefine_ = function (a) {
