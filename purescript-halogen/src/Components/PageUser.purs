@@ -108,14 +108,14 @@ component = H.lifecycleComponent
   eval (Finalize next) = do
     pure next
 
-getPackageList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getPackageList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                => MonadAff (api :: API | e) m
 	       => m (ApiList PackageMeta)
 getPackageList = do
   client <- asks _.matrixClient
   liftAff (packageList client { count : (Just 100000), offset : Nothing })
 
-getUserByName :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getUserByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
               => MonadAff (api :: API | e) m
 	      => Username
 	      -> m (User)

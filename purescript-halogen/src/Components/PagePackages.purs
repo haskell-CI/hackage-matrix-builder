@@ -114,8 +114,6 @@ component = H.lifecycleComponent
       tagFilter = Arr.filter (tagContained state.selectedTag)
       prefixFilter = Arr.filter (prefixContained state.selectedPrefix)
 
-      
-
   eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
   eval (Initialize next) = do
     st <- H.get
@@ -123,13 +121,11 @@ component = H.lifecycleComponent
     pkg <- H.lift getPackageList
     initState <- H.put $ st { display = displayNone, packages = pkg.items, tags = tagItem.items, clicked = false}
     pure next
-    
   eval (SelectedTag tag next) = do
     H.modify \st -> st { selectedTag = if (member tag st.selectedTag)
-                                          then delete tag st.selectedTag
-					  else insert tag st.selectedTag }				
+                                       then delete tag st.selectedTag
+                                       else insert tag st.selectedTag }
     pure next
-	
   eval (SelectedPrefix prefix next) = do
     H.modify \st -> st { selectedPrefix = singleton prefix }
     pure next
@@ -182,14 +178,14 @@ buildPackages packageMeta =
         [ HH.text packageMeta.name ]
     ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (formatDate packageMeta.report) ] ]
 
-getTagList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getTagList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
            => MonadAff (api :: API | e) m
 	   => m (ApiList Tag)
 getTagList = do
   client <- asks _.matrixClient
   liftAff (tagList client)
 
-getPackageList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getPackageList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                => MonadAff (api :: API | e) m
 	       => m (ApiList PackageMeta)
 getPackageList = do

@@ -34,6 +34,7 @@
     "purescript-remotedata": "^2.1.0"
   },
   "devDependencies": {
-    "purescript-psci-support": "^3.0.0"
+    "purescript-psci-support": "^3.0.0",
+    "purescript-debug": "^3.0.0"
   }
 }

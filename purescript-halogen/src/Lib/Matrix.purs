@@ -16,7 +16,7 @@ import Lib.Uri (Uri)
 import Control.Monad.Reader (ReaderT)
 import Network.RemoteData as RD
 
-type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi, packageList :: RD.RemoteData (Eff (api :: API | e) Unit) (Ref (ApiList PackageMeta)) } (Aff e)
+type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi, packageList :: Ref (RD.RemoteData (Eff (api :: API | e) Unit) (ApiList PackageMeta)) } (Aff e)
 
 type MatrixApis eff = MyMatrixApi (api :: API | eff)
 

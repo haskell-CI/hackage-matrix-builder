@@ -171,21 +171,21 @@ renderTableQueue num queueItem@{ packageName, priority } =
 		 ]
 	     ]
   }
-getQueueList :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getQueueList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
              => MonadAff (api :: API | e) m
 	     => m (ApiList QueueItem)
 getQueueList = do
   client <- asks _.matrixClient
   liftAff (queueList client)
 
-getListLatestReports :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getListLatestReports :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                      => MonadAff (api :: API | e) m
 	             => m (ApiList LatestItem)
 getListLatestReports = do
   client <- asks _.matrixClient
   liftAff (listLatestReports client { count : (Just 100), offset : Nothing })
 
-putQueueSaveByName :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+putQueueSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                      => MonadAff (api :: API | e) m
 	             => PackageName
 		     -> QueueItem
