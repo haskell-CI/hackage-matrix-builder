@@ -1,28 +1,25 @@
 module Container where
 
 import Prelude
-
-import Data.Either.Nested (Either6)
-import Data.Functor.Coproduct.Nested (Coproduct6)
-import Data.Maybe (Maybe(..))
-
+import Lib.MatrixApi
+import Lib.Uri
+import Halogen.HTML.CSS
+import Control.Monad.Eff.Console
+import Components.PageError as PageError
+import Components.PageHome as PageHome
+import Components.PageLatest as PageLatest
+import Components.PagePackage as PagePackage
+import Components.PagePackages as PagePackages
+import Components.PageUser as PageUser
 import Halogen as H
 import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi
-import Lib.Uri
 import CSS.Display (Display, block, displayNone)
-import Halogen.HTML.CSS
-
-
-import Components.PageError    as PageError
-import Components.PageHome     as PageHome
-import Components.PageLatest   as PageLatest
-import Components.PagePackage  as PagePackage
-import Components.PagePackages as PagePackages
-import Components.PageUser     as PageUser
+import Data.Either.Nested (Either6)
+import Data.Functor.Coproduct.Nested (Coproduct6)
+import Data.Maybe (Maybe(..))
 
 type State = {
   display :: Display
@@ -30,7 +27,9 @@ type State = {
 
 }
 
-data Query a = ReadStates a
+data Query a = 
+    ReadStates a
+  | RouteChange String a
 
 type ChildQuery = Coproduct6 PageError.Query
                              PageHome.Query
@@ -74,3 +73,6 @@ ui =
     eval (ReadStates next) = do
       pure next
 
+    eval (RouteChange str next) = do
+      H.liftEff (Console.log str)
+      pure next

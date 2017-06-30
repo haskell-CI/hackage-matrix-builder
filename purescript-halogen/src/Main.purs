@@ -7,6 +7,7 @@ import Control.Monad.Aff (Aff)
 import Control.Monad.Aff.AVar (AVAR)
 import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Eff.Ref
 import Control.Monad.Except (runExcept)
 import Control.Monad.Reader (runReaderT)
 import Data.Either (Either(..))
@@ -75,6 +76,7 @@ ui = H.lifecycleParentComponent
     eval (Finalize next) = do
       pure next
     eval (Response msg next) = do
+      H.query' CP.cp2 unit $ H.action $ Container.RouteChange msg
       pure next
 
 -- A producer coroutine that emits messages whenever the window emits a
@@ -109,7 +111,8 @@ hashChangeConsumer query = CR.consumer \event -> do
 main :: forall eff. Eff (HA.HalogenEffects (api :: API | eff)) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
+  packageList <- newRef NotAsked
   matrixClient <- liftEff (newApi "/api" "/api")
-  io <- runUI (H.hoist (\x -> runReaderT x { matrixClient }) ui) unit body
+  io <- runUI (H.hoist (\x -> runReaderT x { matrixClient, packageList }) ui) unit body
   CR.runProcess (hashChangeProducer CR.$$ hashChangeConsumer io.query)
   

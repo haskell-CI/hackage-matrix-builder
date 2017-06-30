@@ -2,6 +2,7 @@ module Lib.MatrixApi where
 
 import Control.Monad.Aff
 import Control.Monad.Eff
+import Control.Monad.Eff.Ref
 import Control.Monad.Eff.Exception
 import Control.Monad.Eff.Exception.Unsafe
 import Lib.MiscFFI
@@ -13,8 +14,9 @@ import Lib.Types
 import Lib.Undefined
 import Lib.Uri (Uri)
 import Control.Monad.Reader (ReaderT)
+import Network.RemoteData as RD
 
-type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi } (Aff e)
+type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi, packageList :: RD.RemoteData (Eff (api :: API | e) Unit) (Ref (ApiList PackageMeta)) } (Aff e)
 
 type MatrixApis eff = MyMatrixApi (api :: API | eff)
 

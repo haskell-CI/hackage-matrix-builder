@@ -30,7 +30,8 @@
     "purescript-halogen-css": "^6.0.0",
     "purescript-transformers": "^3.4.0",
     "purescript-typelevel": "^3.0.0",
-    "purescript-typelevel-prelude": "^2.2.0"
+    "purescript-typelevel-prelude": "^2.2.0",
+    "purescript-remotedata": "^2.1.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0"

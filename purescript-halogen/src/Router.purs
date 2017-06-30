@@ -53,13 +53,13 @@ ui =
 	    ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "/" ] [ HH.text "Home" ] ]
+	    [ HH.a [ HP.href "#" ] [ HH.text "Home" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "/latest" ] [ HH.text "Latest builds" ] ]
+	    [ HH.a [ HP.href "#latest" ] [ HH.text "Latest builds" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "/packages" ] [ HH.text "Packages" ] ]
+	    [ HH.a [ HP.href "#packages" ] [ HH.text "Packages" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","search","right","clearfix"]) ]
 	    [ HH.div
