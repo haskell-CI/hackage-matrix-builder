@@ -410,7 +410,7 @@ checkShallowResult sR =
     _                    -> ""
 
 
-getLatestReportByPackageName :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getLatestReportByPackageName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                              => MonadAff (api :: API | e) m
 	                     => PackageName
 			     -> m (ShallowReport)
@@ -418,7 +418,7 @@ getLatestReportByPackageName pkgName = do
   client <- asks _.matrixClient
   liftAff (latestReportByPackageName client pkgName)
 
-getPackageByName :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getPackageByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                  => MonadAff (api :: API | e) m
 	         => PackageName
 		 -> m (Package)
@@ -426,7 +426,7 @@ getPackageByName pkgName = do
   client <- asks _.matrixClient
   liftAff (packageByName client pkgName)
 
-getSingleResult :: forall e m. MonadReader { matrixClient :: MatrixApi } m
+getSingleResult :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                 => MonadAff (api :: API | e) m
 	        => PackageName
 		-> Cell
