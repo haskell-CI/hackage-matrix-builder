@@ -54,7 +54,7 @@ component = H.lifecycleComponent
   
     initialState :: State
     initialState =
-      { display: block
+      { display: displayNone
       , latestlist: []
       , queuelist: []
       }
@@ -111,7 +111,7 @@ component = H.lifecycleComponent
       st <- H.get
       qlist <- H.lift getQueueList
       llist <- H.lift getListLatestReports
-      initState <- H.put $ st { display = block, latestlist = llist.items, queuelist = qlist.items }	
+      initState <- H.put $ st { display = displayNone, latestlist = llist.items, queuelist = qlist.items }	
       pure next
     
     eval (SelectedPackage pkgName next) = do			
