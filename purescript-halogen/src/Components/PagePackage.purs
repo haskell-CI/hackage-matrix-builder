@@ -19,15 +19,14 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi
+import Lib.MatrixApi (MatrixApis, MatrixApi, API,packageByName, singleResult, latestReportByPackageName)
 import Lib.Uri
 import Lib.Types
 import CSS.Display (Display, block, displayNone, display)
 import Halogen.HTML.CSS as CSS
 
 type State =
-  { display     :: Display
-  , logdisplay  :: Display
+  { logdisplay  :: Display
   , package     :: Package
   , report      :: ShallowReport
   , highlighted :: Boolean
@@ -44,7 +43,7 @@ data Query a
   | AddingNewTag a
   | QueueBuild a
   | Finalize a
-  
+
 
 component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 component = H.lifecycleComponent
@@ -59,44 +58,43 @@ component = H.lifecycleComponent
 
     initialState :: State
     initialState =
-      { display: displayNone
-      , logdisplay: displayNone
+      {
+        logdisplay: displayNone
       , package: { name: ""
                  , versions: []
-		 }
+                 }
       , report: { packageName: ""
                 , modified: ""
-		, results: []
-		}
+                , results: []
+                }
       , highlighted: false
       , logmessage: ""
       , columnversion: { ghcVer: ""
                        , pkgVer: ""
-		       }
+                       }
       }
 
     render :: State -> H.ComponentHTML Query
     render state =
       HH.div
         [ HP.id_ "page-package"
-	, HP.class_ (H.ClassName "page")
-	, CSS.style $ display state.display
-	]
-        [ HH.div 
+        , HP.class_ (H.ClassName "page")
+        ]
+        [ HH.div
             [ HP.class_ (H.ClassName "rightcol") ]
             [ legend
-            , queueing 
+            , queueing
             , tagging
             ]
         , HH.div
             [ HP.class_ (H.ClassName "leftcol") ]
             [ HH.h2
-	        [ HP.class_ (H.ClassName "main-header") ]
-		[ HH.text state.package.name ]
+                [ HP.class_ (H.ClassName "main-header") ]
+                [ HH.text state.package.name ]
             , HH.div
                 [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-		[ HH.text $ "index-state: " -- <> fromDate args will be based on package meta that get passed from page-packages
-		]
+                [ HH.text $ "index-state: " -- <> fromDate args will be based on package meta that get passed from page-packages
+                ]
             , HH.div
                 [ HP.id_ "package-buildreport" ]
                 [ HH.h3
@@ -112,85 +110,85 @@ component = H.lifecycleComponent
                     [ (renderLogResult state.logdisplay state.logmessage state.package state.columnversion) ]
                 ]
             ]
-	]
+        ]
       where
         tagging =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
-	    [ HH.h4
-	        [ HP.class_ (H.ClassName "header") ]
-	        [ HH.text "Tags" ]
-	    , HH.div
-	        [ HP.id_ "tagging" ]
-	        [ HH.ul
-	            [ HP.class_ (H.ClassName "tags") ]
-		    [] -- TODO : This is where the list of tags generated based on the selected package
-	        , HH.div
-	            [ HP.class_ (H.ClassName "form") ]
-		    [ HH.label_
-		        [ HH.text "Tag"
-		        , HH.input
-		            [ HP.type_ HP.InputText
-			    , HP.class_ (H.ClassName "tag-name")
-			    -- HE.onValueChange ...
-			    -- TODO : save the text.
-			    ]
-			    
-		        ]
-		    , HH.button
-		        [ HP.class_ (H.ClassName "action")
-                        , HE.onClick $ HE.input_ AddingNewTag
-		        -- TODO : When this button clicked, it will get text then add tag to the <ul class="tags"> above
+            [ HH.h4
+                [ HP.class_ (H.ClassName "header") ]
+                [ HH.text "Tags" ]
+            , HH.div
+                [ HP.id_ "tagging" ]
+                [ HH.ul
+                    [ HP.class_ (H.ClassName "tags") ]
+                    [] -- TODO : This is where the list of tags generated based on the selected package
+                , HH.div
+                    [ HP.class_ (H.ClassName "form") ]
+                    [ HH.label_
+                        [ HH.text "Tag"
+                        , HH.input
+                            [ HP.type_ HP.InputText
+                            , HP.class_ (H.ClassName "tag-name")
+                            -- HE.onValueChange ...
+                            -- TODO : save the text.
+                            ]
+
                         ]
-		        [ HH.text "Add Tag" ]
-		     ]
-	        ]
-	    ] 
+                    , HH.button
+                        [ HP.class_ (H.ClassName "action")
+                        , HE.onClick $ HE.input_ AddingNewTag
+                        -- TODO : When this button clicked, it will get text then add tag to the <ul class="tags"> above
+                        ]
+                        [ HH.text "Add Tag" ]
+                     ]
+                ]
+            ]
         queueing =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
-	    [ HH.h4
-	        [ HP.class_ (H.ClassName "header") ]
-	        [ HH.text "Queueing" ]
-	    , HH.div
-	        [ HP.id_ "queueing" ]
-	        [ HH.div
-	            [ HP.class_ (H.ClassName "form") ]
-		    [ HH.label_
-		        [ HH.text "Priority"
-		        , HH.select
-		            [ HP.class_ (H.ClassName "prio") ]
-			    [ HH.option
-			        [ HP.value "high" ]
-			        [ HH.text "High" ]
-			    , HH.option
-			        [ HP.value "medium"
-			        , HP.selected true
-			        ]
-			        [ HH.text "High" ]
-			    , HH.option
-			        [ HP.value "low" ]
-			        [ HH.text "Low" ]
-			    ]
-		        ]
-		    , HH.button
-		        [ HP.class_ (H.ClassName "action")
-			, HE.onClick $ HE.input_ AddingNewTag
-			]
-		        [ HH.text "Queue build for this package" ]
-		    ]
-	        ]
-	    ]  
+            [ HH.h4
+                [ HP.class_ (H.ClassName "header") ]
+                [ HH.text "Queueing" ]
+            , HH.div
+                [ HP.id_ "queueing" ]
+                [ HH.div
+                    [ HP.class_ (H.ClassName "form") ]
+                    [ HH.label_
+                        [ HH.text "Priority"
+                        , HH.select
+                            [ HP.class_ (H.ClassName "prio") ]
+                            [ HH.option
+                                [ HP.value "high" ]
+                                [ HH.text "High" ]
+                            , HH.option
+                                [ HP.value "medium"
+                                , HP.selected true
+                                ]
+                                [ HH.text "High" ]
+                            , HH.option
+                                [ HP.value "low" ]
+                                [ HH.text "Low" ]
+                            ]
+                        ]
+                    , HH.button
+                        [ HP.class_ (H.ClassName "action")
+                        , HE.onClick $ HE.input_ AddingNewTag
+                        ]
+                        [ HH.text "Queue build for this package" ]
+                    ]
+                ]
+            ]
 
     eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
     eval (Initialize next) = do
       st <- H.get
       packageByName <- H.lift $ getPackageByName "lens"
       reportPackage <- H.lift $ getLatestReportByPackageName "lens"
-      initState <- H.put $ st { display = displayNone, package = packageByName, report = reportPackage, highlighted = false}
+      initState <- H.put $ st { package = packageByName, report = reportPackage, highlighted = false}
       pure next
     eval (AddingTag tag next) = do
-      pure next	
+      pure next
     eval (QueueingPackage next) = do
       pure next
     eval (FailingPackage next) = do
@@ -199,8 +197,8 @@ component = H.lifecycleComponent
       singleResult <- H.lift $ getSingleResult pkgName (ghcVer <> "-" <> pkgVer)
       H.modify \st -> st { logmessage = (if ( isContainedLog singleResult.resultA ) then "" else pickLogMessage singleResult )
                          , logdisplay = block
-			 , columnversion = { ghcVer, pkgVer }
-			 }
+                         , columnversion = { ghcVer, pkgVer }
+                         }
       pure next
     eval (AddingNewTag next) = do
       pure next
@@ -218,7 +216,7 @@ renderMissingPackage pkgName =
     [ HH.text "This package doesn't have a build report yet. You can request a report by"
     , HH.a
         [ HP.href "https://github.com/hvr/hackage-matrix-builder/issues/32"]
-	[ HH.text "leaving a comment here"]
+        [ HH.text "leaving a comment here"]
     ]
 
 renderLogResult :: forall p i. Display -> String -> Package -> ColumnVersion -> HH.HTML p i
@@ -230,28 +228,28 @@ renderLogResult logdisplay log { name } { ghcVer, pkgVer } =
     ]
     [ HH.ul
         [ HP.classes (H.ClassName <$> ["ui-tabs-nav","ui-helper-reset","ui-helper-clearfix","ui-widget-header","ui-corner-all"])
-	, HP.attr (H.AttrName "role") "tabs"
-	]
-	[ HH.li
-	    [ HP.classes (H.ClassName <$> ["ui-state-default","ui-corner-top","ui-tabs-active","ui-state-active"])
-	    , HP.attr (H.AttrName "role") "tab"
-	    ]
-	    [ HH.a
-	        [ HP.class_ (H.ClassName "ui-tabs-anchor")
-		, HP.attr (H.AttrName "role") "presentation"
-		]
-		[ HH.text $ cellHash ghcVer name pkgVer ]
+        , HP.attr (H.AttrName "role") "tabs"
+        ]
+        [ HH.li
+            [ HP.classes (H.ClassName <$> ["ui-state-default","ui-corner-top","ui-tabs-active","ui-state-active"])
+            , HP.attr (H.AttrName "role") "tab"
             ]
-	]
+            [ HH.a
+                [ HP.class_ (H.ClassName "ui-tabs-anchor")
+                , HP.attr (H.AttrName "role") "presentation"
+                ]
+                [ HH.text $ cellHash ghcVer name pkgVer ]
+            ]
+        ]
     , HH.div
         [ HP.id_ "fragment-1"
-	, HP.classes (H.ClassName <$> ["ui-tabs-panel","ui-widget-content","ui-corner-bottom"])
-	, HP.attr (H.AttrName "role") "tabpanel"
-	]
-	[ HH.pre
-	    [ HP.class_ (H.ClassName "log-entry") ]
-	    [ HH.text log ]
-	]
+        , HP.classes (H.ClassName <$> ["ui-tabs-panel","ui-widget-content","ui-corner-bottom"])
+        , HP.attr (H.AttrName "role") "tabpanel"
+        ]
+        [ HH.pre
+            [ HP.class_ (H.ClassName "log-entry") ]
+            [ HH.text log ]
+        ]
     ]
 
 pickLogMessage :: SingleResult -> String
@@ -272,13 +270,13 @@ renderTableMatrix state { name, versions } shallowR@{ packageName, modified, res
   HH.table_
     [ HH.thead_
         [ HH.tr_ $
-	    [ HH.th_
-	        [ HH.a
-	            [ HP.href $ "https://hackage.haskell.org/package/" <> packageName ]
-		    [ HH.text packageName ]
-		]
+            [ HH.th_
+                [ HH.a
+                    [ HP.href $ "https://hackage.haskell.org/package/" <> packageName ]
+                    [ HH.text packageName ]
+                ]
             ] <> ((\x -> HH.th_ $ [HH.text x]) <$> ghcVersions)
-	]
+        ]
     , HH.tbody_ $ getTheResult accumResult
     ]
   where
@@ -287,24 +285,24 @@ renderTableMatrix state { name, versions } shallowR@{ packageName, modified, res
 
 generateTableRow :: forall p. State
                  -> ShallowReport
-		 -> VersionInfo
-		 -> VersionInfo
-		 -> Accum VersionInfo (HH.HTML p (Query Unit))
+                 -> VersionInfo
+                 -> VersionInfo
+                 -> Accum VersionInfo (HH.HTML p (Query Unit))
 generateTableRow { package, highlighted } { results } prevVer currentVer  =
   { accum: const currentVer prevVer
-  , value: HH.tr 
-             [ HP.classes (H.ClassName <$> (["solver-row"] <> packageVersioning minorCheck majorCheck)) ] $ 
+  , value: HH.tr
+             [ HP.classes (H.ClassName <$> (["solver-row"] <> packageVersioning minorCheck majorCheck)) ] $
              [ HH.th
                  [ HP.class_ (H.ClassName "pkgv") ] $
                  [ HH.a
-	             [ HP.href $ hdiffUrl package.name prevVer currentVer
-	             ]
-	             [ HH.text "Δ" ]
-	         , HH.a
-	             [ HP.href $ hackageUrl package.name currentVer.version ]
-	             [ HH.text currentVer.version ]
-	         ] <> (if currentVer.revision > 0 then [ (containedRevision package.name currentVer.version currentVer.revision) ]
-		         else [])
+                     [ HP.href $ hdiffUrl package.name prevVer currentVer
+                     ]
+                     [ HH.text "Δ" ]
+                 , HH.a
+                     [ HP.href $ hackageUrl package.name currentVer.version ]
+                     [ HH.text currentVer.version ]
+                 ] <> (if currentVer.revision > 0 then [ (containedRevision package.name currentVer.version currentVer.revision) ]
+                         else [])
              ] <>  (generateTableColumn highlighted package.name currentVer.version <$> reverse results)
   }
   where
@@ -318,13 +316,13 @@ splitVersion v = Str.split (Str.Pattern ".") v
 
 newMajor :: Array VersionName -> Array VersionName -> Boolean
 newMajor a b
-  | a == [""] =  true   
+  | a == [""] =  true
   | a == b    =  false
   | otherwise =  (a !! 0) /= (b !! 0)
               || (fromMaybe "0" (a !! 1) /= fromMaybe "0" (b !! 1))
 
 newMinor :: Array VersionName -> Array VersionName -> Boolean
-newMinor a b 
+newMinor a b
   | a == [""] =  true
   | a == b    =  false
   | otherwise =  newMajor a b
@@ -336,27 +334,27 @@ packageVersioning minor major
   | major          = ["first-major"]
   | minor          = ["first-minor"]
   | otherwise      = []
-      
+
 containedRevision :: forall p i. PackageName -> VersionName -> Word -> HH.HTML p i
 containedRevision pkgName verName revision =
     HH.sup_
       [ HH.a
           [ HP.class_ (H.ClassName "revision")
-	  , HP.href $ revisionsUrl pkgName verName
-	  , HP.attr (H.AttrName "data-revision") (show revision)
-	  , HP.attr (H.AttrName "data-version") verName
-	  ]
-	  [ HH.text $ "-r" <> (show revision) ]
+          , HP.href $ revisionsUrl pkgName verName
+          , HP.attr (H.AttrName "data-revision") (show revision)
+          , HP.attr (H.AttrName "data-version") verName
+          ]
+          [ HH.text $ "-r" <> (show revision) ]
       ]
 
 generateTableColumn :: forall p. Boolean
                     -> PackageName
-		    -> VersionName
-		    -> ShallowGhcResult
-		    -> HH.HTML p (Query Unit)
+                    -> VersionName
+                    -> ShallowGhcResult
+                    -> HH.HTML p (Query Unit)
 generateTableColumn highlight pkgName verName { ghcVersion, ghcResult } =
-    HH.td 
-      [ HP.classes (H.ClassName <$> (["stcell"] <> (concat $ checkPassOrFail verName <$> ghcResult)))      
+    HH.td
+      [ HP.classes (H.ClassName <$> (["stcell"] <> (concat $ checkPassOrFail verName <$> ghcResult)))
       , HP.attr (H.AttrName "data-ghc-version") ghcVersion
       , HP.attr (H.AttrName "data-package-version") verName
       , HE.onClick $ HE.input_ (HighlightCell pkgName ghcVersion verName)
@@ -412,25 +410,25 @@ checkShallowResult sR =
 
 getLatestReportByPackageName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                              => MonadAff (api :: API | e) m
-	                     => PackageName
-			     -> m (ShallowReport)
+                             => PackageName
+                             -> m (ShallowReport)
 getLatestReportByPackageName pkgName = do
   client <- asks _.matrixClient
   liftAff (latestReportByPackageName client pkgName)
 
 getPackageByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                  => MonadAff (api :: API | e) m
-	         => PackageName
-		 -> m (Package)
+                 => PackageName
+                 -> m (Package)
 getPackageByName pkgName = do
   client <- asks _.matrixClient
   liftAff (packageByName client pkgName)
 
 getSingleResult :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                 => MonadAff (api :: API | e) m
-	        => PackageName
-		-> Cell
-		-> m (SingleResult)
+                => PackageName
+                -> Cell
+                -> m (SingleResult)
 getSingleResult pkgName cellName = do
   client <- asks _.matrixClient
   liftAff (singleResult client pkgName cellName)
@@ -444,10 +442,10 @@ hdiffUrl pkgName prevVer currVer
   | currVer.version == prevVer.version = "http://hdiff.luite.com/cgit/" <> pkgName <> "/diff?id=" <> currVer.version
   | otherwise                          = "http://hdiff.luite.com/cgit/" <>
                                          pkgName <> "/diff?id=" <>
-					 currVer.version <> "&id2="
-					 <> prevVer.version
+                                         currVer.version <> "&id2="
+                                         <> prevVer.version
 
-    
+
 hackageUrl :: PackageName -> VersionName -> HackageUrl
 hackageUrl pkgName versionName =
   "https://hackage.haskell.org/package/"  <> pkgName <>  "-" <> versionName <> "/" <> pkgName <> ".cabal/edit"
@@ -465,75 +463,75 @@ cellHash ghcVer pkgName pkgVer =
 legend =
   HH.div
     [ HP.class_ (H.ClassName "sub") ]
-	[ HH.h4
-	    [ HP.id_ "legend"
-	    , HP.class_ (H.ClassName "header") ]
-	    [ HH.text "Legend" ]
-	, HH.table
-	    [ HP.id_ "legend-table" ]
-	    [ HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["pass-build", "stcell"]) ]
-		    [ HH.text "OK" ]
+        [ HH.h4
+            [ HP.id_ "legend"
+            , HP.class_ (H.ClassName "header") ]
+            [ HH.text "Legend" ]
+        , HH.table
+            [ HP.id_ "legend-table" ]
+            [ HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["pass-build", "stcell"]) ]
+                    [ HH.text "OK" ]
                 , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "package build succesful" ]
-		]
-	    , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["pass-no-op", "stcell"]) ]
-		    [ HH.text "OK (boot)" ]
-                , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "pre-installed version" ]
-		]
-	    , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["pass-no-ip", "stcell"]) ]
-		    [ HH.text "OK (no-ip)" ]
-                , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "no install-plan found" ]
-		]
-	    , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["fail-bj", "stcell"]) ]
-		    [ HH.text "FAIL (BJ)" ]
-                , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "backjump limit reached" ]
-		]
-	    , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["fail-build", "stcell"]) ]
-		    [ HH.text "FAIL (pkg)" ]
-                , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "package failed to build" ]
-		]
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "package build succesful" ]
+                ]
             , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["fail-dep-build", "stcell"]) ]
-		    [ HH.text "FAIL (deps)" ]
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["pass-no-op", "stcell"]) ]
+                    [ HH.text "OK (boot)" ]
                 , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "package dependencies failed to build" ]
-		]
-	    , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["fail-no-ip", "stcell"]) ]
-		    [ HH.text "FAIL (no-ip)" ]
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "pre-installed version" ]
+                ]
+            , HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["pass-no-ip", "stcell"]) ]
+                    [ HH.text "OK (no-ip)" ]
                 , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "something went horribly wrong" ]
-		]
-	    , HH.tr_
-	        [ HH.td
-		    [ HP.classes (H.ClassName <$> ["fail-unknown", "stcell"]) ]
-		    [ HH.text "FAIL (unknown)" ]
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "no install-plan found" ]
+                ]
+            , HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["fail-bj", "stcell"]) ]
+                    [ HH.text "FAIL (BJ)" ]
                 , HH.td
-		    [ HP.class_ (H.ClassName "text") ]
-		    [ HH.text "test-result missing" ]
-		] 
-	    ]
-	]
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "backjump limit reached" ]
+                ]
+            , HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["fail-build", "stcell"]) ]
+                    [ HH.text "FAIL (pkg)" ]
+                , HH.td
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "package failed to build" ]
+                ]
+            , HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["fail-dep-build", "stcell"]) ]
+                    [ HH.text "FAIL (deps)" ]
+                , HH.td
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "package dependencies failed to build" ]
+                ]
+            , HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["fail-no-ip", "stcell"]) ]
+                    [ HH.text "FAIL (no-ip)" ]
+                , HH.td
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "something went horribly wrong" ]
+                ]
+            , HH.tr_
+                [ HH.td
+                    [ HP.classes (H.ClassName <$> ["fail-unknown", "stcell"]) ]
+                    [ HH.text "FAIL (unknown)" ]
+                , HH.td
+                    [ HP.class_ (H.ClassName "text") ]
+                    [ HH.text "test-result missing" ]
+                ]
+            ]
+        ]

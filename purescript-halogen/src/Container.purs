@@ -2,7 +2,6 @@ module Container where
 
 import Prelude
 
-import CSS.Display (Display, displayNone)
 import Components.PageError as PageError
 import Components.PageHome as PageHome
 import Components.PageLatest as PageLatest
@@ -20,7 +19,7 @@ import Halogen.HTML.Properties as HP
 import Lib.MatrixApi (MatrixApis)
 
 type State = {
-  display :: Display
+  route :: String
 }
 
 data Query a =
@@ -29,10 +28,10 @@ data Query a =
 
 type ChildQuery = Coproduct6 PageError.Query
                              PageHome.Query
-			     PageLatest.Query
-			     PagePackage.Query
-			     PagePackages.Query
-			     PageUser.Query
+                             PageLatest.Query
+                             PagePackage.Query
+                             PagePackages.Query
+                             PageUser.Query
 
 type ChildSlot = Either6 Unit Unit Unit Unit Unit Unit
 
@@ -49,25 +48,32 @@ ui =
   where
     initialState :: State
     initialState = {
-      display : displayNone
+      route : ""
     }
 
     render :: State -> H.ParentHTML Query ChildQuery ChildSlot (MatrixApis e)
     render st =
       HH.div
         [ HP.id_ "container"]
-	[ HH.slot' CP.cp1 unit PageError.component unit absurd
-	, HH.slot' CP.cp2 unit PageHome.component unit absurd
-	, HH.slot' CP.cp3 unit PageLatest.component unit absurd
-	, HH.slot' CP.cp4 unit PagePackage.component unit absurd
-	, HH.slot' CP.cp5 unit PagePackages.component unit absurd
-	, HH.slot' CP.cp6 unit PageUser.component unit absurd
-	]
+        [ case st.route of
+            "" ->
+              HH.slot' CP.cp2 unit PageHome.component unit absurd
+            "latest" ->
+              HH.slot' CP.cp3 unit PageLatest.component unit absurd
+            "package" ->
+              HH.slot' CP.cp4 unit PagePackage.component unit absurd
+            "packages" ->
+              HH.slot' CP.cp5 unit PagePackages.component unit absurd
+            "user" ->
+              HH.slot' CP.cp6 unit PageUser.component unit absurd
+            _ ->
+              HH.slot' CP.cp1 unit PageError.component unit absurd
+        ]
 
     eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (MatrixApis e)
     eval (ReadStates next) = do
       pure next
 
     eval (RouteChange str next) = do
-      traceAnyA str
+      H.modify _ { route = str }
       pure next

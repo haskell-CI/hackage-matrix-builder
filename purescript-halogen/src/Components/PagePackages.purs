@@ -30,8 +30,7 @@ import Halogen.HTML.CSS as CSS
 
 type State =
  {
-   display :: Display
- , packages :: Array PackageMeta
+   packages :: Array PackageMeta
  , tags :: Array Tag
  , clicked :: Boolean
  , selectedTag :: Set TagName
@@ -46,7 +45,7 @@ data Query a
   | SelectedPrefix Prefixs a
   | SelectedPackage PackageName a
   | Finalize a
-  
+
 component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
 component = H.lifecycleComponent
   { initialState: const initialState
@@ -61,8 +60,7 @@ component = H.lifecycleComponent
   initialState :: State
   initialState =
    {
-     display: displayNone
-   , packages: []
+     packages: []
    , tags: []
    , clicked: false
    , selectedTag: empty
@@ -74,39 +72,38 @@ component = H.lifecycleComponent
     HH.div
       [ HP.id_ "page-packages"
       , HP.class_ (H.ClassName "page")
-      , CSS.style $ display state.display
       ]
       [ HH.div
           [ HP.class_ (H.ClassName "rightcol") ]
           [ HH.div
               [ HP.class_ (H.ClassName "sub") ]
-	      [ HH.text "Times are shown in your timezone" ]
+              [ HH.text "Times are shown in your timezone" ]
           ]
       , HH.div
           [ HP.class_ (H.ClassName "leftcol") ]
           [ HH.h2
               [ HP.class_ (H.ClassName "main-header") ]
-	      [ HH.text "Packages" ]
+              [ HH.text "Packages" ]
           , HH.div
-	      [ HP.class_ (H.ClassName "main-header-subtext") ]
-	      []
+              [ HP.class_ (H.ClassName "main-header-subtext") ]
+              []
           , HH.label_
-	      [ HH.input
+              [ HH.input
                   [ HP.class_ (H.ClassName "packages-only-reports")
-	          , HP.type_ HP.InputCheckbox
+                  , HP.type_ HP.InputCheckbox
                   ]
-	      , HH.text " Only show packages with reports"
-	      ]
+              , HH.text " Only show packages with reports"
+              ]
           , HH.ol
               [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"])
-	      ] $ ( buildTags' state) <$> state.tags 
-	      -- TODO: This will generate list of tags avaliable using tagList
+              ] $ ( buildTags' state) <$> state.tags
+              -- TODO: This will generate list of tags avaliable using tagList
           , HH.ol
-	      [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
-	      -- TODO: This will generate Character based sorting
+              [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
+              -- TODO: This will generate Character based sorting
           , HH.ol
-	      [ HP.class_ (H.ClassName "packages") ] $
-	        Arr.take 650 $ buildPackages <$> packages'
+              [ HP.class_ (H.ClassName "packages") ] $
+                Arr.take 650 $ buildPackages <$> packages'
           ]
       ]
     where
@@ -114,18 +111,22 @@ component = H.lifecycleComponent
       tagFilter = Arr.filter (tagContained state.selectedTag)
       prefixFilter = Arr.filter (prefixContained state.selectedPrefix)
 
+
+
   eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
   eval (Initialize next) = do
     st <- H.get
     tagItem <- H.lift getTagList
     pkg <- H.lift getPackageList
-    initState <- H.put $ st { display = displayNone, packages = pkg.items, tags = tagItem.items, clicked = false}
+    initState <- H.put $ st { packages = pkg.items, tags = tagItem.items, clicked = false}
     pure next
+
   eval (SelectedTag tag next) = do
     H.modify \st -> st { selectedTag = if (member tag st.selectedTag)
-                                       then delete tag st.selectedTag
-                                       else insert tag st.selectedTag }
+                                          then delete tag st.selectedTag
+                                          else insert tag st.selectedTag }
     pure next
+
   eval (SelectedPrefix prefix next) = do
     H.modify \st -> st { selectedPrefix = singleton prefix }
     pure next
@@ -142,9 +143,9 @@ buildPrefixs prefix =
   HH.li_
     [ HH.a
         [ HP.class_ (H.ClassName "header")
-	, HP.attr (H.AttrName "data-prefix") prefix
-	, HE.onClick $ HE.input_ (SelectedPrefix prefix)
-	-- TODO: The action onClick will be added here
+        , HP.attr (H.AttrName "data-prefix") prefix
+        , HE.onClick $ HE.input_ (SelectedPrefix prefix)
+        -- TODO: The action onClick will be added here
         ]
         [ HH.text $ prefix ]
     ]
@@ -156,7 +157,7 @@ buildTags tag =
     , HP.attr (H.AttrName "data-tag-name") tag
     ]
     [ HH.text $ tag ]
- 
+
 buildTags' :: forall p. State -> Tag -> HH.HTML p (Query Unit)
 buildTags' st tag =
   HH.a
@@ -173,21 +174,21 @@ buildPackages packageMeta =
   HH.li_ $
     [ HH.a
         [ -- HP.href $ "/package/" <> packageMeta.name -- all of the package's name will goes here
-	-- TODO: The action onClick will be added here to direct user to package's page
+        -- TODO: The action onClick will be added here to direct user to package's page
         ]
         [ HH.text packageMeta.name ]
     ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (formatDate packageMeta.report) ] ]
 
-getTagList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+getTagList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a} m
            => MonadAff (api :: API | e) m
-	   => m (ApiList Tag)
+           => m (ApiList Tag)
 getTagList = do
   client <- asks _.matrixClient
   liftAff (tagList client)
 
-getPackageList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+getPackageList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a} m
                => MonadAff (api :: API | e) m
-	       => m (ApiList PackageMeta)
+               => m (ApiList PackageMeta)
 getPackageList = do
   client <- asks _.matrixClient
   liftAff (packageList client { count : (Just 100000), offset : Nothing })

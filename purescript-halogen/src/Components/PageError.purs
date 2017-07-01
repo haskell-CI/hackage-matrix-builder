@@ -7,17 +7,11 @@ import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 
 import Halogen as H
-import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
-import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi
-import Lib.Uri
-import CSS.Display (Display, block, displayNone, display)
-import Halogen.HTML.CSS as CSS
+import Lib.MatrixApi (MatrixApis)
 
 type State = {
-  display :: Display
   
 
 }
@@ -34,14 +28,13 @@ component =
     }
   where
     initialState :: State
-    initialState = { display: displayNone }
+    initialState = {}
 
     render :: State -> H.ComponentHTML Query
     render state =
       HH.div
         [ HP.id_ "page-notfound"
 	, HP.class_ (H.ClassName "page")
-	, CSS.style $ display state.display
 	]
         [ HH.div
             [ HP.class_ (H.ClassName "leftcol") ]
