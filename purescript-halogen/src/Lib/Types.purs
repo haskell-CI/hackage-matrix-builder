@@ -1,13 +1,26 @@
 module Lib.Types where
 
 import Prelude
-
 import Data.Eq
-import Data.Generic
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
-import Lib.Undefined
+import Lib.Undefined (Undefined)
+import Data.Generic.Rep.Show (genericShow)
+import Data.Generic.Rep
+
+data PageRoute = HomePage
+               | LatestPage
+               | PackagesPage
+               | PackagePage PackageName
+               | LogRoute PackageName VersionName
+               | UserPage Username
+               | ErrorPage
+
+derive instance gPageRoute :: Generic PageRoute _
+
+instance sPageRoute :: Show PageRoute where show = genericShow
+
 
 data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 
@@ -56,7 +69,7 @@ type ShallowGhcResult =
   , ghcFullVersion :: VersionName
   , ghcResult      :: Array ShallowVersionResult
   }
-  
+
 type ShallowVersionResult =
  { packageVersion  :: VersionName
  , packageRevision :: Revision

@@ -12,6 +12,7 @@ import Data.Array
 
 import Control.Monad.Aff.Class
 import Control.Monad.Reader.Class
+import Control.Monad.Eff.Ref
 
 import Halogen as H
 import Halogen.Component.ChildPath as CP
@@ -62,63 +63,63 @@ component = H.lifecycleComponent
       , HP.class_ (H.ClassName "page")
       , CSS.style $ display state.display
       ]
-      [ HH.div 
+      [ HH.div
           [ HP.class_ (H.ClassName "rightcol") ]
           [ HH.div
               [ HP.class_ (H.ClassName "sub") ]
-	      [ HH.text "Times are shown in your timezone" ]
+              [ HH.text "Times are shown in your timezone" ]
           ]
-      , HH.div 
+      , HH.div
           [ HP.class_ (H.ClassName "leftcol") ]
           [ HH.h2
               [ HP.class_ (H.ClassName "main-header") ]
-	      [ HH.text $ state.user ]
+              [ HH.text $ state.user ]
           , HH.div
-	      [ HP.class_ (H.ClassName "main-header-subtext") ]
-	      [ HH.text "Displaying packages maintained by this user."]
+              [ HP.class_ (H.ClassName "main-header-subtext") ]
+              [ HH.text "Displaying packages maintained by this user."]
           , HH.div
               [ HP.class_ (H.ClassName "content") ]
-	      [ HH.label_
-	          [ HH.input
-	              [ HP.class_ (H.ClassName "user-only-reports")
-		      , HP.type_ HP.InputCheckbox
-		      ]
-	          , HH.text "Only show packages with reports"
-	          ]
-	      , HH.ol
-	          [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> state.packages
-	          
-	      ]	      
+              [ HH.label_
+                  [ HH.input
+                      [ HP.class_ (H.ClassName "user-only-reports")
+                      , HP.type_ HP.InputCheckbox
+                      ]
+                  , HH.text "Only show packages with reports"
+                  ]
+              , HH.ol
+                  [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> state.packages
+
+              ]
           ]
       ]
-    
+
 
   eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
   eval (Initialize next) = do
     st <- H.get
     pkglist <- H.lift getPackageList
     usr <- H.lift $ getUserByName "BenGamari"
-    initState <- H.put $ st { display = block, user = usr.name, packages = userPackageMeta usr pkglist }	
+    initState <- H.put $ st { display = block, user = usr.name, packages = userPackageMeta usr pkglist }
     pure next
    where
     userPackageMeta usr pkglist = concat (filterUserPackage <$> usr.packages <*> pkglist.items)
-    
-  eval (SelectedPackage pkgName next) = do			
+
+  eval (SelectedPackage pkgName next) = do
     pure next
   eval (Finalize next) = do
     pure next
 
 getPackageList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
-               => MonadAff (api :: API | e) m
-	       => m (ApiList PackageMeta)
+               => MonadAff (api :: API, ref :: REF | e) m
+               => m (ApiList PackageMeta)
 getPackageList = do
   client <- asks _.matrixClient
   liftAff (packageList client { count : (Just 100000), offset : Nothing })
 
 getUserByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
               => MonadAff (api :: API | e) m
-	      => Username
-	      -> m (User)
+              => Username
+              -> m (User)
 getUserByName user = do
   client <- asks _.matrixClient
   liftAff (userByName client user )
@@ -128,17 +129,17 @@ buildPackages pkgMeta =
   HH.li_ $
     [ HH.a
         [ -- HP.href $ "/package/" <> (pkgMeta.name) -- all of the package's name will goes here
-	-- TODO: The action onClick will be added here to direct user to package's page
+        -- TODO: The action onClick will be added here to direct user to package's page
         ]
         [ HH.text (pkgMeta.name) ]
     ] <> [ HH.small_ [ HH.text $ if reportExist then "" else " - index-state: " <> (formatDate pkgMeta.report) ] ]
   where
     reportExist = pkgMeta.report == Nothing
-  
+
 
 filterUserPackage :: PackageName -> PackageMeta -> Array PackageMeta
 filterUserPackage pkgName pkgMeta
-  | pkgName == pkgMeta.name = [ pkgMeta ] 
+  | pkgName == pkgMeta.name = [ pkgMeta ]
   | otherwise               = []
 
 isEmptyMeta :: Maybe PackageMeta -> Boolean

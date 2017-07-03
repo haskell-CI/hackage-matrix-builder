@@ -7,7 +7,13 @@ import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 
 import Control.Monad.Aff.Class
+import Control.Monad.Eff (Eff)
+import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Reader.Class
+import Control.Monad.Reader (mapReader)
+import Control.Monad.Eff.Ref
+import Network.RemoteData
+
 
 import Halogen as H
 import Halogen.Component.ChildPath as CP
@@ -35,6 +41,7 @@ type State =
  , clicked :: Boolean
  , selectedTag :: Set TagName
  , selectedPrefix :: Set Prefixs
+ , selectedPackage :: PackageMeta
  }
 
 type Prefixs = String
@@ -43,7 +50,8 @@ data Query a
   = Initialize a
   | SelectedTag TagName a
   | SelectedPrefix Prefixs a
-  | SelectedPackage PackageName a
+  | SelectedPackage PackageMeta a
+  | CurrentSelected (PackageMeta -> a)
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
@@ -65,6 +73,10 @@ component = H.lifecycleComponent
    , clicked: false
    , selectedTag: empty
    , selectedPrefix: empty
+   , selectedPackage: { name: ""
+                      , report: Nothing
+                      , tags: []
+                      }
    }
 
   render :: State -> H.ComponentHTML Query
@@ -97,10 +109,8 @@ component = H.lifecycleComponent
           , HH.ol
               [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"])
               ] $ ( buildTags' state) <$> state.tags
-              -- TODO: This will generate list of tags avaliable using tagList
           , HH.ol
               [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
-              -- TODO: This will generate Character based sorting
           , HH.ol
               [ HP.class_ (H.ClassName "packages") ] $
                 Arr.take 650 $ buildPackages <$> packages'
@@ -111,14 +121,14 @@ component = H.lifecycleComponent
       tagFilter = Arr.filter (tagContained state.selectedTag)
       prefixFilter = Arr.filter (prefixContained state.selectedPrefix)
 
-
-
   eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
   eval (Initialize next) = do
     st <- H.get
     tagItem <- H.lift getTagList
-    pkg <- H.lift getPackageList
-    initState <- H.put $ st { packages = pkg.items, tags = tagItem.items, clicked = false}
+    pkgRef <- asks _.packageList
+    packageList <- liftEff (readRef pkgRef)
+    let packages = withDefault {offset: 0, count: 0, items: []} packageList
+    initState <- H.put $ st { packages = packages.items, tags = tagItem.items, clicked = false}
     pure next
 
   eval (SelectedTag tag next) = do
@@ -130,8 +140,15 @@ component = H.lifecycleComponent
   eval (SelectedPrefix prefix next) = do
     H.modify \st -> st { selectedPrefix = singleton prefix }
     pure next
+
   eval (SelectedPackage pkgName next) = do
+    H.modify (_ {selectedPackage = pkgName})
     pure next
+
+  eval (CurrentSelected next) = do
+    state <- H.get
+    pure (next state.selectedPackage)
+
   eval (Finalize next) = do
     pure next
 
@@ -145,7 +162,6 @@ buildPrefixs prefix =
         [ HP.class_ (H.ClassName "header")
         , HP.attr (H.AttrName "data-prefix") prefix
         , HE.onClick $ HE.input_ (SelectedPrefix prefix)
-        -- TODO: The action onClick will be added here
         ]
         [ HH.text $ prefix ]
     ]
@@ -169,12 +185,12 @@ buildTags' st tag =
   where
     clickStatus = if (member tag.name st.selectedTag)  then "active" else " "
 
-buildPackages :: forall p i. PackageMeta -> HH.HTML p i
+buildPackages :: forall p. PackageMeta -> HH.HTML p (Query Unit)
 buildPackages packageMeta =
   HH.li_ $
     [ HH.a
-        [ -- HP.href $ "/package/" <> packageMeta.name -- all of the package's name will goes here
-        -- TODO: The action onClick will be added here to direct user to package's page
+        [ HP.href $ "#/package/" <> packageMeta.name
+        , HE.onClick $ HE.input_ (SelectedPackage packageMeta)
         ]
         [ HH.text packageMeta.name ]
     ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (formatDate packageMeta.report) ] ]

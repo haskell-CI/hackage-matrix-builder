@@ -16,6 +16,7 @@ import Data.Functor.Coproduct.Nested (Coproduct2)
 import Data.Foreign (toForeign)
 import Data.Maybe (Maybe(..))
 import Data.String as Str
+import Data.Tuple
 import DOM (DOM)
 import DOM.Event.EventTarget (eventListener, addEventListener) as DOM
 import DOM.HTML (window) as DOM
@@ -32,9 +33,13 @@ import Container as Container
 import Router as Router
 import CSS.Display (Display, block, displayNone)
 import Halogen.HTML.CSS as CSS
+import Routing
+
+import Debug.Trace (traceAnyA)
 
 import Network.RemoteData as RD
 import Lib.MatrixApi (newApi, API, MatrixApis)
+import Lib.Types
 
 type State =
   { display :: Display }
@@ -46,7 +51,7 @@ initialState =
 data Query a
   = Initialize a
   | Finalize a
-  | Response String a
+  | Response PageRoute a
 
 type ChildQuery = Coproduct2 Router.Query
                              Container.Query
@@ -80,39 +85,11 @@ ui = H.lifecycleParentComponent
       _ <- H.query' CP.cp2 unit $ H.action $ Container.RouteChange msg
       pure next
 
--- A producer coroutine that emits messages whenever the window emits a
--- `hashchange` event.
-hashChangeProducer
-  :: forall eff
-   . CR.Producer DOM.HashChangeEvent (Aff (avar :: AVAR, dom :: DOM | eff)) Unit
-hashChangeProducer = CRA.produce \emit ->
-  let
-    emitter e =
-      case runExcept (DOM.readHashChangeEvent (toForeign e)) of
-        Left _ -> pure unit
-        Right hce -> emit (Left hce)
-  in
-    liftEff $
-      DOM.window
-        >>= DOM.windowToEventTarget
-        >>> DOM.addEventListener ET.hashchange (DOM.eventListener emitter) false
-
--- A consumer coroutine that takes the `query` function from our component IO
--- record and sends `ChangeRoute` queries in when it receives inputs from the
--- producer.
-hashChangeConsumer
-  :: forall eff
-   . (Query ~> Aff (HA.HalogenEffects eff))
-  -> CR.Consumer DOM.HashChangeEvent (Aff (HA.HalogenEffects eff)) Unit
-hashChangeConsumer query = CR.consumer \event -> do
-  let hash = Str.drop 1 $ Str.dropWhile (_ /= '#') $ HCE.newURL event
-  query $ H.action $ Response hash
-  pure Nothing
-
-main :: forall eff. Eff (HA.HalogenEffects (api :: API | eff)) Unit
+main :: forall eff. Eff (HA.HalogenEffects (api :: API, ref :: REF | eff)) Unit
 main = HA.runHalogenAff do
   body <- HA.awaitBody
   packageList <- liftEff (newRef RD.NotAsked)
   matrixClient <- liftEff (newApi "/api" "/api")
   io <- runUI (H.hoist (\x -> runReaderT x { matrixClient, packageList }) ui) unit body
-  CR.runProcess (hashChangeProducer CR.$$ hashChangeConsumer io.query)
+  Tuple old new <- matchesAff Router.routing
+  io.query $ H.action $ Response new

@@ -7,11 +7,17 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi
+import Lib.Types
+import Routing
+import Routing.Match
+import Routing.Match.Class
+import Routing.Hash
+
+import Control.Alt ((<|>))
 
 type State =
   {
     history :: Array String
-  , currentPage :: String
   }
 
 data Query a = ChangeRoute String a
@@ -29,7 +35,6 @@ ui =
     initialState =
       {
         history: []
-      , currentPage: "/"
       }
 
     render :: State -> H.ComponentHTML Query
@@ -56,10 +61,10 @@ ui =
 	    [ HH.a [ HP.href "#" ] [ HH.text "Home" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "#latest" ] [ HH.text "Latest builds" ] ]
+	    [ HH.a [ HP.href "#/latest" ] [ HH.text "Latest builds" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","link","left"]) ]
-	    [ HH.a [ HP.href "#packages" ] [ HH.text "Packages" ] ]
+	    [ HH.a [ HP.href "#/packages" ] [ HH.text "Packages" ] ]
         , HH.div
 	    [ HP.classes (H.ClassName <$> ["item","search","right","clearfix"]) ]
 	    [ HH.div
@@ -77,3 +82,23 @@ ui =
       ChangeRoute msg next -> do
         -- H.modify \st -> { history: st.history `A.snoc` msg }
         pure next
+
+routing :: Match PageRoute
+routing =  latest
+       <|> packages
+       <|> package
+       <|> user
+       <|> error
+       <|> logroute
+       <|> home
+  where
+    slash = lit ""
+    home = HomePage <$ slash
+    latest = LatestPage <$ (slash *> lit "latest")
+    packages = PackagesPage <$ (slash *> lit "packages")
+    package = PackagePage <$> (slash *> lit "package" *> str)
+    logroute = LogRoute <$> (lit "package" *> str) <*> ((pure "#") *> str)
+    user = UserPage <$> (lit "user" *> str)
+    error = ErrorPage <$ lit "error"
+
+

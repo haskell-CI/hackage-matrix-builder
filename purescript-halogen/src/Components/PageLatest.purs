@@ -124,8 +124,7 @@ buildPackages :: forall p i. LatestItem -> HH.HTML p i
 buildPackages latestItem =
   HH.li_ $
     [ HH.a
-        [ -- HP.href $ "/package/" <> packageMeta.name -- all of the package's name will goes here
-        -- TODO: The action onClick will be added here to direct user to package's page
+        [ HP.href $ "/package/" <> latestItem.packageName
         ]
         [ HH.text latestItem.packageName ]
     ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (latestItem.modified) ] ]

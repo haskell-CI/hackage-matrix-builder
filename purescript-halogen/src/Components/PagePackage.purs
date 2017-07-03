@@ -13,13 +13,14 @@ import Data.Traversable (Accum, mapAccumL)
 
 import Control.Monad.Aff.Class
 import Control.Monad.Reader.Class
+import Control.Monad.Eff.Class (liftEff)
 
 import Halogen as H
 import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi (MatrixApis, MatrixApi, API,packageByName, singleResult, latestReportByPackageName)
+import Lib.MatrixApi (MatrixApis, MatrixApi, API,packageByName, singleResult, latestReportByPackageName, tagSaveByName, queueSaveByName)
 import Lib.Uri
 import Lib.Types
 import CSS.Display (Display, block, displayNone, display)
@@ -32,27 +33,30 @@ type State =
   , highlighted :: Boolean
   , logmessage  :: String
   , columnversion :: ColumnVersion
+  , selectedpackage :: PackageMeta
+  , newtag :: TagName
   }
 
 data Query a
   = Initialize a
-  | AddingTag TagName a
   | QueueingPackage a
   | FailingPackage a
   | HighlightCell PackageName VersionName VersionName a
-  | AddingNewTag a
+  | HandleTag TagName a
+  | AddingNewTag PackageName TagName a
   | QueueBuild a
+  | HandlePackage PackageMeta a
   | Finalize a
 
 
-component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
+component :: forall e. H.Component HH.HTML Query PackageMeta Void (MatrixApis e)
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
   , eval
-  , initializer: Just (H.action Initialize)
+  , initializer:  Just (H.action Initialize)
   , finalizer: Just (H.action Finalize)
-  , receiver: const Nothing
+  , receiver: HE.input HandlePackage
   }
   where
 
@@ -72,6 +76,11 @@ component = H.lifecycleComponent
       , columnversion: { ghcVer: ""
                        , pkgVer: ""
                        }
+      , selectedpackage: { name: ""
+                         , report: Nothing
+                         , tags: []
+                         }
+      , newtag: ""
       }
 
     render :: State -> H.ComponentHTML Query
@@ -83,8 +92,8 @@ component = H.lifecycleComponent
         [ HH.div
             [ HP.class_ (H.ClassName "rightcol") ]
             [ legend
-            , queueing
-            , tagging
+            , queueing state
+            , tagging state
             ]
         , HH.div
             [ HP.class_ (H.ClassName "leftcol") ]
@@ -112,7 +121,7 @@ component = H.lifecycleComponent
             ]
         ]
       where
-        tagging =
+        tagging {package, newtag, selectedpackage} =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
             [ HH.h4
@@ -121,8 +130,8 @@ component = H.lifecycleComponent
             , HH.div
                 [ HP.id_ "tagging" ]
                 [ HH.ul
-                    [ HP.class_ (H.ClassName "tags") ]
-                    [] -- TODO : This is where the list of tags generated based on the selected package
+                    [ HP.class_ (H.ClassName "tags") ] $
+                    renderPackageTag selectedpackage -- TODO : This is where the list of tags generated based on the selected package
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -130,21 +139,21 @@ component = H.lifecycleComponent
                         , HH.input
                             [ HP.type_ HP.InputText
                             , HP.class_ (H.ClassName "tag-name")
-                            -- HE.onValueChange ...
+                            , HE.onValueInput (HE.input HandleTag)
                             -- TODO : save the text.
                             ]
 
                         ]
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
-                        , HE.onClick $ HE.input_ AddingNewTag
+                        , HE.onClick $ HE.input_ (AddingNewTag package.name newtag)
                         -- TODO : When this button clicked, it will get text then add tag to the <ul class="tags"> above
                         ]
                         [ HH.text "Add Tag" ]
                      ]
                 ]
             ]
-        queueing =
+        queueing {package, newtag} =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
             [ HH.h4
@@ -157,7 +166,9 @@ component = H.lifecycleComponent
                     [ HH.label_
                         [ HH.text "Priority"
                         , HH.select
-                            [ HP.class_ (H.ClassName "prio") ]
+                            [ HP.class_ (H.ClassName "prio")
+                            -- , HE.onSelectedIndexChange $ HE.input QueueingPackage
+                            ]
                             [ HH.option
                                 [ HP.value "high" ]
                                 [ HH.text "High" ]
@@ -165,7 +176,7 @@ component = H.lifecycleComponent
                                 [ HP.value "medium"
                                 , HP.selected true
                                 ]
-                                [ HH.text "High" ]
+                                [ HH.text "medium" ]
                             , HH.option
                                 [ HP.value "low" ]
                                 [ HH.text "Low" ]
@@ -173,7 +184,7 @@ component = H.lifecycleComponent
                         ]
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
-                        , HE.onClick $ HE.input_ AddingNewTag
+                        , HE.onClick $ HE.input_ QueueBuild
                         ]
                         [ HH.text "Queue build for this package" ]
                     ]
@@ -182,14 +193,6 @@ component = H.lifecycleComponent
 
     eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
     eval (Initialize next) = do
-      st <- H.get
-      packageByName <- H.lift $ getPackageByName "lens"
-      reportPackage <- H.lift $ getLatestReportByPackageName "lens"
-      initState <- H.put $ st { package = packageByName, report = reportPackage, highlighted = false}
-      pure next
-    eval (AddingTag tag next) = do
-      pure next
-    eval (QueueingPackage next) = do
       pure next
     eval (FailingPackage next) = do
       pure next
@@ -200,9 +203,22 @@ component = H.lifecycleComponent
                          , columnversion = { ghcVer, pkgVer }
                          }
       pure next
-    eval (AddingNewTag next) = do
+    eval (HandleTag value next) = do
+      st <- H.get
+      H.put $ st { newtag = value }
+      pure next
+    eval (AddingNewTag pkgName newTag next) = do
+      _ <- H.lift $ putTagSaveByName pkgName newTag
+      pure next
+    eval (QueueingPackage next) = do
       pure next
     eval (QueueBuild next) = do
+      pure next
+    eval (HandlePackage pkgMeta next) = do
+      st <- H.get
+      packageByName <- H.lift $ getPackageByName pkgMeta.name
+      reportPackage <- H.lift $ getLatestReportByPackageName pkgMeta.name
+      initState <- H.put $ st { package = packageByName, report = reportPackage, highlighted = false}
       pure next
     eval (Finalize next) = do
       pure next
@@ -251,6 +267,16 @@ renderLogResult logdisplay log { name } { ghcVer, pkgVer } =
             [ HH.text log ]
         ]
     ]
+
+renderPackageTag ::  forall p. PackageMeta -> Array (HH.HTML p (Query Unit))
+renderPackageTag { tags } =
+  (\x -> HH.li_
+           [ HH.span_ [HH.text $ x]
+           , HH.a
+               [HP.class_ (H.ClassName "remove")]
+               [HH.text "╳"]
+           ]
+  ) <$> tags
 
 pickLogMessage :: SingleResult -> String
 pickLogMessage { resultA } = logMessage resultA
@@ -432,6 +458,24 @@ getSingleResult :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
 getSingleResult pkgName cellName = do
   client <- asks _.matrixClient
   liftAff (singleResult client pkgName cellName)
+
+putTagSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+                     => MonadAff (api :: API | e) m
+                     => PackageName
+                     -> TagName
+                     -> m Unit
+putTagSaveByName pkgName tagName = do
+  client <- asks _.matrixClient
+  liftAff (tagSaveByName client pkgName {name: tagName, packages: [pkgName]})
+
+putQueueSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+                     => MonadAff (api :: API | e) m
+                     => PackageName
+                     -> QueueItem
+                     -> m Unit
+putQueueSaveByName pkgName queueItem = do
+  client <- asks _.matrixClient
+  liftAff (queueSaveByName client pkgName queueItem)
 
 ghcVersions :: Array VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]

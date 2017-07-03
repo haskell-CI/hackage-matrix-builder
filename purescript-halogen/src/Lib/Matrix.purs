@@ -16,9 +16,13 @@ import Lib.Uri (Uri)
 import Control.Monad.Reader (ReaderT)
 import Network.RemoteData as RD
 
-type MyMatrixApi e = ReaderT { matrixClient :: MatrixApi, packageList :: Ref (RD.RemoteData (Eff (api :: API | e) Unit) (ApiList PackageMeta)) } (Aff e)
+type Environment = { matrixClient :: MatrixApi
+                     , packageList :: Ref (RD.RemoteData Error (ApiList PackageMeta))
+                     }
 
-type MatrixApis eff = MyMatrixApi (api :: API | eff)
+type MyMatrixApi e = ReaderT Environment (Aff e)
+
+type MatrixApis eff = MyMatrixApi (api :: API, ref :: REF | eff)
 
 foreign import data MatrixApi :: Type
 
@@ -285,7 +289,7 @@ foreign import listLatestReports_ :: forall eff .
       (ApiList LatestItem -> ApiEff eff Unit)
       (JQueryXHR          -> ApiEff eff Unit)
       (ApiEff eff Unit)
-  
+
 
 singleResult :: forall e
   . MatrixApi
