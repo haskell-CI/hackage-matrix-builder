@@ -1,13 +1,26 @@
 module Lib.Types where
 
 import Prelude
-import Data.Eq
 import Data.Map (Map)
 import Data.Maybe (Maybe)
 import Data.Tuple (Tuple)
 import Lib.Undefined (Undefined)
 import Data.Generic.Rep.Show (genericShow)
-import Data.Generic.Rep
+import Data.Generic.Rep as G
+
+type Username = String
+type PackageName = String
+type VersionName = String
+type Revision = Word
+type TagName = String
+type PkgVerPfx = Array Word
+type HackageUrl = String
+type RevisionUrl = String
+type HdiffUrl = String
+type Cell = String
+type Word = Int
+type Prefixs = String
+
 
 data PageRoute = HomePage
                | LatestPage
@@ -17,7 +30,7 @@ data PageRoute = HomePage
                | UserPage Username
                | ErrorPage
 
-derive instance gPageRoute :: Generic PageRoute _
+derive instance gPageRoute :: G.Generic PageRoute _
 
 instance sPageRoute :: Show PageRoute where show = genericShow
 
@@ -84,6 +97,7 @@ data ShallowResult
   | ShallowNoIpFail
   | ShallowFail
   | ShallowFailDeps Word
+  | Unknown
 
 data Preference
   = Normal
@@ -130,8 +144,6 @@ type VersionInfo =
   , preference :: Preference
   }
 
-type Username = String
-
 type User =
   { name     :: Username
   , packages :: Array PackageName
@@ -144,26 +156,6 @@ type HackageUserRep =
   , username :: String
   , userid   :: Word
   }
-
-type PackageName = String
-
-type VersionName = String
-
-type Revision = Word
-
-type TagName = String
-
-type PkgVerPfx = Array Word
-
-type HackageUrl = String
-
-type RevisionUrl = String
-
-type HdiffUrl = String
-
-type Cell = String
-
-type Word = Int
 
 type ApiList a =
   { offset :: Int

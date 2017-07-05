@@ -1,42 +1,31 @@
 module Components.PageLatest where
 
-import Prelude
-import Data.Array
-import Control.Monad.Aff.Class
-import Control.Monad.Reader.Class
-import Lib.Uri
-import Lib.MiscFFI
+import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
 import Halogen as H
 import Halogen.HTML as HH
-import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import CSS.Display (Display, block, displayNone, display)
-import Data.Either.Nested (Either3)
-import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
-import Data.Semigroup ((<>))
-import Data.Show (show)
 import Data.Traversable (Accum, mapAccumL)
-import Lib.MatrixApi (API, MatrixApi, MatrixApis, listLatestReports, queueList, queueSaveByName)
-import Lib.Types (PackageName, LatestItem, QueueItem, Priority, ApiList)
+import Lib.MatrixApi as Api
+import Lib.Types as T
 
 type State =
  {
-   latestlist :: Array LatestItem
- , queuelist :: Array QueueItem
+   latestlist :: Array T.LatestItem
+ , queuelist :: Array T.QueueItem
  }
 
 data Query a
   = Initialize a
-  | SelectedPackage PackageName a
-  | PriorityUp QueueItem a
-  | PriorityDown QueueItem a
-  | RemoveQueue PackageName a
+  | SelectedPackage T.PackageName a
+  | PriorityUp T.QueueItem a
+  | PriorityDown T.QueueItem a
+  | RemoveQueue T.PackageName a
   | RefreshListings a
   | Finalize a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
+component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
@@ -99,11 +88,11 @@ component = H.lifecycleComponent
         accumResult = mapAccumL renderTableQueue 1 (state.queuelist)
         getTheResult { value } = value
 
-    eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
+    eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      qlist <- H.lift getQueueList
-      llist <- H.lift getListLatestReports
+      qlist <- H.lift Api.getQueueList
+      llist <- H.lift Api.getListLatestReports
       initState <- H.put $ st { latestlist = llist.items, queuelist = qlist.items }
       pure next
 
@@ -120,7 +109,7 @@ component = H.lifecycleComponent
     eval (Finalize next) = do
       pure next
 
-buildPackages :: forall p i. LatestItem -> HH.HTML p i
+buildPackages :: forall p i. T.LatestItem -> HH.HTML p i
 buildPackages latestItem =
   HH.li_ $
     [ HH.a
@@ -129,7 +118,9 @@ buildPackages latestItem =
         [ HH.text latestItem.packageName ]
     ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (latestItem.modified) ] ]
 
-renderTableQueue :: forall p. Int -> QueueItem -> Accum Int (HH.HTML p (Query Unit))
+renderTableQueue :: forall p. Int
+                 -> T.QueueItem
+                 -> Accum Int (HH.HTML p (Query Unit))
 renderTableQueue num queueItem@{ packageName, priority } =
   { accum: num + 1
   , value: HH.tr
@@ -163,25 +154,3 @@ renderTableQueue num queueItem@{ packageName, priority } =
                  ]
              ]
   }
-getQueueList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
-             => MonadAff (api :: API | e) m
-             => m (ApiList QueueItem)
-getQueueList = do
-  client <- asks _.matrixClient
-  liftAff (queueList client)
-
-getListLatestReports :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
-                     => MonadAff (api :: API | e) m
-                     => m (ApiList LatestItem)
-getListLatestReports = do
-  client <- asks _.matrixClient
-  liftAff (listLatestReports client { count : (Just 100), offset : Nothing })
-
-putQueueSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
-                     => MonadAff (api :: API | e) m
-                     => PackageName
-                     -> QueueItem
-                     -> m Unit
-putQueueSaveByName pkgName queueItem = do
-  client <- asks _.matrixClient
-  liftAff (queueSaveByName client pkgName queueItem)

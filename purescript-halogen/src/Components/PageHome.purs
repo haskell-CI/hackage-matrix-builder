@@ -5,7 +5,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Data.Maybe (Maybe(..))
-import Lib.MatrixApi (MatrixApis)
+import Lib.MatrixApi as Api
 
 type State = {
 
@@ -14,7 +14,7 @@ type State = {
 
 data Query a = ReadStates a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
+component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
 component =
   H.component
     { initialState: const initialState
@@ -23,7 +23,6 @@ component =
     , receiver: const Nothing
     }
   where
-
     initialState :: State
     initialState = {}
 
@@ -112,6 +111,6 @@ component =
                 ]
             ]
         ]
-    eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
+    eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (ReadStates next) = do
       pure next

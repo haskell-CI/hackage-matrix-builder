@@ -1,60 +1,42 @@
 module Components.PagePackages where
 
-import Prelude
-
-import Data.Either.Nested (Either3)
-import Data.Functor.Coproduct.Nested (Coproduct6)
+import Prelude (type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
 import Data.Maybe (Maybe(..))
-
-import Control.Monad.Aff.Class
-import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Reader.Class
-import Control.Monad.Reader (mapReader)
-import Control.Monad.Eff.Ref
-import Network.RemoteData
-
-
+import Control.Monad.Reader.Class (asks)
+import Control.Monad.Eff.Ref as Ref
+import Network.RemoteData as RD
 import Halogen as H
-import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Data.Array as Arr
 import Data.String as Str
-import Data.Char
-import Data.Set
-import Data.Foldable
-import Data.Semigroup ((<>))
-import Lib.Uri
-import Lib.Types (PackageName, PackageMeta, Tag, TagName, ApiList)
-import Lib.Undefined
-import Lib.MatrixApi
-import Lib.MiscFFI
-import CSS.Display (Display, block, displayNone, display)
-import Halogen.HTML.CSS as CSS
+import Data.Char as Char
+import Data.Set as Set
+import Lib.Types as T
+import Lib.MiscFFI as MiscFFI
+import Lib.MatrixApi as Api
 
 type State =
  {
-   packages :: Array PackageMeta
- , tags :: Array Tag
+   packages :: Array T.PackageMeta
+ , tags :: Array T.Tag
  , clicked :: Boolean
- , selectedTag :: Set TagName
- , selectedPrefix :: Set Prefixs
- , selectedPackage :: PackageMeta
+ , selectedTag :: Set.Set T.TagName
+ , selectedPrefix :: Set.Set T.Prefixs
+ , selectedPackage :: T.PackageMeta
  }
-
-type Prefixs = String
 
 data Query a
   = Initialize a
-  | SelectedTag TagName a
-  | SelectedPrefix Prefixs a
-  | SelectedPackage PackageMeta a
-  | CurrentSelected (PackageMeta -> a)
+  | SelectedTag T.TagName a
+  | SelectedPrefix T.Prefixs a
+  | SelectedPackage T.PackageMeta a
+  | CurrentSelected (T.PackageMeta -> a)
   | Finalize a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (MatrixApis e)
+component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
@@ -71,8 +53,8 @@ component = H.lifecycleComponent
      packages: []
    , tags: []
    , clicked: false
-   , selectedTag: empty
-   , selectedPrefix: empty
+   , selectedTag: Set.empty
+   , selectedPrefix: Set.empty
    , selectedPackage: { name: ""
                       , report: Nothing
                       , tags: []
@@ -121,24 +103,24 @@ component = H.lifecycleComponent
       tagFilter = Arr.filter (tagContained state.selectedTag)
       prefixFilter = Arr.filter (prefixContained state.selectedPrefix)
 
-  eval :: Query ~> H.ComponentDSL State Query Void (MatrixApis e)
+  eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
   eval (Initialize next) = do
     st <- H.get
-    tagItem <- H.lift getTagList
+    tagItem <- H.lift Api.getTagList
     pkgRef <- asks _.packageList
-    packageList <- liftEff (readRef pkgRef)
-    let packages = withDefault {offset: 0, count: 0, items: []} packageList
+    packageList <- liftEff (Ref.readRef pkgRef)
+    let packages = RD.withDefault {offset: 0, count: 0, items: []} packageList
     initState <- H.put $ st { packages = packages.items, tags = tagItem.items, clicked = false}
     pure next
 
   eval (SelectedTag tag next) = do
-    H.modify \st -> st { selectedTag = if (member tag st.selectedTag)
-                                          then delete tag st.selectedTag
-                                          else insert tag st.selectedTag }
+    H.modify \st -> st { selectedTag = if (Set.member tag st.selectedTag)
+                                          then Set.delete tag st.selectedTag
+                                          else Set.insert tag st.selectedTag }
     pure next
 
   eval (SelectedPrefix prefix next) = do
-    H.modify \st -> st { selectedPrefix = singleton prefix }
+    H.modify \st -> st { selectedPrefix = Set.singleton prefix }
     pure next
 
   eval (SelectedPackage pkgName next) = do
@@ -152,8 +134,8 @@ component = H.lifecycleComponent
   eval (Finalize next) = do
     pure next
 
-prefixs :: Array String
-prefixs = Str.singleton <$> fromCharCode <$> (Arr.(..) 65 90)
+prefixs :: Array T.Prefixs
+prefixs = Str.singleton <$> Char.fromCharCode <$> (Arr.(..) 65 90)
 
 buildPrefixs :: forall p. String -> HH.HTML p (Query Unit)
 buildPrefixs prefix =
@@ -166,7 +148,7 @@ buildPrefixs prefix =
         [ HH.text $ prefix ]
     ]
 
-buildTags :: forall p i. TagName -> HH.HTML p i
+buildTags :: forall p i. T.TagName -> HH.HTML p i
 buildTags tag =
   HH.a
     [ HP.class_ (H.ClassName "tag-item")
@@ -174,7 +156,7 @@ buildTags tag =
     ]
     [ HH.text $ tag ]
 
-buildTags' :: forall p. State -> Tag -> HH.HTML p (Query Unit)
+buildTags' :: forall p. State -> T.Tag -> HH.HTML p (Query Unit)
 buildTags' st tag =
   HH.a
     [ HP.classes (H.ClassName <$> ["tag-item", clickStatus])
@@ -183,9 +165,9 @@ buildTags' st tag =
     ]
     [ HH.text $ tag.name ]
   where
-    clickStatus = if (member tag.name st.selectedTag)  then "active" else " "
+    clickStatus = if (Set.member tag.name st.selectedTag)  then "active" else " "
 
-buildPackages :: forall p. PackageMeta -> HH.HTML p (Query Unit)
+buildPackages :: forall p. T.PackageMeta -> HH.HTML p (Query Unit)
 buildPackages packageMeta =
   HH.li_ $
     [ HH.a
@@ -193,28 +175,14 @@ buildPackages packageMeta =
         , HE.onClick $ HE.input_ (SelectedPackage packageMeta)
         ]
         [ HH.text packageMeta.name ]
-    ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (formatDate packageMeta.report) ] ]
+    ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (MiscFFI.formatDate packageMeta.report) ] ]
 
-getTagList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a} m
-           => MonadAff (api :: API | e) m
-           => m (ApiList Tag)
-getTagList = do
-  client <- asks _.matrixClient
-  liftAff (tagList client)
-
-getPackageList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a} m
-               => MonadAff (api :: API | e) m
-               => m (ApiList PackageMeta)
-getPackageList = do
-  client <- asks _.matrixClient
-  liftAff (packageList client { count : (Just 100000), offset : Nothing })
-
-tagContained :: Set TagName -> PackageMeta -> Boolean
+tagContained :: Set.Set T.TagName -> T.PackageMeta -> Boolean
 tagContained selectedTags { tags }
-    | isEmpty selectedTags = true
-    | otherwise            = not isEmpty (fromFoldable tags `intersection` selectedTags)
+    | Set.isEmpty selectedTags = true
+    | otherwise            = not Set.isEmpty (Set.fromFoldable tags `Set.intersection` selectedTags)
 
-prefixContained :: Set Prefixs -> PackageMeta -> Boolean
+prefixContained :: Set.Set T.Prefixs -> T.PackageMeta -> Boolean
 prefixContained selectedPrefix { name }
-    | isEmpty selectedPrefix = true
-    | otherwise              = member (Str.toUpper $ Str.take 1 name) selectedPrefix
+    | Set.isEmpty selectedPrefix = true
+    | otherwise              = Set.member (Str.toUpper $ Str.take 1 name) selectedPrefix
