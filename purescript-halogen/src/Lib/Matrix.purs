@@ -1,12 +1,12 @@
 module Lib.MatrixApi where
 
+import Control.Monad.Eff
 import Control.Monad.Eff.Exception as E
 import Data.Function.Uncurried as U
 import Lib.Types as T
 import Network.RemoteData as RD
 import Control.Monad.Aff (Aff, makeAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
-import Control.Monad.Eff 
 import Control.Monad.Eff.Ref (REF, Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
 import Data.Maybe (Maybe(..))
@@ -67,13 +67,31 @@ getListLatestReports = do
   liftAff (listLatestReports client { count : (Just 100), offset : Nothing })
 
 putQueueSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
-                     => MonadAff (api :: API | e) m
-                     => T.PackageName
-                     -> T.QueueItem
-                     -> m Unit
-putQueueSaveByName pkgName queueItem = do
+                   => MonadAff (api :: API | e) m
+                   => T.PackageName
+                   -> T.Priority
+                   -> m Unit
+putQueueSaveByName pkgName priority = do
   client <- asks _.matrixClient
-  liftAff (queueSaveByName client pkgName queueItem)
+  liftAff (queueSaveByName client pkgName priority)
+
+putQueueCreate :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+               => MonadAff (api :: API | e) m
+               => T.PackageName
+               -> T.Priority
+               -> m Unit
+putQueueCreate pkgName priority = do
+  client <- asks _.matrixClient
+  liftAff (queueCreate client pkgName priority)
+
+
+deleteQueueRemove :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+               => MonadAff (api :: API | e) m
+               => T.PackageName
+               -> m Unit
+deleteQueueRemove pkgName = do
+  client <- asks _.matrixClient
+  liftAff (queueRemove client pkgName)
 
 getLatestReportByPackageName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                              => MonadAff (api :: API | e) m
@@ -107,8 +125,17 @@ putTagSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } 
                      -> m Unit
 putTagSaveByName pkgName tagName = do
   client <- asks _.matrixClient
-  liftAff (tagSaveByName client pkgName {name: tagName, packages: [pkgName]})
+  liftAff (tagSaveByName client tagName pkgName)
 
+deleteTagRemove :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+               => MonadAff (api :: API | e) m
+               => T.TagName
+               -> T.PackageName
+               -> m Unit
+deleteTagRemove tagName pkgName = do
+  client <- asks _.matrixClient
+  liftAff (tagRemove client tagName pkgName)
+  
 getUserByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
               => MonadAff (api :: API | e) m
               => T.Username
@@ -164,21 +191,24 @@ foreign import queueByName_ :: forall eff a .
 queueSaveByName :: forall e
   . MatrixApi
   -> T.PackageName
-  -> T.QueueItem
+  -> T.Priority
   -> Aff (api :: API | e) Unit
-queueSaveByName api pkgName queueItem = makeAff \err succ ->
+queueSaveByName api pkgName prio = makeAff \err succ ->
   U.runFn5
     queueSaveByName_
     api
     pkgName
-    queueItem
+    (case prio of
+       T.Low -> "low"
+       T.Medium -> "medium"
+       T.High -> "high")
     succ
-    (stringyErr err "Saving Tag by name failed")
+    (stringyErr err "Queue Build Failed")
 
 foreign import queueSaveByName_ :: forall eff .
   U.Fn5 MatrixApi
       T.PackageName
-      T.QueueItem
+      String
       (Unit -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)
@@ -221,6 +251,25 @@ foreign import queueCreate_ :: forall eff .
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)
 
+queueRemove :: forall e
+  . MatrixApi
+  -> T.PackageName
+  -> Aff (api :: API | e) Unit
+queueRemove api pkgName = makeAff \err succ ->
+  U.runFn4
+    queueRemove_
+    api
+    pkgName
+    succ
+    (stringyErr err "Remove Queue by name failed")
+
+foreign import queueRemove_ :: forall eff .
+  U.Fn4 MatrixApi
+      T.PackageName
+      (Unit -> ApiEff eff Unit)
+      (JQueryXHR -> ApiEff eff Unit)
+      (ApiEff eff Unit)
+
 tagByName :: forall e
   . MatrixApi
   -> T.PackageName
@@ -246,22 +295,22 @@ foreign import tagByName_ :: forall eff a .
 
 tagSaveByName :: forall e
   . MatrixApi
+  -> T.TagName
   -> T.PackageName
-  -> T.Tag
   -> Aff (api :: API | e) Unit
 tagSaveByName api pkgName tagName = makeAff \err succ ->
   U.runFn5
     tagSaveByName_
     api
-    pkgName
     tagName
+    pkgName
     succ
     (stringyErr err "Saving Tag by name failed")
 
 foreign import tagSaveByName_ :: forall eff .
   U.Fn5 MatrixApi
+      T.TagName
       T.PackageName
-      T.Tag
       (Unit -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)
@@ -281,10 +330,10 @@ foreign import tagList_ :: forall eff .
 
 tagRemove :: forall e
    . MatrixApi
+  -> T.TagName
   -> T.PackageName
-  -> T.Tag
   -> Aff (api :: API | e) Unit
-tagRemove api pkgName tagName = makeAff \err succ ->
+tagRemove api tagName pkgName = makeAff \err succ ->
   U.runFn5
     tagRemove_
     api
@@ -295,8 +344,8 @@ tagRemove api pkgName tagName = makeAff \err succ ->
 
 foreign import tagRemove_ :: forall eff .
   U.Fn5 MatrixApi
+      T.TagName
       T.PackageName
-      T.Tag
       (Unit -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
       (ApiEff eff Unit)

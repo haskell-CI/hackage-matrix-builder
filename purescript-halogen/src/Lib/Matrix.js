@@ -42,14 +42,11 @@ exports.queueByName_ = function (api, pkgName, ok, err, low, medium, high, just,
   };
 };
 
-exports.queueSaveByName_ = function (api, pkgName, queue, ok, err) {
+exports.queueSaveByName_ = function (api, pkgName, prio, ok, err) {
   return function () {
     api.Queue.saveByName
       ( pkgName
-      , { priority: queue.priority
-	, packageName: queue.packageName
-	, modified: queue.modified
-	}
+      , prio
       , function (v) { ok(v)(); }
       , function (e) { err(e)(); }
       );
@@ -75,6 +72,15 @@ exports.queueCreate_ = function (api, pkgName, prio, ok, err) {
   };
 };
 
+exports.queueRemove_ = function (api, ok, err, pkgName) {
+    return function () {
+      api.Queue.byName(pkgName).remove
+        ( pkgName
+        , function (v) { ok(v)(); }
+        , function (e) { err(e)(); }
+        );
+    };
+};
 
 exports.tagByName_ = function (api, tagName, ok, err, just, nothing) {
   return function () {
@@ -97,11 +103,11 @@ exports.tagByName_ = function (api, tagName, ok, err, just, nothing) {
   };
 };
 
-exports.tagSaveByName_ = function (api, pkgName, tag, ok, err) {
+exports.tagSaveByName_ = function (api, tagName, pkgName, ok, err) {
   return function () {
     api.Tag.saveByName
-      ( pkgName
-      , { name : tag.name, packages : tag.packages }
+      ( tagName
+      , pkgName
       , function (v) { ok(v)(); }
       , function (e) { err(e)(); }
       );
@@ -117,10 +123,11 @@ exports.tagList_ = function (api, ok, err) {
   };
 };
 
-exports.tagRemove_ = function (api, pkgName, tag, ok, err) {
+exports.tagRemove_ = function (api, pkgName, tagName, ok, err) {
   return function () {
     api.Tag.byName(pkgName).remove
-      ( { name : tag.name, packages : tag.packages }
+      ( tagName
+      , pkgName
       , function (v) { ok(v)(); }
       , function (e) { err(e)(); }
       );
@@ -155,7 +162,7 @@ exports.listLatestReports_ = function (api, range, ok, err) {
       , fromRange(range)
       );
   };
-};    
+};
 
 exports.singleResult_ =
   function

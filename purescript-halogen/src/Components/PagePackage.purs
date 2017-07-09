@@ -10,45 +10,49 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
-import Data.Maybe (Maybe(Just, Nothing), fromMaybe, maybe)
+import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
-import Prelude (type (~>), Unit, Void, bind, const, discard, map, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (<<<))
+import Lib.MiscFFI (formatDate)
+import Prelude (type (~>), Unit, Void, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
 
 type State =
-  { initPackage :: T.PackageName
+  { initPackage :: T.PackageMeta
   , logdisplay  :: D.Display
   , package     :: T.Package
   , report      :: T.ShallowReport
   , highlighted :: Boolean
   , logmessage  :: String
   , columnversion :: T.ColumnVersion
-  , selectedpackage :: T.PackageMeta
   , newtag :: T.TagName
+  , newPrio :: T.Priority
   }
 
 data Query a
   = Initialize a
-  | QueueingPackage a
   | FailingPackage a
   | HighlightCell T.PackageName T.VersionName T.VersionName a
   | HandleTag T.TagName a
   | AddingNewTag T.PackageName T.TagName a
-  | QueueBuild a
+  | RemoveTag T.PackageName T.TagName a
+  | HandleQueue Int a
+  | QueueBuild T.PackageName T.Priority a
   | Finalize a
 
+ghcVersions :: Array T.VersionName
+ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-component :: forall e. H.Component HH.HTML Query String Void (Api.Matrix e)
+component :: forall e. H.Component HH.HTML Query T.PackageMeta Void (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: initialState
   , render
   , eval
-  , initializer: Just (H.action Initialize) 
+  , initializer: Just (H.action Initialize)
   , finalizer: Just (H.action Finalize)
   , receiver: const Nothing
   }
   where
 
-    initialState :: String -> State
+    initialState :: T.PackageMeta -> State
     initialState i =
       {
         initPackage: i
@@ -65,11 +69,8 @@ component = H.lifecycleComponent
       , columnversion: { ghcVer: ""
                        , pkgVer: ""
                        }
-      , selectedpackage: { name: ""
-                         , report: Nothing
-                         , tags: []
-                         }
       , newtag: ""
+      , newPrio: T.Low
       }
 
     render :: State -> H.ComponentHTML Query
@@ -91,8 +92,7 @@ component = H.lifecycleComponent
                 [ HH.text state.package.name ]
             , HH.div
                 [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-                [ HH.text $ "index-state: " -- <> fromDate args will be based on package meta that get passed from page-packages
-                ]
+                [ HH.text $ "index-state: " <> (formatDate (_.report  state.initPackage))                ]
             , HH.div
                 [ HP.id_ "package-buildreport" ]
                 [ HH.h3
@@ -110,7 +110,7 @@ component = H.lifecycleComponent
             ]
         ]
       where
-        tagging {package, newtag, selectedpackage} =
+        tagging st =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
             [ HH.h4
@@ -120,7 +120,7 @@ component = H.lifecycleComponent
                 [ HP.id_ "tagging" ]
                 [ HH.ul
                     [ HP.class_ (H.ClassName "tags") ] $
-                    renderPackageTag selectedpackage -- TODO : This is where the list of tags generated based on the selected package
+                    renderPackageTag (_.name st.initPackage )st.initPackage st.newtag
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -129,20 +129,19 @@ component = H.lifecycleComponent
                             [ HP.type_ HP.InputText
                             , HP.class_ (H.ClassName "tag-name")
                             , HE.onValueInput (HE.input HandleTag)
-                            -- TODO : save the text.
                             ]
 
                         ]
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
-                        , HE.onClick $ HE.input_ (AddingNewTag package.name newtag)
-                        -- TODO : When this button clicked, it will get text then add tag to the <ul class="tags"> above
+                        , HE.onClick $ HE.input_ (AddingNewTag st.newtag
+                                                               (_.name st.initPackage))
                         ]
                         [ HH.text "Add Tag" ]
                      ]
                 ]
             ]
-        queueing {package, newtag} =
+        queueing st =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
             [ HH.h4
@@ -156,7 +155,7 @@ component = H.lifecycleComponent
                         [ HH.text "Priority"
                         , HH.select
                             [ HP.class_ (H.ClassName "prio")
-                            -- , HE.onSelectedIndexChange $ HE.input QueueingPackage
+                            , HE.onSelectedIndexChange $ HE.input HandleQueue
                             ]
                             [ HH.option
                                 [ HP.value "high" ]
@@ -165,7 +164,7 @@ component = H.lifecycleComponent
                                 [ HP.value "medium"
                                 , HP.selected true
                                 ]
-                                [ HH.text "medium" ]
+                                [ HH.text "Medium" ]
                             , HH.option
                                 [ HP.value "low" ]
                                 [ HH.text "Low" ]
@@ -173,7 +172,7 @@ component = H.lifecycleComponent
                         ]
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
-                        , HE.onClick $ HE.input_ QueueBuild
+                        , HE.onClick $ HE.input_ (QueueBuild (_.name st.initPackage) st.newPrio)
                         ]
                         [ HH.text "Queue build for this package" ]
                     ]
@@ -183,15 +182,20 @@ component = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      packageByName <- H.lift $ Api.getPackageByName st.initPackage
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName st.initPackage
-      initState <- H.put $ st { package = packageByName, report = reportPackage, highlighted = false}
+      packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
+      initState <- H.put $ st { package = packageByName
+                              , report = reportPackage
+                              , highlighted = false
+                              }
       pure next
     eval (FailingPackage next) = do
       pure next
     eval (HighlightCell pkgName ghcVer pkgVer next) = do
       singleResult <- H.lift $ Api.getSingleResult pkgName (ghcVer <> "-" <> pkgVer)
-      H.modify \st -> st { logmessage = (if ( isContainedLog singleResult.resultA ) then "" else pickLogMessage singleResult )
+      H.modify \st -> st { logmessage = (if ( isContainedLog singleResult.resultA )
+                                         then ""
+                                         else pickLogMessage singleResult )
                          , logdisplay = D.block
                          , columnversion = { ghcVer, pkgVer }
                          }
@@ -200,12 +204,20 @@ component = H.lifecycleComponent
       st <- H.get
       H.put $ st { newtag = value }
       pure next
-    eval (AddingNewTag pkgName newTag next) = do
-      _ <- H.lift $ Api.putTagSaveByName pkgName newTag
+    eval (AddingNewTag newTag pkgName next) = do
+      _ <- H.lift $ Api.putTagSaveByName newTag pkgName
       pure next
-    eval (QueueingPackage next) = do
+    eval (RemoveTag tagName pkgName next) = do
+      _ <- H.lift $ Api.deleteTagRemove tagName pkgName
       pure next
-    eval (QueueBuild next) = do
+    eval (HandleQueue idx next) = do
+      _ <- case idx of
+              1 -> H.modify _ { newPrio = T.High}
+              2 -> H.modify _ { newPrio = T.Medium}
+              _ -> H.modify _ { newPrio = T.Low}
+      pure next
+    eval (QueueBuild pkgName prio next) = do
+      _ <- H.lift $ Api.putQueueCreate pkgName prio
       pure next
     eval (Finalize next) = do
       pure next
@@ -255,15 +267,20 @@ renderLogResult logdisplay log { name } { ghcVer, pkgVer } =
         ]
     ]
 
-renderPackageTag ::  forall p. T.PackageMeta -> Array (HH.HTML p (Query Unit))
-renderPackageTag { tags } =
+renderPackageTag ::  forall p. T.PackageName
+                 -> T.PackageMeta
+                 -> T.TagName
+                 -> Array (HH.HTML p (Query Unit))
+renderPackageTag pkgName { tags } newtag =
   (\x -> HH.li_
            [ HH.span_ [HH.text $ x]
            , HH.a
-               [HP.class_ (H.ClassName "remove")]
+               [HP.class_ (H.ClassName "remove")
+               , HE.onClick $ HE.input_ (RemoveTag x pkgName )
+               ]
                [HH.text "╳"]
            ]
-  ) <$> tags
+  ) <$> (tags <> [newtag])
 
 pickLogMessage :: T.SingleResult -> String
 pickLogMessage { resultA } = logMessage resultA
@@ -295,23 +312,18 @@ renderTableMatrix package shallowR =
     , HH.tbody_ $ Arr.reverse $ getTheResult accumResult
     ]
   where
-    accumResult = mapAccumL (generateTableRow package shallowR) (Arr.head (package.versions)) package.versions
+    accumResult = mapAccumL (generateTableRow package shallowR)
+                            ({version: "0", revision: 0, preference: T.Normal})
+                            package.versions
     getTheResult { value } = value
-
-ghcVersions :: Array T.VersionName
-ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
 generateTableRow :: forall p. T.Package
                  -> T.ShallowReport
-                 -> Maybe T.VersionInfo
                  -> T.VersionInfo
-                 -> Accum (Maybe T.VersionInfo) (HH.HTML p (Query Unit))
-generateTableRow package { results } Nothing currentVer =
-   { accum: Nothing
-   , value: HH.tr_ []
-   }
-generateTableRow package { results } (Just prevVer) currentVer  =
-  { accum: const (Just currentVer) prevVer
+                 -> T.VersionInfo
+                 -> Accum T.VersionInfo (HH.HTML p (Query Unit))
+generateTableRow package shallowR prevVer currentVer  =
+  { accum: const currentVer prevVer
   , value: HH.tr
              [ HP.classes (H.ClassName <$> (["solver-row"] <> packageVersioning majorCheck minorCheck)) ] $
              [ HH.th
@@ -323,17 +335,16 @@ generateTableRow package { results } (Just prevVer) currentVer  =
                  , HH.a
                      [ HP.href $ hackageUrl package.name currentVer.version ]
                      [ HH.text currentVer.version ]
-                 ] <> (if currentVer.revision > 0 then [ (containedRevision package.name currentVer.version currentVer.revision) ]
-                         else [])
-             ] <> Arr.reverse (generateTableColumn package currentVer.version <$> results)
+                 ] <> (if currentVer.revision > 0
+                       then [ (containedRevision package.name currentVer.version currentVer.revision) ]
+                       else [])
+             ] <> Arr.reverse (generateTableColumn package shallowR.results currentVer.version <$> (Arr.reverse ghcVersions))
   }
   where
-    splitPrevVer = maybe [] splitVersion (Just prevVer.version)
+    splitPrevVer = splitVersion prevVer.version
     splitCurrVer = splitVersion currentVer.version
     majorCheck = newMajor splitPrevVer splitCurrVer
     minorCheck = newMinor splitPrevVer splitCurrVer
-
-
 
 splitVersion :: T.VersionName -> Array T.VersionName
 splitVersion v = Str.split (Str.Pattern ".") v
@@ -359,6 +370,43 @@ packageVersioning minor major
   | minor          = ["first-minor"]
   | otherwise      = []
 
+generateTableColumn :: forall p. T.Package
+                    -> Array T.ShallowGhcResult
+                    -> T.VersionName
+                    -> T.VersionName
+                    -> HH.HTML p (Query Unit)
+generateTableColumn package shallowGhcArr verName ghcVer =
+  case (Arr.foldl (||) false (isContainedVersion verName <$> shallowGhcArr)) && isContainedGHC ghcVer shallowGhcArr of
+    true -> renderContained
+    false -> renderNotContained
+  where
+    renderContained =
+      HH.td
+        [ HP.classes $ H.ClassName <$>
+                        (["stcell"] <>
+                         (Arr.concat $ checkPassOrFail verName <$>
+                          (getShallowVer ghcVer shallowGhcArr)))
+        , HP.attr (H.AttrName "data-ghc-version") ghcVer
+        , HP.attr (H.AttrName "data-package-version") verName
+        , HE.onClick $ HE.input_ (HighlightCell package.name ghcVer verName)
+        ] $ [ HH.text (Str.joinWith "" $ checkShallow verName <$>
+                                         (getShallowVer ghcVer shallowGhcArr)) ]
+    renderNotContained =
+      HH.td
+        [ HP.classes (H.ClassName <$> (["stcell", "fail-unknown"]))
+        , HP.attr (H.AttrName "data-ghc-version") ghcVer
+        , HP.attr (H.AttrName "data-package-version") verName
+        , HE.onClick $ HE.input_ (HighlightCell package.name ghcVer verName)
+        ] $ [ HH.text ""]
+
+getShallowVer :: T.VersionName -> Array T.ShallowGhcResult -> Array T.ShallowVersionResult
+getShallowVer ghcVer ghcArr =
+  case Arr.uncons filteredArr of
+    Just { head: x, tail: xs } -> x.ghcResult
+    Nothing                    -> []
+  where
+    filteredArr = Arr.filter (\x -> x.ghcVersion == ghcVer) ghcArr
+
 containedRevision :: forall p i. T.PackageName
                   -> T.VersionName
                   -> T.Word
@@ -374,18 +422,11 @@ containedRevision pkgName verName revision =
           [ HH.text $ "-r" <> (show revision) ]
       ]
 
-generateTableColumn :: forall p. T.Package
-                    -> T.VersionName
-                    -> T.ShallowGhcResult
-                    -> HH.HTML p (Query Unit)
-generateTableColumn package verName { ghcVersion, ghcResult } =
-    HH.td
-      [ HP.classes (H.ClassName <$> (["stcell"] <> (Arr.concat $ checkPassOrFail verName <$> ghcResult)))
-      , HP.attr (H.AttrName "data-ghc-version") ghcVersion
-      , HP.attr (H.AttrName "data-package-version") verName
-      , HE.onClick $ HE.input_ (HighlightCell package.name ghcVersion verName)
-      ] $
-      [ HH.text (Str.joinWith "" $ checkShallow verName <$> ghcResult) ]
+isContainedGHC ::  T.VersionName -> Array T.ShallowGhcResult -> Boolean
+isContainedGHC ghcVer shallowGhcArr  = Arr.elem ghcVer (_.ghcVersion <$> shallowGhcArr)
+
+isContainedVersion :: T.VersionName -> T.ShallowGhcResult -> Boolean
+isContainedVersion verName { ghcResult } = Arr.elem verName (_.packageVersion <$> ghcResult)
 
 checkPassOrFail :: T.VersionName -> T.ShallowVersionResult -> Array String
 checkPassOrFail verName { packageVersion, result }
@@ -423,12 +464,12 @@ checkShallowResult sR =
 
 hdiffUrl :: T.PackageName -> T.VersionInfo -> T.VersionInfo -> T.HdiffUrl
 hdiffUrl pkgName prevVer currVer
+  | prevVer.version == "0"             = "http://hdiff.luite.com/cgit/" <> pkgName <> "/commit?id=" <> currVer.version
   | currVer.version == prevVer.version = "http://hdiff.luite.com/cgit/" <> pkgName <> "/diff?id=" <> currVer.version
-  | currVer.version /= prevVer.version = "http://hdiff.luite.com/cgit/" <>
+  | otherwise = "http://hdiff.luite.com/cgit/" <>
                                          pkgName <> "/diff?id=" <>
                                          currVer.version <> "&id2="
                                          <> prevVer.version
-  | otherwise                          = "http://hdiff.luite.com/cgit/" <> pkgName <> "/commit?id=" <> currVer.version
 
 hackageUrl :: T.PackageName -> T.VersionName -> T.HackageUrl
 hackageUrl pkgName versionName =

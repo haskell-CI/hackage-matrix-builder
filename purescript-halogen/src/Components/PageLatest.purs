@@ -18,9 +18,8 @@ type State =
 
 data Query a
   = Initialize a
-  | SelectedPackage T.PackageName a
-  | PriorityUp T.QueueItem a
-  | PriorityDown T.QueueItem a
+  | PriorityUp T.PackageName String a
+  | PriorityDown T.PackageName String a
   | RemoveQueue T.PackageName a
   | RefreshListings a
   | Finalize a
@@ -95,14 +94,26 @@ component = H.lifecycleComponent
       llist <- H.lift Api.getListLatestReports
       initState <- H.put $ st { latestlist = llist.items, queuelist = qlist.items }
       pure next
-
-    eval (SelectedPackage pkgName next) = do
+    eval (PriorityUp pkgName priority next) = do
+      _ <- H.lift $ Api.putQueueSaveByName pkgName (case priority of
+                                                     "low" -> T.Medium
+                                                     "medium" -> T.High
+                                                     _   -> T.High )
+      st <- H.get
+      qlist <- H.lift Api.getQueueList
+      _ <- H.modify _ { queuelist = qlist.items }
       pure next
-    eval (PriorityUp queueItem next) = do
-      pure next
-    eval (PriorityDown queueItem next) = do
+    eval (PriorityDown pkgName priority next) = do
+      _ <- H.lift $ Api.putQueueSaveByName pkgName (case priority of
+                                                     "low" -> T.Low
+                                                     "medium" -> T.Low
+                                                     _   -> T.Medium )
+      st <- H.get
+      qlist <- H.lift Api.getQueueList
+      _ <- H.modify _ { queuelist = qlist.items }
       pure next
     eval (RemoveQueue pkgName next) = do
+      _ <- H.lift $ Api.deleteQueueRemove pkgName
       pure next
     eval (RefreshListings next) = do
       pure next
@@ -113,7 +124,7 @@ buildPackages :: forall p i. T.LatestItem -> HH.HTML p i
 buildPackages latestItem =
   HH.li_ $
     [ HH.a
-        [ HP.href $ "/package/" <> latestItem.packageName
+        [ HP.href $ "#/package/" <> latestItem.packageName
         ]
         [ HH.text latestItem.packageName ]
     ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (latestItem.modified) ] ]
@@ -121,7 +132,7 @@ buildPackages latestItem =
 renderTableQueue :: forall p. Int
                  -> T.QueueItem
                  -> Accum Int (HH.HTML p (Query Unit))
-renderTableQueue num queueItem@{ packageName, priority } =
+renderTableQueue num { packageName, priority } =
   { accum: num + 1
   , value: HH.tr
              [ HP.class_ (H.ClassName priority) ] $
@@ -135,13 +146,13 @@ renderTableQueue num queueItem@{ packageName, priority } =
                  [ HP.classes (H.ClassName <$> ["priority", priority ]) ]
                  [ HH.text $  priority ]
              , HH.td
-                 [ HE.onClick $ HE.input_ (PriorityUp queueItem) ]
+                 [ HE.onClick $ HE.input_ (PriorityUp packageName priority) ]
                  [ HH.a
                      [ HP.class_ (H.ClassName "up") ]
                      [ HH.text "↑"]
                  ]
              , HH.td
-                 [ HE.onClick $ HE.input_ (PriorityDown queueItem) ]
+                 [ HE.onClick $ HE.input_ (PriorityDown packageName priority) ]
                  [ HH.a
                      [ HP.class_ (H.ClassName "down") ]
                      [ HH.text "↓"]

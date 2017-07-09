@@ -6,6 +6,7 @@ import Components.PageLatest as PageLatest
 import Components.PagePackage as PagePackage
 import Components.PagePackages as PagePackages
 import Components.PageUser as PageUser
+import Data.Array as Arr
 import Halogen as H
 import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
@@ -20,13 +21,13 @@ import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 import Lib.MatrixApi as Api
 import Lib.Types as T
-import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>))
+import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
 
 type State = {
     route :: T.PageRoute
-  , selectedpackage :: T.PackageMeta
+  , package :: Array T.PackageMeta
 }
 
 data Query a =
@@ -56,10 +57,7 @@ ui =
     initialState :: State
     initialState =
       { route: T.HomePage
-      , selectedpackage: { name: ""
-                         , report: Nothing
-                         , tags: []
-                         }
+      , package: []
       }
 
     render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api.Matrix e)
@@ -71,7 +69,8 @@ ui =
             T.LatestPage ->
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
             (T.PackagePage pkgName) ->
-              HH.slot' CP.cp4 unit PagePackage.component pkgName absurd
+              HH.slot' CP.cp4 unit PagePackage.component
+                  (getPackageMeta pkgName st.package) absurd
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
             (T.UserPage usr) ->
@@ -127,6 +126,7 @@ ui =
       pkgList <- H.lift Api.getPackageList
       pkgRef <- asks _.packageList
       _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)
+      _ <- H.modify (_ { package = pkgList.items })
       pure next
     eval (RouteChange str next) = do
       _ <- H.modify (_ { route = str })
@@ -149,3 +149,11 @@ routing =  latest
     logroute = T.LogRoute <$> (lit "package" *> str) <*> ((pure "#") *> str)
     user = T.UserPage <$> (slash *> lit "user" *> str)
     error = T.ErrorPage <$ lit "error"
+
+getPackageMeta :: T.PackageName -> Array T.PackageMeta  -> T.PackageMeta
+getPackageMeta pkgName pkgMetaArr =
+  case Arr.uncons filteredPkgMetaArr of
+    Just { head: x, tail: xs } -> x
+    Nothing                    -> { name: "", report: Nothing, tags: []}
+  where
+    filteredPkgMetaArr = Arr.filter (\x -> x.name == pkgName) pkgMetaArr

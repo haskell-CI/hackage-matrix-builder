@@ -121,7 +121,7 @@ formatDate date =
   case date of
     Just dt -> formatDate_ dt
     Nothing -> ""
-    
+
 undefine :: forall a . Undefined a -> Maybe a
 undefine u = undefine_ u Nothing (Just unit)
 

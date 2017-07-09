@@ -53,7 +53,7 @@ type PackageMeta =
   , tags   :: Array TagName
   }
 
-type ReportMeta = 
+type ReportMeta =
   { rmPackageName :: PackageName
   , rmModified    :: String
   }

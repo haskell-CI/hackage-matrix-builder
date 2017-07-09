@@ -25,15 +25,12 @@ type State =
  , clicked :: Boolean
  , selectedTag :: Set.Set T.TagName
  , selectedPrefix :: Set.Set T.Prefixs
- , selectedPackage :: T.PackageMeta
  }
 
 data Query a
   = Initialize a
   | SelectedTag T.TagName a
   | SelectedPrefix T.Prefixs a
-  | SelectedPackage T.PackageMeta a
-  | CurrentSelected (T.PackageMeta -> a)
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
@@ -55,10 +52,6 @@ component = H.lifecycleComponent
    , clicked: false
    , selectedTag: Set.empty
    , selectedPrefix: Set.empty
-   , selectedPackage: { name: ""
-                      , report: Nothing
-                      , tags: []
-                      }
    }
 
   render :: State -> H.ComponentHTML Query
@@ -123,14 +116,6 @@ component = H.lifecycleComponent
     H.modify \st -> st { selectedPrefix = Set.singleton prefix }
     pure next
 
-  eval (SelectedPackage pkgName next) = do
-    H.modify (_ {selectedPackage = pkgName})
-    pure next
-
-  eval (CurrentSelected next) = do
-    state <- H.get
-    pure (next state.selectedPackage)
-
   eval (Finalize next) = do
     pure next
 
@@ -172,7 +157,6 @@ buildPackages packageMeta =
   HH.li_ $
     [ HH.a
         [ HP.href $ "#/package/" <> packageMeta.name
-        , HE.onClick $ HE.input_ (SelectedPackage packageMeta)
         ]
         [ HH.text packageMeta.name ]
     ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (MiscFFI.formatDate packageMeta.report) ] ]
