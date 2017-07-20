@@ -1,12 +1,13 @@
 module Components.PageUser where
 
-import Prelude (type (~>), Void, bind, const, otherwise, pure, ($), (<$>), (<*>), (<>), (==), (&&))
-import Data.Maybe (Maybe(Just, Nothing))
+import Prelude (type (~>), Unit, Void, bind, const, otherwise, pure, ($), (<$>), (<*>), (<>), (==), (&&))
+import Data.Maybe (Maybe(Just, Nothing), isNothing)
 import Data.Array as Arr
 import Data.String as Str
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
+import Halogen.HTML.Events as HE
 import Lib.MatrixApi as Api
 import Lib.MiscFFI as M
 import Lib.Types as T
@@ -19,7 +20,7 @@ type State =
 
 data Query a
   = Initialize a
-  | SelectedPackage T.PackageName a
+  | HandleCheckBox State Boolean a
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query T.Username Void (Api.Matrix e)
@@ -71,12 +72,16 @@ component = H.lifecycleComponent
    where
     userPackageMeta usr pkglist = Arr.concat (filterUserPackage <$> usr.packages <*> pkglist.items)
 
-  eval (SelectedPackage pkgName next) = do
-    pure next
+  eval (HandleCheckBox st isCheck next)
+      | isCheck = do
+          _ <- H.modify _ { packages = Arr.filter indexStateContained st.packages}
+          pure next
+      | otherwise = eval (Initialize next)
+
   eval (Finalize next) = do
     pure next
 
-renderUserPackages :: forall p i. State -> Array (HH.HTML p i)
+renderUserPackages :: forall p. State -> Array (HH.HTML p (Query Unit))
 renderUserPackages st
   | Arr.null st.packages && Str.null st.user = [HH.div
                                                  [ HP.classes (H.ClassName <$> ["main-header-subtext", "error"]) ]
@@ -90,11 +95,14 @@ renderUserPackages st
                         [ HH.input
                             [ HP.class_ (H.ClassName "user-only-reports")
                             , HP.type_ HP.InputCheckbox
+                            , HE.onChecked $ HE.input (HandleCheckBox st)
                             ]
                          , HH.text "Only show packages with reports"
                         ]
                     , HH.ol
-                        [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> st.packages ]]
+                        [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> st.packages
+                    ]
+                ]
 
 buildPackages :: forall p i. T.PackageMeta -> HH.HTML p i
 buildPackages pkgMeta =
@@ -102,7 +110,11 @@ buildPackages pkgMeta =
     [ HH.a
         [ HP.href $ "/#/package/" <> (pkgMeta.name) ]
         [ HH.text (pkgMeta.name) ]
-    ] <> [ HH.small_ [ HH.text $ if reportExist then "" else " - index-state: " <> (M.formatDate pkgMeta.report) ] ]
+    ] <> [ HH.small_ [ HH.text $ if reportExist
+                                 then " - index-state: "
+                                 else " - index-state: " <> (M.formatDate pkgMeta.report)
+                     ]
+         ]
   where
     reportExist = pkgMeta.report == Nothing
 
@@ -117,3 +129,8 @@ isEmptyMeta pkgMeta =
   case pkgMeta of
     Just a -> true
     Nothing      -> false
+
+indexStateContained :: T.PackageMeta -> Boolean
+indexStateContained pkgMeta
+    | isNothing pkgMeta.report = false
+    | otherwise = true

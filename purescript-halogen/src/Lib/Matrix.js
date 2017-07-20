@@ -107,9 +107,7 @@ exports.tagSaveByName_ = function (api, tagName, pkgName, ok, err) {
   return function () {
     api.Tag.saveByName
       ( tagName
-      , { name: tagName
-        , packages: pkgName
-        }
+      , pkgName
       , function (v) { ok(v)(); }
       , function (e) { err(e)(); }
       );
