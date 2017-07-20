@@ -141,7 +141,10 @@ renderTableQueue num { packageName, priority } =
                  [ HH.text $ show num ]
              , HH.td
                  [ HP.class_ (H.ClassName "package-name") ]
-                 [ HH.text $ packageName ]
+                 [ HH.a
+                     [HP.href $ "#/package/" <> packageName]
+                     [HH.text $ packageName]
+                 ]
              , HH.td
                  [ HP.classes (H.ClassName <$> ["priority", priority ]) ]
                  [ HH.text $  priority ]

@@ -107,7 +107,9 @@ exports.tagSaveByName_ = function (api, tagName, pkgName, ok, err) {
   return function () {
     api.Tag.saveByName
       ( tagName
-      , pkgName
+      , { name: tagName
+        , packages: pkgName
+        }
       , function (v) { ok(v)(); }
       , function (e) { err(e)(); }
       );
@@ -123,11 +125,10 @@ exports.tagList_ = function (api, ok, err) {
   };
 };
 
-exports.tagRemove_ = function (api, pkgName, tagName, ok, err) {
+exports.tagRemove_ = function (api, tagName, pkgName, ok, err) {
   return function () {
-    api.Tag.byName(pkgName).remove
-      ( tagName
-      , pkgName
+    api.Tag.byName(tagName).remove
+      ( pkgName
       , function (v) { ok(v)(); }
       , function (e) { err(e)(); }
       );

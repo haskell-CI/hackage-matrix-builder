@@ -1,8 +1,9 @@
 module Components.PageUser where
 
-import Prelude (type (~>), Unit, Void, bind, const, otherwise, pure, ($), (<$>), (<*>), (<>), (==))
+import Prelude (type (~>), Void, bind, const, otherwise, pure, ($), (<$>), (<*>), (<>), (==), (&&))
 import Data.Maybe (Maybe(Just, Nothing))
 import Data.Array as Arr
+import Data.String as Str
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
@@ -11,8 +12,8 @@ import Lib.MiscFFI as M
 import Lib.Types as T
 
 type State =
- {
-   user :: T.Username
+ { initUser :: T.Username
+ , user :: T.Username
  , packages :: Array T.PackageMeta
  }
 
@@ -21,9 +22,9 @@ data Query a
   | SelectedPackage T.PackageName a
   | Finalize a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
+component :: forall e. H.Component HH.HTML Query T.Username Void (Api.Matrix e)
 component = H.lifecycleComponent
-  { initialState: const initialState
+  { initialState: initialState
   , render
   , eval
   , initializer: Just (H.action Initialize)
@@ -32,9 +33,10 @@ component = H.lifecycleComponent
   }
   where
 
-  initialState :: State
-  initialState =
-    { user: ""
+  initialState :: T.Username -> State
+  initialState usr =
+    { initUser: usr
+    , user: ""
     , packages: []
     }
 
@@ -51,27 +53,11 @@ component = H.lifecycleComponent
               [ HH.text "Times are shown in your timezone" ]
           ]
       , HH.div
-          [ HP.class_ (H.ClassName "leftcol") ]
+          [ HP.class_ (H.ClassName "leftcol") ] $
           [ HH.h2
               [ HP.class_ (H.ClassName "main-header") ]
-              [ HH.text $ state.user ]
-          , HH.div
-              [ HP.class_ (H.ClassName "main-header-subtext") ]
-              [ HH.text "Displaying packages maintained by this user."]
-          , HH.div
-              [ HP.class_ (H.ClassName "content") ]
-              [ HH.label_
-                  [ HH.input
-                      [ HP.class_ (H.ClassName "user-only-reports")
-                      , HP.type_ HP.InputCheckbox
-                      ]
-                  , HH.text "Only show packages with reports"
-                  ]
-              , HH.ol
-                  [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> state.packages
-
-              ]
-          ]
+              [ HH.text $ state.initUser ]
+          ] <> renderUserPackages state
       ]
 
 
@@ -79,8 +65,8 @@ component = H.lifecycleComponent
   eval (Initialize next) = do
     st <- H.get
     pkglist <- H.lift Api.getPackageList
-    usr <- H.lift $ Api.getUserByName "BenGamari"
-    initState <- H.put $ st { user = usr.name, packages = userPackageMeta usr pkglist }
+    selectedUser <- H.lift $ Api.getUserByName st.initUser
+    initState <- H.put $ st { user = selectedUser.name, packages = userPackageMeta selectedUser pkglist }
     pure next
    where
     userPackageMeta usr pkglist = Arr.concat (filterUserPackage <$> usr.packages <*> pkglist.items)
@@ -89,6 +75,26 @@ component = H.lifecycleComponent
     pure next
   eval (Finalize next) = do
     pure next
+
+renderUserPackages :: forall p i. State -> Array (HH.HTML p i)
+renderUserPackages st
+  | Arr.null st.packages && Str.null st.user = [HH.div
+                                                 [ HP.classes (H.ClassName <$> ["main-header-subtext", "error"]) ]
+                                                 [ HH.text "The user could not been found" ]]
+  | otherwise = [HH.div
+                  [ HP.class_ (H.ClassName "main-header-subtext") ]
+                  [ HH.text "Displaying packages maintained by this user."]
+                , HH.div
+                    [ HP.class_ (H.ClassName "content") ]
+                    [ HH.label_
+                        [ HH.input
+                            [ HP.class_ (H.ClassName "user-only-reports")
+                            , HP.type_ HP.InputCheckbox
+                            ]
+                         , HH.text "Only show packages with reports"
+                        ]
+                    , HH.ol
+                        [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> st.packages ]]
 
 buildPackages :: forall p i. T.PackageMeta -> HH.HTML p i
 buildPackages pkgMeta =

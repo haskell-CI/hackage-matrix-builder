@@ -74,7 +74,7 @@ ui =
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
             (T.UserPage usr) ->
-              HH.slot' CP.cp6 unit PageUser.component unit absurd
+              HH.slot' CP.cp6 unit PageUser.component usr absurd
             T.HomePage ->
               HH.slot' CP.cp2 unit PageHome.component unit absurd
             _ ->
@@ -117,6 +117,7 @@ ui =
 		    [ HP.type_ HP.InputText
 	            , HP.class_ (H.ClassName "input")
 		    , HP.id_ "search"
+                    , HP.autocomplete true
 		    ]
                 ]
             ]

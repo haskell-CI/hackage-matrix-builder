@@ -1,22 +1,22 @@
 module Components.PagePackages where
 
-import Prelude (type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
-import Data.Maybe (Maybe(..))
-import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Reader.Class (asks)
 import Control.Monad.Eff.Ref as Ref
-import Network.RemoteData as RD
+import Data.Array as Arr
+import Data.Char as Char
+import Data.Set as Set
+import Data.String as Str
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Data.Array as Arr
-import Data.String as Str
-import Data.Char as Char
-import Data.Set as Set
-import Lib.Types as T
-import Lib.MiscFFI as MiscFFI
 import Lib.MatrixApi as Api
+import Lib.MiscFFI as MiscFFI
+import Lib.Types as T
+import Network.RemoteData as RD
+import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Reader.Class (asks)
+import Data.Maybe (Maybe(..), isNothing)
+import Prelude ( type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
 
 type State =
  {
@@ -31,6 +31,7 @@ data Query a
   = Initialize a
   | SelectedTag T.TagName a
   | SelectedPrefix T.Prefixs a
+  | HandleCheckBox State Boolean a
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
@@ -78,6 +79,7 @@ component = H.lifecycleComponent
               [ HH.input
                   [ HP.class_ (H.ClassName "packages-only-reports")
                   , HP.type_ HP.InputCheckbox
+                  , HE.onChecked $ HE.input (HandleCheckBox state)
                   ]
               , HH.text " Only show packages with reports"
               ]
@@ -115,6 +117,12 @@ component = H.lifecycleComponent
   eval (SelectedPrefix prefix next) = do
     H.modify \st -> st { selectedPrefix = Set.singleton prefix }
     pure next
+
+  eval (HandleCheckBox st isCheck next)
+    | isCheck = do
+        H.modify _ { packages = Arr.filter indexStateContained st.packages}
+        pure next
+    | otherwise = eval (Initialize next)
 
   eval (Finalize next) = do
     pure next
@@ -170,3 +178,8 @@ prefixContained :: Set.Set T.Prefixs -> T.PackageMeta -> Boolean
 prefixContained selectedPrefix { name }
     | Set.isEmpty selectedPrefix = true
     | otherwise              = Set.member (Str.toUpper $ Str.take 1 name) selectedPrefix
+
+indexStateContained :: T.PackageMeta -> Boolean
+indexStateContained pkgMeta
+    | isNothing pkgMeta.report = false
+    | otherwise = true

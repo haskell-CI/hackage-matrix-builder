@@ -13,6 +13,9 @@ import Halogen.VDom.Driver (runUI)
 import Lib.MatrixApi as Api
 import Prelude (Unit, bind, unit, ($))
 import Routing as R
+import DOM as D
+import Data.Argonaut as Arg
+
 
 main :: forall eff. Eff (HA.HalogenEffects (api :: Api.API, ref :: REF | eff)) Unit
 main = HA.runHalogenAff do

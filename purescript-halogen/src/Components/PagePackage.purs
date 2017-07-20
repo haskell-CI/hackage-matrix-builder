@@ -120,7 +120,7 @@ component = H.lifecycleComponent
                 [ HP.id_ "tagging" ]
                 [ HH.ul
                     [ HP.class_ (H.ClassName "tags") ] $
-                    renderPackageTag (_.name st.initPackage )st.initPackage st.newtag
+                    renderPackageTag (_.name st.initPackage ) st.initPackage st.newtag
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -193,12 +193,12 @@ component = H.lifecycleComponent
       pure next
     eval (HighlightCell pkgName ghcVer pkgVer next) = do
       singleResult <- H.lift $ Api.getSingleResult pkgName (ghcVer <> "-" <> pkgVer)
-      H.modify \st -> st { logmessage = (if ( isContainedLog singleResult.resultA )
-                                         then ""
-                                         else pickLogMessage singleResult )
-                         , logdisplay = D.block
-                         , columnversion = { ghcVer, pkgVer }
-                         }
+      H.modify _ { logmessage = (if ( isContainedLog singleResult.resultA )
+                                 then ""
+                                 else pickLogMessage singleResult )
+                 , logdisplay = D.block
+                 , columnversion = { ghcVer, pkgVer }
+                 }
       pure next
     eval (HandleTag value next) = do
       st <- H.get
@@ -208,7 +208,7 @@ component = H.lifecycleComponent
       _ <- H.lift $ Api.putTagSaveByName newTag pkgName
       pure next
     eval (RemoveTag tagName pkgName next) = do
-      _ <- H.lift $ Api.deleteTagRemove tagName pkgName
+      _ <- H.lift $ Api.deleteTagRemove pkgName tagName
       pure next
     eval (HandleQueue idx next) = do
       _ <- case idx of
@@ -280,7 +280,7 @@ renderPackageTag pkgName { tags } newtag =
                ]
                [HH.text "╳"]
            ]
-  ) <$> (tags <> [newtag])
+  ) <$> (tags <> if Str.null newtag then [] else [newtag])
 
 pickLogMessage :: T.SingleResult -> String
 pickLogMessage { resultA } = logMessage resultA

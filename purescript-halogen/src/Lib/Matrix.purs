@@ -129,13 +129,13 @@ putTagSaveByName pkgName tagName = do
 
 deleteTagRemove :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                => MonadAff (api :: API | e) m
-               => T.TagName
-               -> T.PackageName
+               => T.PackageName
+               -> T.TagName
                -> m Unit
-deleteTagRemove tagName pkgName = do
+deleteTagRemove pkgName tagName = do
   client <- asks _.matrixClient
   liftAff (tagRemove client tagName pkgName)
-  
+
 getUserByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
               => MonadAff (api :: API | e) m
               => T.Username
@@ -337,8 +337,8 @@ tagRemove api tagName pkgName = makeAff \err succ ->
   U.runFn5
     tagRemove_
     api
-    pkgName
     tagName
+    pkgName
     succ
     (stringyErr err "Removing Tag by name failed")
 
