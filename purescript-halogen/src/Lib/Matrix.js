@@ -72,7 +72,7 @@ exports.queueCreate_ = function (api, pkgName, prio, ok, err) {
   };
 };
 
-exports.queueRemove_ = function (api, ok, err, pkgName) {
+exports.queueRemove_ = function (api, pkgName, ok, err) {
     return function () {
       api.Queue.byName(pkgName).remove
         ( pkgName

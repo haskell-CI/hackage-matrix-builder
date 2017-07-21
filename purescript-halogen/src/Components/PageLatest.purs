@@ -1,14 +1,14 @@
 module Components.PageLatest where
 
-import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Data.Maybe (Maybe(..))
-import Data.Traversable (Accum, mapAccumL)
 import Lib.MatrixApi as Api
 import Lib.Types as T
+import Data.Maybe (Maybe(..))
+import Data.Traversable (Accum, mapAccumL)
+import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
 
 type State =
  {
@@ -57,6 +57,7 @@ component = H.lifecycleComponent
                 [ HH.button
                     [ HP.class_ (H.ClassName "refresh")
                     , HP.title "Refresh listings"
+                    , HE.onClick $ HE.input_ (RefreshListings)
                     ]
                     [ HH.text "Refresh listings" ]
                 ]
@@ -115,8 +116,7 @@ component = H.lifecycleComponent
     eval (RemoveQueue pkgName next) = do
       _ <- H.lift $ Api.deleteQueueRemove pkgName
       pure next
-    eval (RefreshListings next) = do
-      pure next
+    eval (RefreshListings next) = eval (Initialize next)
     eval (Finalize next) = do
       pure next
 
@@ -163,7 +163,9 @@ renderTableQueue num { packageName, priority } =
              , HH.td
                  [ HE.onClick $ HE.input_ (RemoveQueue packageName) ]
                  [ HH.a
-                     [ HP.class_ (H.ClassName "remove") ]
+                     [ HP.class_ (H.ClassName "remove")
+                     , HE.onClick $ HE.input_ (RemoveQueue packageName )
+                     ]
                      [ HH.text "╳"]
                  ]
              ]

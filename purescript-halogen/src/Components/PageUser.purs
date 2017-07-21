@@ -11,6 +11,10 @@ import Halogen.HTML.Events as HE
 import Lib.MatrixApi as Api
 import Lib.MiscFFI as M
 import Lib.Types as T
+import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Reader.Class (asks)
+import Control.Monad.Eff.Ref as Ref
+import Network.RemoteData as RD
 
 type State =
  { initUser :: T.Username
@@ -65,7 +69,9 @@ component = H.lifecycleComponent
   eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
   eval (Initialize next) = do
     st <- H.get
-    pkglist <- H.lift Api.getPackageList
+    pkgRef <- asks _.packageList
+    packageList <- liftEff (Ref.readRef pkgRef)
+    let pkglist = RD.withDefault {offset: 0, count: 0, items: []} packageList
     selectedUser <- H.lift $ Api.getUserByName st.initUser
     initState <- H.put $ st { user = selectedUser.name, packages = userPackageMeta selectedUser pkglist }
     pure next

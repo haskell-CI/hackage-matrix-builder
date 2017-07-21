@@ -13,7 +13,7 @@ import Lib.Types as T
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI (formatDate)
-import Prelude (type (~>), Unit, Void, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
+import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
 
 type State =
   { initPackage :: T.PackageMeta
@@ -38,10 +38,12 @@ data Query a
   | QueueBuild T.PackageName T.Priority a
   | Finalize a
 
+data Message = TagAddOrRemove
+
 ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-component :: forall e. H.Component HH.HTML Query T.PackageMeta Void (Api.Matrix e)
+component :: forall e. H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: initialState
   , render
@@ -179,7 +181,7 @@ component = H.lifecycleComponent
                 ]
             ]
 
-    eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
+    eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
       packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
@@ -206,15 +208,17 @@ component = H.lifecycleComponent
       pure next
     eval (AddingNewTag newTag pkgName next) = do
       _ <- H.lift $ Api.putTagSaveByName newTag pkgName
-      pure next
+      H.raise $ TagAddOrRemove
+      eval (Initialize next)
     eval (RemoveTag tagName pkgName next) = do
       _ <- H.lift $ Api.deleteTagRemove pkgName tagName
-      pure next
+      H.raise $ TagAddOrRemove
+      eval (Initialize next)
     eval (HandleQueue idx next) = do
       _ <- case idx of
-              1 -> H.modify _ { newPrio = T.High}
-              2 -> H.modify _ { newPrio = T.Medium}
-              _ -> H.modify _ { newPrio = T.Low}
+              1 -> H.modify _ { newPrio = T.Medium}
+              2 -> H.modify _ { newPrio = T.Low}
+              _ -> H.modify _ { newPrio = T.High}
       pure next
     eval (QueueBuild pkgName prio next) = do
       _ <- H.lift $ Api.putQueueCreate pkgName prio
@@ -280,7 +284,7 @@ renderPackageTag pkgName { tags } newtag =
                ]
                [HH.text "╳"]
            ]
-  ) <$> (tags <> if Str.null newtag then [] else [newtag])
+  ) <$> tags
 
 pickLogMessage :: T.SingleResult -> String
 pickLogMessage { resultA } = logMessage resultA
