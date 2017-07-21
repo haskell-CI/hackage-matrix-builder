@@ -3,6 +3,7 @@ module Components.PagePackage where
 import CSS.Display as D
 import Data.Array as Arr
 import Data.String as Str
+import Control.Monad.Eff.Class (liftEff)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
@@ -34,6 +35,7 @@ data Query a
   | HandleTag T.TagName a
   | AddingNewTag T.PackageName T.TagName a
   | RemoveTag T.PackageName T.TagName a
+  | UpdateTag (State -> a)
   | HandleQueue Int a
   | QueueBuild T.PackageName T.Priority a
   | Finalize a
@@ -209,11 +211,13 @@ component = H.lifecycleComponent
     eval (AddingNewTag newTag pkgName next) = do
       _ <- H.lift $ Api.putTagSaveByName newTag pkgName
       H.raise $ TagAddOrRemove
-      eval (Initialize next)
+      pure next
     eval (RemoveTag tagName pkgName next) = do
       _ <- H.lift $ Api.deleteTagRemove pkgName tagName
       H.raise $ TagAddOrRemove
-      eval (Initialize next)
+      pure next
+    eval (UpdateTag reply) = do
+      reply <$> H.get
     eval (HandleQueue idx next) = do
       _ <- case idx of
               1 -> H.modify _ { newPrio = T.Medium}

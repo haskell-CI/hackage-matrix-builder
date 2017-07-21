@@ -1,5 +1,6 @@
 module Container where
 
+import Data.Either
 import Components.PageError as PageError
 import Components.PageHome as PageHome
 import Components.PageLatest as PageLatest
@@ -27,6 +28,8 @@ import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, uni
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
 
+import Debug.Trace (traceAnyA)
+
 type State = {
     route :: T.PageRoute
   , package :: Array T.PackageMeta
@@ -36,7 +39,7 @@ data Query a =
     Initialize a
   | HandlePagePackage PagePackage.Message a
   | HandleSearchBox State T.PackageName a
-  | RouteChange T.PageRoute a
+  | RouteChange (Either String T.PageRoute) a
 
 type ChildQuery = Coproduct6 PageError.Query
                              PageHome.Query
@@ -135,15 +138,29 @@ ui =
       _ <- H.modify (_ { package = pkgList.items })
       pure next
 
-    eval (HandlePagePackage PagePackage.TagAddOrRemove next) = eval (Initialize next)
-
+    eval (HandlePagePackage PagePackage.TagAddOrRemove next) = do
+      _ <- eval (Initialize next)
+      _ <- H.query' CP.cp4 unit (H.request PagePackage.UpdateTag)
+      pure next
     eval (HandleSearchBox st str next) = do
       let packages = Arr.filter (packageContained str) st.package
       pure next
 
-    eval (RouteChange str next) = do
-      _ <- H.modify (_ { route = str })
+    eval (RouteChange str next) = 
+      case str of
+        (Right pg ) -> do
+          _ <- H.modify (_ { route = pg })
+          _ <- traceAnyA pg
+          pure next
+        _ -> do
+          _ <- H.modify _ { route = T.ErrorPage}
+          _ <- traceAnyA str
+          pure next
+
+      {-|
+        _ <- H.modify _ { route = str }
       pure next
+      -}
 
 routing :: Match T.PageRoute
 routing =  latest
