@@ -15,6 +15,7 @@ import Lib.MiscFFI (undefine)
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
 import Prelude (Unit, pure, bind, const, map, ($), (<<<))
+import DOM (DOM)
 
 foreign import data MatrixApi :: Type
 
@@ -26,7 +27,7 @@ type Environment e = { matrixClient :: MatrixApi
 
 type MatrixApi' e = ReaderT (Environment e) (Aff e)
 
-type Matrix eff = MatrixApi' (api :: API, ref :: REF | eff)
+type Matrix eff = MatrixApi' (dom :: DOM, api :: API, ref :: REF | eff)
 
 foreign import newApi :: forall eff
    . String

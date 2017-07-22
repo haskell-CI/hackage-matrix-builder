@@ -16,6 +16,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
+import Lib.MiscFFI as Misc
 import Network.RemoteData as RD
 import Control.Alt ((<|>))
 import Control.Monad.Eff.Class (liftEff)
@@ -24,9 +25,11 @@ import Control.Monad.Reader (asks)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..), fromJust)
-import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==))
+import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<<<))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
+
+import Control.Monad.Eff.JQuery as J
 
 type State = {
     route :: T.PageRoute
@@ -122,7 +125,7 @@ ui =
                     [ HP.type_ HP.InputText
                     , HP.class_ (H.ClassName "input")
                     , HP.id_ "search"
-                    , HP.autocomplete true
+                    , HP.attr (H.AttrName "autocapitalize") "none"
                     , HE.onValueInput (HE.input (HandleSearchBox st))
                     ]
                 ]
@@ -140,7 +143,12 @@ ui =
       _ <- eval (Initialize next)
       pure next
     eval (HandleSearchBox st str next) = do
-      let packages = Arr.filter (packageContained str) st.package
+      let packages = Str.toLower <<< _.name <$>
+                     Arr.filter (packageContained str) st.package
+      _ <- liftEff $ J.select "#search" >>=
+                         Misc.autocomplete { source: packages
+                                           , select: \v -> pure unit
+                                           }
       pure next
 
     eval (RouteChange str next) =
