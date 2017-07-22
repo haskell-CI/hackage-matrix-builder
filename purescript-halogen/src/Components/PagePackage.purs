@@ -3,16 +3,19 @@ module Components.PagePackage where
 import CSS.Display as D
 import Data.Array as Arr
 import Data.String as Str
-import Control.Monad.Eff.Class (liftEff)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Network.RemoteData as RD
 import Lib.MatrixApi as Api
 import Lib.Types as T
+import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Eff.Exception as E
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
+import Debug.Trace (traceAnyA)
 import Lib.MiscFFI (formatDate)
 import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
 
@@ -20,7 +23,7 @@ type State =
   { initPackage :: T.PackageMeta
   , logdisplay  :: D.Display
   , package     :: T.Package
-  , report      :: T.ShallowReport
+  , report      :: RD.RemoteData E.Error T.ShallowReport
   , highlighted :: Boolean
   , logmessage  :: String
   , columnversion :: T.ColumnVersion
@@ -33,9 +36,10 @@ data Query a
   | FailingPackage a
   | HighlightCell T.PackageName T.VersionName T.VersionName a
   | HandleTag T.TagName a
+  | Receive T.PackageMeta a
   | AddingNewTag T.PackageName T.TagName a
   | RemoveTag T.PackageName T.TagName a
-  | UpdateTag (State -> a)
+  | UpdateTag (T.PackageName -> a)
   | HandleQueue Int a
   | QueueBuild T.PackageName T.Priority a
   | Finalize a
@@ -52,7 +56,7 @@ component = H.lifecycleComponent
   , eval
   , initializer: Just (H.action Initialize)
   , finalizer: Just (H.action Finalize)
-  , receiver: const Nothing
+  , receiver: HE.input Receive
   }
   where
 
@@ -64,10 +68,7 @@ component = H.lifecycleComponent
       , package: { name: ""
                  , versions: []
                  }
-      , report: { packageName: ""
-                , modified: ""
-                , results: []
-                }
+      , report: RD.NotAsked
       , highlighted: false
       , logmessage: ""
       , columnversion: { ghcVer: ""
@@ -78,42 +79,82 @@ component = H.lifecycleComponent
       }
 
     render :: State -> H.ComponentHTML Query
-    render state =
-      HH.div
-        [ HP.id_ "page-package"
-        , HP.class_ (H.ClassName "page")
-        ]
-        [ HH.div
-            [ HP.class_ (H.ClassName "rightcol") ]
-            [ legend
-            , queueing state
-            , tagging state
+    render state = renderBody' state state.report
+
+      where
+        renderBody' state (RD.Success shallowR) =
+          HH.div
+            [ HP.id_ "page-package"
+            , HP.class_ (H.ClassName "page")
             ]
-        , HH.div
-            [ HP.class_ (H.ClassName "leftcol") ]
-            [ HH.h2
-                [ HP.class_ (H.ClassName "main-header") ]
-                [ HH.text state.package.name ]
+            [ HH.div
+                [ HP.class_ (H.ClassName "rightcol") ]
+                [ legend
+                , queueing state
+                , tagging state
+                ]
             , HH.div
-                [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-                [ HH.text $ "index-state: " <> (formatDate (_.report  state.initPackage))                ]
-            , HH.div
-                [ HP.id_ "package-buildreport" ]
-                [ HH.h3
-                    [ HP.class_ (H.ClassName "package-header") ]
-                    [ HH.text "Solver Matrix (constrained by single version) " ]
+                [ HP.class_ (H.ClassName "leftcol") ]
+                [ HH.h2
+                    [ HP.class_ (H.ClassName "main-header") ]
+                    [ HH.text $ _.name state.package ]
                 , HH.div
-                    [ HP.id_ "package" ] [ (renderTableMatrix state.package state.report) ]
-                , HH.h3
-                    [ HP.class_ (H.ClassName "logs-header") ]
-                    [ HH.text "Logs" ]
+                    [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
+                    [ HH.text $ "index-state: " <> (formatDate (_.report  state.initPackage))                ]
                 , HH.div
-                    [ HP.id_ "tabs-container" ]
-                    [ (renderLogResult state.logdisplay state.logmessage state.package state.columnversion) ]
+                    [ HP.id_ "package-buildreport" ]
+                    [ HH.h3
+                        [ HP.class_ (H.ClassName "package-header") ]
+                        [ HH.text "Solver Matrix (constrained by single version) " ]
+                    , HH.div
+                        [ HP.id_ "package" ] [ (renderTableMatrix state.package shallowR) ]
+                    , HH.h3
+                        [ HP.class_ (H.ClassName "logs-header") ]
+                        [ HH.text "Logs" ]
+                    , HH.div
+                        [ HP.id_ "tabs-container" ]
+                        [ (renderLogResult state.logdisplay state.logmessage state.package state.columnversion) ]
+                    ]
                 ]
             ]
-        ]
-      where
+        renderBody' state _ =
+          HH.div
+            [ HP.id_ "page-package"
+            , HP.class_ (H.ClassName "page")
+            ]
+            [ HH.div
+                [ HP.class_ (H.ClassName "rightcol") ]
+                [ legend
+                , queueing state
+                , tagging state
+                ]
+            , HH.div
+                [ HP.class_ (H.ClassName "leftcol") ]
+                [ HH.h2
+                    [ HP.class_ (H.ClassName "main-header") ]
+                    [ HH.text $ _.name state.package ]
+                , HH.div
+                    [ HP.classes (H.ClassName <$> ["main-header-subtext","error"]) ]
+                    [ HH.text $ "This package doesn't have a build report yet. You can request a report by"
+                    , HH.a [ HP.href "https://github.com/hvr/hackage-matrix-builder/issues/32" ] [ HH.text " leaving a comment here" ]
+                    ]
+                , HH.div
+                    [ HP.id_ "package-buildreport" ]
+                    [ HH.h3
+                        [ HP.class_ (H.ClassName "package-header") ]
+                        [ HH.text "Solver Matrix (constrained by single version) " ]
+                    , HH.div
+                        [ HP.id_ "package" ]
+                        [ (renderTableMatrix state.package { packageName: _.name state.package, modified: "", results: [] }) ]
+                    , HH.h3
+                        [ HP.class_ (H.ClassName "logs-header") ]
+                        [ HH.text "Logs" ]
+                    , HH.div
+                        [ HP.id_ "tabs-container" ]
+                        [ (renderLogResult state.logdisplay state.logmessage state.package state.columnversion) ]
+                    ]
+                ]
+            ]
         tagging st =
           HH.div
             [ HP.class_ (H.ClassName "sub") ]
@@ -188,10 +229,11 @@ component = H.lifecycleComponent
       st <- H.get
       packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
       reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
-      initState <- H.put $ st { package = packageByName
-                              , report = reportPackage
-                              , highlighted = false
-                              }
+      _ <- H.modify _  { package = packageByName
+                       , report = reportPackage
+                       , highlighted = false
+                       }
+      traceAnyA st.report
       pure next
     eval (FailingPackage next) = do
       pure next
@@ -217,7 +259,13 @@ component = H.lifecycleComponent
       H.raise $ TagAddOrRemove
       pure next
     eval (UpdateTag reply) = do
-      reply <$> H.get
+      st <- H.get
+      let packageName = _.name st.initPackage
+      reply <$> (pure packageName)
+    eval (Receive pkgMeta next) = do
+      st <- H.get
+      H.modify _ { initPackage = pkgMeta }
+      pure next
     eval (HandleQueue idx next) = do
       _ <- case idx of
               1 -> H.modify _ { newPrio = T.Medium}
@@ -283,7 +331,7 @@ renderPackageTag pkgName { tags } newtag =
   (\x -> HH.li_
            [ HH.span_ [HH.text $ x]
            , HH.a
-               [HP.class_ (H.ClassName "remove")
+               [ HP.class_ (H.ClassName "remove")
                , HE.onClick $ HE.input_ (RemoveTag x pkgName )
                ]
                [HH.text "╳"]

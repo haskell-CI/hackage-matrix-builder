@@ -23,12 +23,10 @@ import Control.Monad.Eff.Ref (writeRef)
 import Control.Monad.Reader (asks)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), fromJust)
 import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
-
-import Debug.Trace (traceAnyA)
 
 type State = {
     route :: T.PageRoute
@@ -140,27 +138,19 @@ ui =
 
     eval (HandlePagePackage PagePackage.TagAddOrRemove next) = do
       _ <- eval (Initialize next)
-      _ <- H.query' CP.cp4 unit (H.request PagePackage.UpdateTag)
       pure next
     eval (HandleSearchBox st str next) = do
       let packages = Arr.filter (packageContained str) st.package
       pure next
 
-    eval (RouteChange str next) = 
+    eval (RouteChange str next) =
       case str of
         (Right pg ) -> do
           _ <- H.modify (_ { route = pg })
-          _ <- traceAnyA pg
           pure next
         _ -> do
           _ <- H.modify _ { route = T.ErrorPage}
-          _ <- traceAnyA str
           pure next
-
-      {-|
-        _ <- H.modify _ { route = str }
-      pure next
-      -}
 
 routing :: Match T.PageRoute
 routing =  latest

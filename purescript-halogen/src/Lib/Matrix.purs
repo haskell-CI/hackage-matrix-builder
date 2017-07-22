@@ -5,7 +5,7 @@ import Control.Monad.Eff.Exception as E
 import Data.Function.Uncurried as U
 import Lib.Types as T
 import Network.RemoteData as RD
-import Control.Monad.Aff (Aff, makeAff)
+import Control.Monad.Aff (Aff, attempt, makeAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff.Ref (REF, Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
@@ -14,7 +14,7 @@ import Data.Nullable (Nullable, toMaybe)
 import Lib.MiscFFI (undefine)
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
-import Prelude (Unit, bind, const, ($), (<<<), map)
+import Prelude (Unit, pure, bind, const, map, ($), (<<<))
 
 foreign import data MatrixApi :: Type
 
@@ -85,21 +85,24 @@ putQueueCreate pkgName priority = do
   liftAff (queueCreate client pkgName priority)
 
 
-deleteQueueRemove :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
-               => MonadAff (api :: API | e) m
-               => T.PackageName
-               -> m Unit
+deleteQueueRemove :: forall a e m.
+                     MonadReader { matrixClient :: MatrixApi | a } m
+                  => MonadAff (api :: API | e) m
+                  => T.PackageName
+                  -> m Unit
 deleteQueueRemove pkgName = do
   client <- asks _.matrixClient
   liftAff (queueRemove client pkgName)
 
-getLatestReportByPackageName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+getLatestReportByPackageName :: forall a e m.
+                                MonadReader { matrixClient :: MatrixApi | a } m
                              => MonadAff (api :: API | e) m
                              => T.PackageName
-                             -> m (T.ShallowReport)
+                             -> m (RD.RemoteData E.Error T.ShallowReport)
 getLatestReportByPackageName pkgName = do
   client <- asks _.matrixClient
-  liftAff (latestReportByPackageName client pkgName)
+  shallowR <- liftAff $ attempt (latestReportByPackageName client pkgName)
+  pure (RD.fromEither shallowR)
 
 getPackageByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                  => MonadAff (api :: API | e) m
