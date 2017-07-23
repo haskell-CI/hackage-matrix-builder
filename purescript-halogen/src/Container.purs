@@ -7,6 +7,7 @@ import Components.PageLatest as PageLatest
 import Components.PagePackage as PagePackage
 import Components.PagePackages as PagePackages
 import Components.PageUser as PageUser
+import Control.Monad.Eff.JQuery as J
 import Data.Array as Arr
 import Data.String as Str
 import Halogen as H
@@ -15,8 +16,8 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
-import Lib.Types as T
 import Lib.MiscFFI as Misc
+import Lib.Types as T
 import Network.RemoteData as RD
 import Control.Alt ((<|>))
 import Control.Monad.Eff.Class (liftEff)
@@ -25,11 +26,9 @@ import Control.Monad.Reader (asks)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..), fromJust)
-import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<<<))
+import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, unit, ($), (<$>), (<$), (*>), (<*>), (<>), (==), (>>=), (<<<))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
-
-import Control.Monad.Eff.JQuery as J
 
 type State = {
     route :: T.PageRoute
@@ -143,22 +142,28 @@ ui =
       _ <- eval (Initialize next)
       pure next
     eval (HandleSearchBox st str next) = do
-      let packages = Str.toLower <<< _.name <$>
+      let packages = _.name <$>
                      Arr.filter (packageContained str) st.package
-      _ <- liftEff $ J.select "#search" >>=
-                         Misc.autocomplete { source: packages
-                                           , select: \v -> pure unit
-                                           }
+      _ <- H.subscribe
+            (H.eventSource
+              (\k -> J.select "#search" >>= Misc.autocomplete { source: packages
+                                                              , select: k
+                                                              })
+              (\a -> Just $ RouteChange (Right $ (T.PackagePage a.item.value)) H.Done ))
       pure next
 
     eval (RouteChange str next) =
       case str of
-        (Right pg ) -> do
-          _ <- H.modify (_ { route = pg })
+        (Right pr ) -> do
+          _ <- liftEff $ J.select "location" >>= (J.setAttr "href" ("/package/" <> (getStr pr)))
+          _ <- H.modify (_ { route = pr })
           pure next
         _ -> do
           _ <- H.modify _ { route = T.ErrorPage}
           pure next
+      where
+        getStr (T.PackagePage uri) = uri
+        getStr _ = ""
 
 routing :: Match T.PageRoute
 routing =  latest
@@ -187,6 +192,5 @@ getPackageMeta pkgName pkgMetaArr =
     filteredPkgMetaArr = Arr.filter (\x -> x.name == pkgName) pkgMetaArr
 
 packageContained :: String -> T.PackageMeta -> Boolean
-packageContained str pkgMeta
-    | Str.contains (Str.Pattern str) pkgMeta.name = false
-    | otherwise                                   = true
+packageContained str pkgMeta = Str.contains (Str.Pattern str) pkgMeta.name
+

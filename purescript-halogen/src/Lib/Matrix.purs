@@ -7,6 +7,7 @@ import Lib.Types as T
 import Network.RemoteData as RD
 import Control.Monad.Aff (Aff, attempt, makeAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
+import Control.Monad.Aff.AVar
 import Control.Monad.Eff.Ref (REF, Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
 import Data.Maybe (Maybe(..))
@@ -27,7 +28,7 @@ type Environment e = { matrixClient :: MatrixApi
 
 type MatrixApi' e = ReaderT (Environment e) (Aff e)
 
-type Matrix eff = MatrixApi' (dom :: DOM, api :: API, ref :: REF | eff)
+type Matrix eff = MatrixApi' (avar :: AVAR, dom :: DOM, api :: API, ref :: REF | eff)
 
 foreign import newApi :: forall eff
    . String
