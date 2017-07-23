@@ -1,6 +1,7 @@
 module Components.PagePackage where
 
 import CSS.Display as D
+import Control.Monad.Eff.Exception as E
 import Data.Array as Arr
 import Data.String as Str
 import Halogen as H
@@ -8,11 +9,10 @@ import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Network.RemoteData as RD
 import Lib.MatrixApi as Api
 import Lib.Types as T
+import Network.RemoteData as RD
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Eff.Exception as E
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
 import Debug.Trace (traceAnyA)
@@ -432,7 +432,7 @@ generateTableColumn :: forall p. T.Package
                     -> T.VersionName
                     -> HH.HTML p (Query Unit)
 generateTableColumn package shallowGhcArr verName ghcVer =
-  case (Arr.foldl (||) false (isContainedVersion verName <$> shallowGhcArr)) && isContainedGHC ghcVer shallowGhcArr of
+  case isContainedVersion ghcVer verName shallowGhcArr && isContainedGHC ghcVer shallowGhcArr of
     true -> renderContained
     false -> renderNotContained
   where
@@ -481,8 +481,13 @@ containedRevision pkgName verName revision =
 isContainedGHC ::  T.VersionName -> Array T.ShallowGhcResult -> Boolean
 isContainedGHC ghcVer shallowGhcArr  = Arr.elem ghcVer (_.ghcVersion <$> shallowGhcArr)
 
-isContainedVersion :: T.VersionName -> T.ShallowGhcResult -> Boolean
-isContainedVersion verName { ghcResult } = Arr.elem verName (_.packageVersion <$> ghcResult)
+isContainedVersion :: T.VersionName -> T.VersionName -> Array T.ShallowGhcResult -> Boolean
+isContainedVersion ghcVer verName shallowGhcArr =
+  let currGhcVer = Arr.head $ Arr.filter (\x -> ghcVer == x.ghcVersion) shallowGhcArr
+  in
+   case currGhcVer of
+    (Just { ghcResult }) -> Arr.elem verName (_.packageVersion <$> ghcResult)
+    Nothing              -> false
 
 checkPassOrFail :: T.VersionName -> T.ShallowVersionResult -> Array String
 checkPassOrFail verName { packageVersion, result }
