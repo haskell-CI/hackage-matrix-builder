@@ -34,7 +34,10 @@
     "purescript-remotedata": "^2.1.0",
     "purescript-generics-rep": "^5.1.0",
     "purescript-exceptions": "^3.0.0",
-    "purescript-argonaut": "^3.0.0"
+    "purescript-argonaut": "^3.0.0",
+    "purescript-run-streaming": "^0.1.0",
+    "purescript-run": "^0.4.0",
+    "purescript-tailrec": "^3.3.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",

@@ -15,16 +15,18 @@ import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Reader.Class (asks)
 import Control.Monad.Eff.Ref as Ref
 import Network.RemoteData as RD
+import Control.Monad.Eff.Exception as E
 
 type State =
  { initUser :: T.Username
- , user :: T.Username
+ , user :: RD.RemoteData E.Error T.User
  , packages :: Array T.PackageMeta
  }
 
 data Query a
   = Initialize a
   | HandleCheckBox State Boolean a
+  | Receive T.Username a
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query T.Username Void (Api.Matrix e)
@@ -34,36 +36,75 @@ component = H.lifecycleComponent
   , eval
   , initializer: Just (H.action Initialize)
   , finalizer: Just (H.action Finalize)
-  , receiver: const Nothing
+  , receiver: HE.input Receive
   }
   where
 
   initialState :: T.Username -> State
   initialState usr =
     { initUser: usr
-    , user: ""
+    , user: RD.NotAsked
     , packages: []
     }
 
   render :: State -> H.ComponentHTML Query
-  render state =
-    HH.div
-      [ HP.id_ "page-user"
-      , HP.class_ (H.ClassName "page")
-      ]
-      [ HH.div
-          [ HP.class_ (H.ClassName "rightcol") ]
-          [ HH.div
-              [ HP.class_ (H.ClassName "sub") ]
-              [ HH.text "Times are shown in your timezone" ]
+  render state = renderBody' state state.user
+    where
+      renderBody' st (RD.Success user) =
+        HH.div
+          [ HP.id_ "page-user"
+          ,  HP.class_ (H.ClassName "page")
           ]
-      , HH.div
-          [ HP.class_ (H.ClassName "leftcol") ] $
-          [ HH.h2
-              [ HP.class_ (H.ClassName "main-header") ]
-              [ HH.text $ state.initUser ]
-          ] <> renderUserPackages state
-      ]
+          [ HH.div
+              [ HP.class_ (H.ClassName "rightcol") ]
+              [ HH.div
+                  [ HP.class_ (H.ClassName "sub") ]
+                  [ HH.text "Times are shown in your timezone" ]
+              ]
+          , HH.div
+              [ HP.class_ (H.ClassName "leftcol") ] $
+              [ HH.h2
+                  [ HP.class_ (H.ClassName "main-header") ]
+                  [ HH.text $ state.initUser ]
+              , HH.div
+                  [ HP.class_ (H.ClassName "main-header-subtext") ]
+                  [ HH.text "Displaying packages maintained by this user."]
+              , HH.div
+                  [ HP.class_ (H.ClassName "content") ]
+                  [ HH.label_
+                      [ HH.input
+                          [ HP.class_ (H.ClassName "user-only-reports")
+                          , HP.type_ HP.InputCheckbox
+                          , HE.onChecked $ HE.input (HandleCheckBox st)
+                          ]
+                      , HH.text "Only show packages with reports"
+                      ]
+                  , HH.ol
+                      [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> st.packages
+                  ]
+              ]
+          ]
+      renderBody' st _ =
+        HH.div
+          [ HP.id_ "page-user"
+          ,  HP.class_ (H.ClassName "page")
+          ]
+          [ HH.div
+              [ HP.class_ (H.ClassName "rightcol") ]
+              [ HH.div
+                  [ HP.class_ (H.ClassName "sub") ]
+                  [ HH.text "Times are shown in your timezone" ]
+              ]
+          , HH.div
+              [ HP.class_ (H.ClassName "leftcol") ] $
+              [ HH.h2
+                  [ HP.class_ (H.ClassName "main-header") ]
+                  [ HH.text $ state.initUser ]
+              , HH.div
+                  [ HP.classes (H.ClassName <$> ["main-header-subtext", "error"]) ]
+                  [ HH.text "The user could not been found" ]
+              ]
+          ]
 
 
   eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
@@ -73,10 +114,10 @@ component = H.lifecycleComponent
     packageList <- liftEff (Ref.readRef pkgRef)
     let pkglist = RD.withDefault {offset: 0, count: 0, items: []} packageList
     selectedUser <- H.lift $ Api.getUserByName st.initUser
-    initState <- H.put $ st { user = selectedUser.name, packages = userPackageMeta selectedUser pkglist }
+    initState <- H.put $ st { user = selectedUser
+                            , packages = userPackageMeta selectedUser pkglist
+                            }
     pure next
-   where
-    userPackageMeta usr pkglist = Arr.concat (filterUserPackage <$> usr.packages <*> pkglist.items)
 
   eval (HandleCheckBox st isCheck next)
       | isCheck = do
@@ -84,31 +125,20 @@ component = H.lifecycleComponent
           pure next
       | otherwise = eval (Initialize next)
 
-  eval (Finalize next) = do
+  eval (Receive userName next) = do
+    st <- H.get
+    pkgRef <- asks _.packageList
+    packageList <- liftEff (Ref.readRef pkgRef)
+    let pkglist = RD.withDefault {offset: 0, count: 0, items: []} packageList
+    selectedUser <- H.lift $ Api.getUserByName userName
+    _ <- H.modify _ { initUser = userName
+                    , user = selectedUser
+                    , packages = userPackageMeta selectedUser pkglist
+                    }
     pure next
 
-renderUserPackages :: forall p. State -> Array (HH.HTML p (Query Unit))
-renderUserPackages st
-  | Arr.null st.packages && Str.null st.user = [HH.div
-                                                 [ HP.classes (H.ClassName <$> ["main-header-subtext", "error"]) ]
-                                                 [ HH.text "The user could not been found" ]]
-  | otherwise = [HH.div
-                  [ HP.class_ (H.ClassName "main-header-subtext") ]
-                  [ HH.text "Displaying packages maintained by this user."]
-                , HH.div
-                    [ HP.class_ (H.ClassName "content") ]
-                    [ HH.label_
-                        [ HH.input
-                            [ HP.class_ (H.ClassName "user-only-reports")
-                            , HP.type_ HP.InputCheckbox
-                            , HE.onChecked $ HE.input (HandleCheckBox st)
-                            ]
-                         , HH.text "Only show packages with reports"
-                        ]
-                    , HH.ol
-                        [ HP.class_ (H.ClassName "packages") ] $ buildPackages <$> st.packages
-                    ]
-                ]
+  eval (Finalize next) = do
+    pure next
 
 buildPackages :: forall p i. T.PackageMeta -> HH.HTML p i
 buildPackages pkgMeta =
@@ -140,3 +170,10 @@ indexStateContained :: T.PackageMeta -> Boolean
 indexStateContained pkgMeta
     | isNothing pkgMeta.report = false
     | otherwise = true
+
+userPackageMeta :: RD.RemoteData E.Error T.User
+                -> T.ApiList T.PackageMeta
+                -> Array T.PackageMeta
+userPackageMeta (RD.Success usr) pkglist =
+  Arr.concat (filterUserPackage <$> usr.packages <*> pkglist.items)
+userPackageMeta _ pkgList = []

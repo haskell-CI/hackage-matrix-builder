@@ -12,10 +12,8 @@ import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
 import Network.RemoteData as RD
-import Control.Monad.Eff.Class (liftEff)
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
-import Debug.Trace (traceAnyA)
 import Lib.MiscFFI (formatDate)
 import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
 
@@ -44,7 +42,7 @@ data Query a
   | QueueBuild T.PackageName T.Priority a
   | Finalize a
 
-data Message = TagAddOrRemove
+data Message = FromPagePackage
 
 ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
@@ -233,7 +231,6 @@ component = H.lifecycleComponent
                        , report = reportPackage
                        , highlighted = false
                        }
-      traceAnyA st.report
       pure next
     eval (FailingPackage next) = do
       pure next
@@ -252,11 +249,11 @@ component = H.lifecycleComponent
       pure next
     eval (AddingNewTag newTag pkgName next) = do
       _ <- H.lift $ Api.putTagSaveByName newTag pkgName
-      H.raise $ TagAddOrRemove
+      H.raise $ FromPagePackage
       pure next
     eval (RemoveTag tagName pkgName next) = do
       _ <- H.lift $ Api.deleteTagRemove pkgName tagName
-      H.raise $ TagAddOrRemove
+      H.raise $ FromPagePackage
       pure next
     eval (UpdateTag reply) = do
       st <- H.get
@@ -264,7 +261,12 @@ component = H.lifecycleComponent
       reply <$> (pure packageName)
     eval (Receive pkgMeta next) = do
       st <- H.get
-      H.modify _ { initPackage = pkgMeta }
+      packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
+      H.modify _ { initPackage = pkgMeta
+                 , package = packageByName
+                 , report = reportPackage
+                 }
       pure next
     eval (HandleQueue idx next) = do
       _ <- case idx of

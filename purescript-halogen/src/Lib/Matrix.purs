@@ -5,18 +5,18 @@ import Control.Monad.Eff.Exception as E
 import Data.Function.Uncurried as U
 import Lib.Types as T
 import Network.RemoteData as RD
+import Run as R
 import Control.Monad.Aff (Aff, attempt, makeAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
-import Control.Monad.Aff.AVar
-import Control.Monad.Eff.Ref (REF, Ref)
+import Control.Monad.Eff.Ref (Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
 import Data.Maybe (Maybe(..))
 import Data.Nullable (Nullable, toMaybe)
+import Halogen.Aff (HalogenEffects)
 import Lib.MiscFFI (undefine)
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
 import Prelude (Unit, pure, bind, const, map, ($), (<<<))
-import DOM (DOM)
 
 foreign import data MatrixApi :: Type
 
@@ -26,9 +26,11 @@ type Environment e = { matrixClient :: MatrixApi
                    , packageList :: Ref (RD.RemoteData (Eff (api :: API | e) Unit) (T.ApiList T.PackageMeta))
                    }
 
-type MatrixApi' e = ReaderT (Environment e) (Aff e)
+type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API | eff)))
 
-type Matrix eff = MatrixApi' (avar :: AVAR, dom :: DOM, api :: API, ref :: REF | eff)
+type Matrix eff = MatrixApi' eff
+
+type MatrixEffects = HalogenEffects (api :: API)
 
 foreign import newApi :: forall eff
    . String
@@ -39,7 +41,7 @@ foreign import data JQueryXHR :: Type
 
 type ApiEff e o = Eff (api :: API | e) o
 
-getPackageList :: forall a e m. MonadReader (Environment a) m
+getPackageList :: forall e a m. MonadReader (Environment a) m
                => MonadAff (api :: API | e) m
                => m (T.ApiList T.PackageMeta)
 getPackageList = do
@@ -144,10 +146,11 @@ deleteTagRemove pkgName tagName = do
 getUserByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
               => MonadAff (api :: API | e) m
               => T.Username
-              -> m (T.User)
+              -> m (RD.RemoteData E.Error T.User)
 getUserByName user = do
   client <- asks _.matrixClient
-  liftAff (userByName client user )
+  userName <- liftAff $ attempt (userByName client user)
+  pure (RD.fromEither userName)
 
 userByName :: forall e
   . MatrixApi

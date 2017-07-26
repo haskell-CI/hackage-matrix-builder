@@ -1,6 +1,6 @@
 module Container where
 
-import Data.Either
+import Debug.Trace
 import Components.PageError as PageError
 import Components.PageHome as PageHome
 import Components.PageLatest as PageLatest
@@ -8,8 +8,12 @@ import Components.PagePackage as PagePackage
 import Components.PagePackages as PagePackages
 import Components.PageUser as PageUser
 import Control.Monad.Eff.JQuery as J
+import DOM as DOM
 import Data.Array as Arr
 import Data.String as Str
+import Data.String.Regex as Rgx
+import Data.String.Regex.Flags as RXF
+import Global as G
 import Halogen as H
 import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
@@ -23,10 +27,15 @@ import Control.Alt ((<|>))
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Eff.Ref (writeRef)
 import Control.Monad.Reader (asks)
+import DOM.HTML (window) as DOM
+import DOM.HTML.Location (setHref, origin) as DOM
+import DOM.HTML.Window (location) as DOM
+import Data.Either (fromRight)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
-import Data.Maybe (Maybe(..), fromJust)
-import Prelude (type (~>), Unit, Void, absurd, bind, const, otherwise, pure, unit, ($), (<$>), (<$), (*>), (<*>), (<>), (==), (>>=), (<<<))
+import Data.Maybe (Maybe(..))
+import Partial.Unsafe (unsafePartial)
+import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
 
@@ -39,7 +48,8 @@ data Query a =
     Initialize a
   | HandlePagePackage PagePackage.Message a
   | HandleSearchBox State T.PackageName a
-  | RouteChange (Either String T.PageRoute) a
+  | RouteChange T.PageRoute a
+  | SearchBoxChange T.PackageName a
 
 type ChildQuery = Coproduct6 PageError.Query
                              PageHome.Query
@@ -138,9 +148,8 @@ ui =
       _ <- H.modify (_ { package = pkgList.items })
       pure next
 
-    eval (HandlePagePackage PagePackage.TagAddOrRemove next) = do
-      _ <- eval (Initialize next)
-      pure next
+    eval (HandlePagePackage PagePackage.FromPagePackage next) = eval (Initialize next)
+
     eval (HandleSearchBox st str next) = do
       let packages = _.name <$>
                      Arr.filter (packageContained str) st.package
@@ -149,21 +158,18 @@ ui =
               (\k -> J.select "#search" >>= Misc.autocomplete { source: packages
                                                               , select: k
                                                               })
-              (\a -> Just $ RouteChange (Right $ (T.PackagePage a.item.value)) H.Done ))
+              (\a -> Just $ SearchBoxChange (a.item.value) H.Listening))
       pure next
 
-    eval (RouteChange str next) =
-      case str of
-        (Right pr ) -> do
-          _ <- liftEff $ J.select "location" >>= (J.setAttr "href" ("/package/" <> (getStr pr)))
-          _ <- H.modify (_ { route = pr })
-          pure next
-        _ -> do
-          _ <- H.modify _ { route = T.ErrorPage}
-          pure next
-      where
-        getStr (T.PackagePage uri) = uri
-        getStr _ = ""
+    eval (RouteChange str next) = do
+      _ <- H.modify _ { route = str }
+      eval (Initialize next)
+
+    eval (SearchBoxChange pkgName next) = do
+      loc <- liftEff $ DOM.window >>= DOM.location
+      ori <- liftEff $ DOM.window >>= DOM.location >>= DOM.origin
+      _ <- liftEff $ DOM.setHref (ori <> "#/package/" <> pkgName) loc
+      eval (HandlePagePackage PagePackage.FromPagePackage next)
 
 routing :: Match T.PageRoute
 routing =  latest
@@ -194,3 +200,10 @@ getPackageMeta pkgName pkgMetaArr =
 packageContained :: String -> T.PackageMeta -> Boolean
 packageContained str pkgMeta = Str.contains (Str.Pattern str) pkgMeta.name
 
+decodeURI :: String -> String
+decodeURI uri =
+  G.decodeURIComponent $
+    Rgx.replace (unsafePartial fromRight $ Rgx.regex "\\+" RXF.global) " " uri
+
+encodeURIPath :: String -> String
+encodeURIPath path = G.encodeURIComponent path
