@@ -383,7 +383,8 @@ generateTableRow :: forall p. T.Package
 generateTableRow package shallowR prevVer currentVer  =
   { accum: const currentVer prevVer
   , value: HH.tr
-             [ HP.classes (H.ClassName <$> (["solver-row"] <> packageVersioning majorCheck minorCheck)) ] $
+             [ HP.classes (H.ClassName <$> (["solver-row"] <> packageVersioning (minorCheck prevVer currentVer)
+                                                                                (majorCheck prevVer currentVer))) ] $
              [ HH.th
                  [ HP.class_ (H.ClassName "pkgv") ] $
                  [ HH.a
@@ -399,10 +400,10 @@ generateTableRow package shallowR prevVer currentVer  =
              ] <> Arr.reverse (generateTableColumn package shallowR.results currentVer.version <$> (Arr.reverse ghcVersions))
   }
   where
-    splitPrevVer = splitVersion prevVer.version
-    splitCurrVer = splitVersion currentVer.version
-    majorCheck = newMajor splitPrevVer splitCurrVer
-    minorCheck = newMinor splitPrevVer splitCurrVer
+    splitPrevVer prev = if prev.version == "0" then [""] else splitVersion prev.version
+    splitCurrVer curr = splitVersion curr.version
+    majorCheck prev curr = newMajor (splitPrevVer prev) (splitCurrVer curr)
+    minorCheck prev curr = newMinor (splitPrevVer prev) (splitCurrVer curr)
 
 splitVersion :: T.VersionName -> Array T.VersionName
 splitVersion v = Str.split (Str.Pattern ".") v
