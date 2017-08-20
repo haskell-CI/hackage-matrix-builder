@@ -27,6 +27,8 @@ type State =
   , columnversion :: T.ColumnVersion
   , newtag :: T.TagName
   , newPrio :: T.Priority
+  , queueStatus :: RD.RemoteData E.Error (Maybe T.QueueItem)
+  , queueClicked :: Boolean
   }
 
 data Query a
@@ -39,7 +41,7 @@ data Query a
   | RemoveTag T.PackageName T.TagName a
   | UpdateTag (T.PackageName -> a)
   | HandleQueue Int a
-  | QueueBuild T.PackageName T.Priority a
+  | QueueBuild T.PackageName T.Priority (RD.RemoteData E.Error (Maybe T.QueueItem)) a
   | Finalize a
 
 data Message = FromPagePackage
@@ -74,6 +76,8 @@ component = H.lifecycleComponent
                        }
       , newtag: ""
       , newPrio: T.Low
+      , queueStatus: RD.NotAsked
+      , queueClicked: false
       }
 
     render :: State -> H.ComponentHTML Query
@@ -186,40 +190,14 @@ component = H.lifecycleComponent
             ]
         queueing st =
           HH.div
-            [ HP.class_ (H.ClassName "sub") ]
+            [ HP.class_ (H.ClassName "sub") ] $
             [ HH.h4
                 [ HP.class_ (H.ClassName "header") ]
                 [ HH.text "Queueing" ]
-            , HH.div
-                [ HP.id_ "queueing" ]
-                [ HH.div
-                    [ HP.class_ (H.ClassName "form") ]
-                    [ HH.label_
-                        [ HH.text "Priority"
-                        , HH.select
-                            [ HP.class_ (H.ClassName "prio")
-                            , HE.onSelectedIndexChange $ HE.input HandleQueue
-                            ]
-                            [ HH.option
-                                [ HP.value "high" ]
-                                [ HH.text "High" ]
-                            , HH.option
-                                [ HP.value "medium"
-                                , HP.selected true
-                                ]
-                                [ HH.text "Medium" ]
-                            , HH.option
-                                [ HP.value "low" ]
-                                [ HH.text "Low" ]
-                            ]
-                        ]
-                    , HH.button
-                        [ HP.class_ (H.ClassName "action")
-                        , HE.onClick $ HE.input_ (QueueBuild (_.name st.initPackage) st.newPrio)
-                        ]
-                        [ HH.text "Queue build for this package" ]
-                    ]
-                ]
+            ] <> (checkQueueStatus st.queueStatus) <>
+            [ HH.div
+                [ HP.id_ "queueing" ] $
+                if st.queueClicked then buildIsQueued else generateQueueButton st
             ]
 
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
@@ -227,10 +205,12 @@ component = H.lifecycleComponent
       st <- H.get
       packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
       reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
-      _ <- H.modify _  { package = packageByName
-                       , report = reportPackage
-                       , highlighted = false
-                       }
+      queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
+      H.modify _  { package = packageByName
+                  , report = reportPackage
+                  , highlighted = false
+                  , queueStatus = queueStat
+                  }
       pure next
     eval (FailingPackage next) = do
       pure next
@@ -263,9 +243,11 @@ component = H.lifecycleComponent
       st <- H.get
       packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
       reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
+      queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
       H.modify _ { initPackage = pkgMeta
                  , package = packageByName
                  , report = reportPackage
+                 , queueStatus = queueStat
                  }
       pure next
     eval (HandleQueue idx next) = do
@@ -274,11 +256,76 @@ component = H.lifecycleComponent
               2 -> H.modify _ { newPrio = T.Low}
               _ -> H.modify _ { newPrio = T.High}
       pure next
-    eval (QueueBuild pkgName prio next) = do
+    eval (QueueBuild pkgName prio (RD.Success _) next ) = do
+      _ <- H.lift $ Api.putQueueSaveByName pkgName prio
+      H.modify _ { queueClicked = true }
+      pure next
+    eval (QueueBuild pkgName prio _ next) = do
+      H.modify _ { queueClicked = true }
       _ <- H.lift $ Api.putQueueCreate pkgName prio
       pure next
     eval (Finalize next) = do
       pure next
+
+checkQueueStatus :: forall p i. RD.RemoteData E.Error (Maybe T.QueueItem) ->  Array (HH.HTML p i)
+
+checkQueueStatus (RD.Success (Just qi)) =
+  [ HH.div
+      [ HP.class_ (H.ClassName "already-queued") ]
+      [ HH.text ("This package is already in " <>
+                 qi.priority <>
+                 " priority queue. You can change its priority queue below.")
+      ]
+  ]
+checkQueueStatus _              = []
+
+
+buildIsQueued :: forall p i. Array (HH.HTML p i)
+buildIsQueued =
+  [ HH.div
+      [ HP.class_ (H.ClassName "success") ]
+      [ HH.text "Build queued!" ]
+  ]
+
+generateQueueButton :: forall p. State -> Array (HH.HTML p (Query Unit))
+generateQueueButton st =
+  [ HH.div
+      [ HP.class_ (H.ClassName "form") ]
+        [ HH.label_ 
+            [ HH.text "Priority"
+            , HH.select
+                [ HP.class_ (H.ClassName "prio")
+                , HE.onSelectedIndexChange $ HE.input HandleQueue
+                ] $
+                [ HH.option
+                    ([ HP.value "high" ] <> isPrioSelected "high" st.queueStatus)
+                    [ HH.text "High" ]
+                , HH.option
+                    ([ HP.value "medium" ] <> isPrioSelected "medium" st.queueStatus)
+                    [ HH.text "Medium" ]
+                , HH.option
+                    ([ HP.value "low" ] <> isPrioSelected "low" st.queueStatus)
+                    [ HH.text "Low" ]
+                ]
+            ]
+        , HH.button
+            [ HP.class_ (H.ClassName "action")
+            , HE.onClick $ HE.input_ (QueueBuild (_.name st.initPackage) st.newPrio st.queueStatus)
+            ]
+            [ HH.text "Queue build for this package" ]
+        ]
+  ]
+
+isPrioSelected :: forall p i. String
+               -> RD.RemoteData E.Error (Maybe T.QueueItem)
+               -> Array (HH.IProp (selected :: Boolean | p) i)
+isPrioSelected prio (RD.Success (Just qi)) =
+  case prio == qi.priority of
+    true -> [HP.selected true]
+    false -> []
+-- isPrioSelected prio (RD.Success Nothing)   = []
+isPrioSelected prio _                      = []
+
 
 renderMissingPackage :: forall p i. T.PackageName -> HH.HTML p i
 renderMissingPackage pkgName =

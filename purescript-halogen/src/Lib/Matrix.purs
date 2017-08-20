@@ -48,6 +48,15 @@ getPackageList = do
   client <- asks _.matrixClient
   liftAff (packageList client { count : (Just 100000), offset : Nothing })
 
+getQueueByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
+             => MonadAff (api :: API | e) m
+             => T.PackageName
+             -> m (RD.RemoteData E.Error (Maybe T.QueueItem))
+getQueueByName pkg = do
+  client <- asks _.matrixClient
+  queueI <- liftAff $ attempt (queueByName client pkg)
+  pure (RD.fromEither queueI)
+
 getQueueList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
              => MonadAff (api :: API | e) m
              => m (T.ApiList T.QueueItem)
@@ -178,9 +187,9 @@ queueByName api pkgName = makeAff \err succ ->
     pkgName
     succ
     (stringyErr err "Getting queue item by name failed")
-    T.Low
-    T.Medium
-    T.High
+    "low"
+    "medium"
+    "high"
     Just
     Nothing
 
@@ -189,9 +198,9 @@ foreign import queueByName_ :: forall eff a .
       T.PackageName
       (Maybe T.QueueItem -> ApiEff eff Unit)
       (JQueryXHR -> ApiEff eff Unit)
-      T.Priority
-      T.Priority
-      T.Priority
+      String
+      String
+      String
       (a -> Maybe a)
       (Maybe a)
       (ApiEff eff Unit)
