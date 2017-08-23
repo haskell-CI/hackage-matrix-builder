@@ -1,7 +1,0 @@
-/.psa-stash
-/.psci*
-/.pulp-cache/
-/bower_components/
-/node_modules/
-/output/
-/src/.webpack.js
