@@ -1,3 +1,5 @@
 .ghc.environment.*
 *~
 
+# generated
+/ui/ui.js

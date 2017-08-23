@@ -1,10 +1,10 @@
 {
-  "name": "purescript-halogen",
-  "version": "1.0.0",
-  "description": "This is implementation fo Halogen on Hackage Matrix Builder",
+  "name": "hackage-matrix-ui",
+  "version": "3.0.0",
+  "description": "Hackage Matrix Builder Web UI",
   "main": "index.js",
   "scripts": {
-    "build": "pulp browserify > ../ui/pshalogen.js",
+    "build": "pulp browserify --to ../ui/ui.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
