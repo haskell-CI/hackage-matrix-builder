@@ -1,0 +1,46 @@
+{
+  "name": "purescript-halogen",
+  "description": "This is implementation fo Halogen on Hackage Matrix Builder",
+  "main": "index.js",
+  "authors": [
+    "Andika D Riyandi <andika.riyan@gmail.com>"
+  ],
+  "license": "ISC",
+  "homepage": "https://github.com/Rizary/hackage-matrix-builder",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "purescript-dom": "^4.5.0",
+    "purescript-halogen": "^2.1.0",
+    "purescript-affjax": "^4.0.0",
+    "purescript-maybe": "^3.0.0",
+    "purescript-aff": "^3.1.0",
+    "purescript-globals": "^3.0.0",
+    "purescript-jquery": "^4.1.0",
+    "purescript-routing": "^5.1.0",
+    "purescript-prelude": "^3.0.0",
+    "purescript-functors": "^2.1.0",
+    "purescript-coroutines": "^4.0.0",
+    "purescript-aff-coroutines": "^5.0.0",
+    "purescript-halogen-css": "^6.0.0",
+    "purescript-transformers": "^3.4.0",
+    "purescript-typelevel": "^3.0.0",
+    "purescript-typelevel-prelude": "^2.2.0",
+    "purescript-remotedata": "^2.1.0",
+    "purescript-generics-rep": "^5.1.0",
+    "purescript-exceptions": "^3.0.0",
+    "purescript-argonaut": "^3.0.0",
+    "purescript-run-streaming": "^0.1.0",
+    "purescript-run": "^0.4.0",
+    "purescript-tailrec": "^3.3.0"
+  },
+  "devDependencies": {
+    "purescript-psci-support": "^3.0.0",
+    "purescript-debug": "^3.0.0"
+  }
+}

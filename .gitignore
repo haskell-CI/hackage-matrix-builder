@@ -1,5 +1,5 @@
 .ghc.environment.*
 *~
-\#*\#
-/dist-newstyle/
-/log
+
+# generated
+/ui/ui.js
