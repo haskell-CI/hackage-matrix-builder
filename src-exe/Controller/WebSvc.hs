@@ -121,7 +121,9 @@ server = tagListH
     :<|> pkgVerInfoH
     :<|> pkgTagsH
     :<|> pkgLastReport
-    :<|> pkgCellReport
+    :<|> pkgLastCellReport
+    :<|> pkgIdxStReport
+    :<|> pkgIdxStCellReport
 
     :<|> queListH
     :<|> quePostH
@@ -130,6 +132,9 @@ server = tagListH
     :<|> queDelH
 
     :<|> usrListH
+
+    -- v2
+    :<|> reportsH
 
   where
 
@@ -227,8 +232,11 @@ server = tagListH
           []      -> throwServantErr' err404
           ptime:_ -> withDbc $ \dbconn -> queryJobReport dbconn pname ptime
 
-    pkgCellReport :: PkgN -> Text -> AppHandler CellReport
-    pkgCellReport pname cellid = do
+    pkgIdxStReport pname ptime =
+        withDbcGuard (pkgnExists pname) $ \dbconn -> queryJobReport dbconn pname ptime
+
+    pkgLastCellReport :: PkgN -> Text -> AppHandler CellReport
+    pkgLastCellReport pname cellid = do
         let [gv1,pver1] = T.splitOn "-" cellid
 
         liftIO $ print (pname,gv1,pver1)
@@ -246,6 +254,33 @@ server = tagListH
         case ptimes of
           []      -> throwServantErr' err404
           ptime:_ -> withDbc $ \dbconn -> queryCellReport dbconn (PkgId pname pver) gv ptime
+
+    pkgIdxStCellReport :: PkgN -> PkgIdxTs -> Text -> AppHandler CellReport
+    pkgIdxStCellReport pname ptime cellid = do
+        let [gv1,pver1] = T.splitOn "-" cellid
+
+        liftIO $ print (pname,ptime,gv1,pver1)
+
+        let Just gv = simpleParse (T.unpack gv1)
+        -- let crGhcFullVersion = crGhcVersion
+        let pver :: Ver
+            Just pver = simpleParse (T.unpack pver1)
+
+        withDbcGuard (pkgnExists pname) $ \dbconn -> queryCellReport dbconn (PkgId pname pver) gv ptime
+
+    ----------------------------------------------------------------------------
+    -- package v2 --------------------------------------------------------------
+
+    reportsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
+        ptimes1 <- PGS.query dbconn "SELECT DISTINCT ptime FROM solution_fail WHERE pname = ?" (PGS.Only pkgn)
+        ptimes2 <- PGS.query dbconn "SELECT DISTINCT ptime FROM iplan_job JOIN solution USING (jobid) WHERE pname = ?" (PGS.Only pkgn)
+        pure (Set.fromList (map fromOnly ptimes1) <>
+              Set.fromList (map fromOnly ptimes2))
+
+    pkgnExists :: PkgN -> PGS.Connection -> IO Bool
+    pkgnExists pkgn dbconn = do
+       [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM pkgname WHERE pname = ?)" (PGS.Only pkgn)
+       pure ex
 
     ----------------------------------------------------------------------------
     -- queue -------------------------------------------------------------------
@@ -304,6 +339,18 @@ withDbc :: (PGS.Connection -> IO a) -> AppHandler a
 withDbc act = do
     pool <- gets appDbPool
     liftIO (withResource pool act)
+
+withDbcGuard :: (PGS.Connection -> IO Bool) -> (PGS.Connection -> IO b) -> AppHandler b
+withDbcGuard cond body = do
+    res <- withDbc $ \dbconn -> do
+        x <- cond dbconn
+        if x
+        then Just <$> body dbconn
+        else pure Nothing
+
+    maybe (throwServantErr' err404) pure res
+
+
 
 type AppHandler = Handler App App
 

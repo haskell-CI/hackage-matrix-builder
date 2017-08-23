@@ -12,6 +12,7 @@ import           HackageApi                           (UserName)
 import           PkgId
 import           Prelude.Local
 
+import           Data.Set (Set)
 import qualified Data.Aeson                           as J
 import qualified Data.Aeson.Types                     as J
 import           Data.Char
@@ -21,6 +22,7 @@ import           Database.PostgreSQL.Simple.ToField
 import           Servant.API
 
 type ControllerApi m =
+  -- legacy rest-core style API
        "v1.0.0" :> "tag"                 :> "list" :> ListOp TagListEntry
   :<|> "v1.0.0" :> "tag"                 :> "name" :> Capture "tagname" TagName :> ReqBody '[JSON] PkgN :> Put '[JSON] ()
   :<|> "v1.0.0" :> "tag"                 :> "name" :> Capture "tagname" TagName :> ReqBody '[JSON] PkgN :> Delete '[JSON] ()
@@ -32,6 +34,9 @@ type ControllerApi m =
   :<|> "v1.0.0" :> "package"             :> "name" :> Capture "pkgname" PkgN :> "report" :> "latest" :> Get '[JSON] JobReport
   :<|> "v1.0.0" :> "package"             :> "name" :> Capture "pkgname" PkgN :> "report" :> "latest" :> "cell" :> "id" :> Capture "cellid" Text :> Get '[JSON] CellReport
 
+  :<|> "v1.0.0" :> "package"             :> "name" :> Capture "pkgname" PkgN :> "report" :> "idxstate" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] JobReport
+  :<|> "v1.0.0" :> "package"             :> "name" :> Capture "pkgname" PkgN :> "report" :> "idxstate" :> Capture "idxstate" PkgIdxTs :> "cell" :> "id" :> Capture "cellid" Text :> Get '[JSON] CellReport
+
   :<|> "v1.0.0" :> "queue"               :> "list"                                                     :> ListOp QEntry
   :<|> "v1.0.0" :> "queue"                                                   :> ReqBody '[JSON] QEntry :> Post '[JSON] ()
   :<|> "v1.0.0" :> "queue"               :> "name" :> Capture "pkgname" PkgN                           :> Get '[JSON] QEntry
@@ -39,6 +44,9 @@ type ControllerApi m =
   :<|> "v1.0.0" :> "queue"               :> "name" :> Capture "pkgname" PkgN                           :> Delete '[JSON] ()
 
   :<|> "v1.0.0" :> "user"                :> "name" :> Capture "username" UserName                      :> Get '[JSON] UserPkgs
+
+  -- New-style API; we stick w/ the more common RESTful convention of using plural nouns for listable collections
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
 
 type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 
