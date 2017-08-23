@@ -1,13 +1,11 @@
 with-compiler: ghc-8.0.2
 packages: .
-packages: cabal/Cabal/
 tests: false
 benchmarks: false
 
 -- workaround https://github.com/haskell/cabal/issues/4432
-constraints: setup.Cabal <1.25
-
-allow-newer: Cabal:directory
-
-package Cabal
-  flags: -old-directory
+-- packages: cabal/Cabal/
+-- constraints: setup.Cabal <1.25
+-- allow-newer: Cabal:directory
+-- package Cabal
+--  flags: -old-directory
