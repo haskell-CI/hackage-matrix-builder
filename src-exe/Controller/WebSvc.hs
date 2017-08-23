@@ -80,13 +80,15 @@ runController !app port =
 
     initApp :: SnapletInit App App
     initApp = makeSnaplet "matrix-controller" "Matrix CI controller" Nothing $ do
-        addRoutes [("/api/", apiHandler)
-                  ,("/package/", Snap.serveFile "ui/index.html")
-                  ,("/packages/", Snap.serveFile "ui/index.html")
-                  ,("/user/", Snap.serveFile "ui/index.html")
-                  ,("/users/", Snap.serveFile "ui/index.html")
-                  ,("/latest/", Snap.serveFile "ui/index.html")
-                  ,("/", uiHandler)
+        addRoutes [("/api/",      apiHandler)
+
+                  ,("/package/",  hashRedir)
+                  ,("/packages/", hashRedir)
+                  ,("/user/",     hashRedir)
+                  ,("/users/",    hashRedir)
+                  ,("/latest/",   hashRedir)
+
+                  ,("/",          uiHandler)
                   ]
         return app
 
@@ -99,6 +101,12 @@ runController !app port =
 
     controllerApi :: Proxy (ControllerApi AppHandler)
     controllerApi = Proxy
+
+    -- | Redirect to hash-routing urlpath
+    hashRedir :: MonadSnap m => m ()
+    hashRedir = do
+        uri <- withRequest (pure . rqURI)
+        redirect' ("/#" <> uri) 307
 
 mkListSlice :: Word -> [a] -> ListSlice a
 mkListSlice ofs xs = ListSlice ofs (fromIntegral $ length xs) xs
