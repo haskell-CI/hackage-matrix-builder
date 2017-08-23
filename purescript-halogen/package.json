@@ -4,7 +4,7 @@
   "description": "This is implementation fo Halogen on Hackage Matrix Builder",
   "main": "index.js",
   "scripts": {
-    "build": "pulp browserify -- --stash --censor-lib -o dist/pshalogen.js",
+    "build": "pulp browserify > ../ui/pshalogen.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

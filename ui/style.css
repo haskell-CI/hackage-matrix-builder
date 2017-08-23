@@ -109,7 +109,7 @@ body {
 /* Pages */
 
 .page {
-  display: none;
+  display: block;
   width: 1200px;
   margin: auto;
   margin-top: 20px;
