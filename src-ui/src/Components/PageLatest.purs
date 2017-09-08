@@ -7,13 +7,24 @@ import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
 import Data.Maybe (Maybe(..))
+import Data.Array as Arr
 import Data.Traversable (Accum, mapAccumL)
-import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
+import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>), (<<<), (/=))
+import Data.Argonaut as Arg
+import Data.Traversable as TR
+import Data.Tuple as Tuple
+import Network.RemoteData as RD
+import Network.HTTP.Affjax as Affjax
+import Network.HTTP.Affjax.Response as Affjax
+import Control.Monad.Aff.Class (class MonadAff, liftAff)
+import Data.Int as Int
 
 type State =
  {
    latestlist :: Array T.LatestItem
  , queuelist :: Array T.QueueItem
+ , packageIndexLatest :: Array (Tuple.Tuple T.PackageName String)
+ , packageIndexQueue :: Array (Tuple.Tuple T.PackageName String)
  }
 
 data Query a
@@ -39,6 +50,8 @@ component = H.lifecycleComponent
     initialState =
       { latestlist: []
       , queuelist: []
+      , packageIndexLatest: []
+      , packageIndexQueue: []
       }
 
     render :: State -> H.ComponentHTML Query
@@ -70,7 +83,7 @@ component = H.lifecycleComponent
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text "Latest Builds" ]
                 , HH.ul
-                    [ HP.id_ "build-list" ] $ buildPackages <$> state.latestlist
+                    [ HP.id_ "build-list" ] $ buildPackages state <$> state.latestlist
 
                 ]
             , HH.div
@@ -80,20 +93,26 @@ component = H.lifecycleComponent
                     [ HH.text "Build Queue" ]
                 , HH.table
                     [ HP.id_ "queue-list" ]
-                    [ HH.tbody_ $ getTheResult accumResult ]
+                    [ HH.tbody_ $ getTheResult (accumResult state) ]
                 ]
             ]
         ]
       where
-        accumResult = mapAccumL renderTableQueue 1 (state.queuelist)
+        accumResult st = mapAccumL (renderTableQueue st) 1 (state.queuelist)
         getTheResult { value } = value
 
     eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      qlist <- H.lift Api.getQueueList
-      llist <- H.lift Api.getListLatestReports
-      initState <- H.put $ st { latestlist = llist.items, queuelist = qlist.items }
+      qList <- H.lift Api.getQueueList
+      lList <- H.lift Api.getListLatestReports
+      pkgIdxLatest <- TR.traverse latestIndex (_.packageName <$> lList.items)
+      pkgIdxQueue <- TR.traverse latestIndex (_.packageName <$> qList.items)
+      initState <- H.put $ st { latestlist = lList.items
+                              , queuelist = qList.items
+                              , packageIndexLatest = pkgIdxLatest
+                              , packageIndexQueue = pkgIdxQueue
+                              }
       pure next
     eval (PriorityUp pkgName priority next) = do
       _ <- H.lift $ Api.putQueueSaveByName pkgName (case priority of
@@ -120,19 +139,50 @@ component = H.lifecycleComponent
     eval (Finalize next) = do
       pure next
 
-buildPackages :: forall p i. T.LatestItem -> HH.HTML p i
-buildPackages latestItem =
+buildPackages :: forall p i. State -> T.LatestItem -> HH.HTML p i
+buildPackages state latestItem =
   HH.li_ $
     [ HH.a
         [ HP.href $ "#/package/" <> latestItem.packageName
+                                 <> lookupIndex latestItem.packageName state.packageIndexLatest
         ]
         [ HH.text latestItem.packageName ]
     ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (latestItem.modified) ] ]
 
-renderTableQueue :: forall p. Int
+lookupIndex :: T.PackageName -> Array (Tuple.Tuple T.PackageName String) -> String
+lookupIndex pkgName pkgIdxTuple =
+  case Tuple.lookup pkgName pkgIdxTuple of
+    Just a  -> "@" <> a
+    Nothing -> ""
+
+latestIndex :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+            => T.PackageName
+            -> m (Tuple.Tuple T.PackageName String)
+latestIndex pkgName = do
+  idx <- Api.getTimestamp pkgName
+  case idx of
+    RD.Success idx -> do
+      getIdx ((show <<< Int.round) <$> (fromIndexToNumber (Arg.toArray idx))) pkgName
+    _              -> pure $ Tuple.Tuple "" ""
+  where
+    getIdx idx' pkg'=
+      case Arr.last idx' of
+        Just a  -> pure $ Tuple.Tuple pkg' a
+        Nothing -> pure $ Tuple.Tuple "" ""
+
+fromIndexToNumber :: Maybe Arg.JArray -> Array Number
+fromIndexToNumber (Just arrJson) =
+  case TR.traverse Arg.toNumber arrJson of
+    Just arrStr -> arrStr
+    Nothing      -> []
+fromIndexToNumber Nothing        = []
+
+
+renderTableQueue :: forall p. State
+                 -> Int
                  -> T.QueueItem
                  -> Accum Int (HH.HTML p (Query Unit))
-renderTableQueue num { packageName, priority } =
+renderTableQueue state num { packageName, priority } =
   { accum: num + 1
   , value: HH.tr
              [ HP.class_ (H.ClassName priority) ] $
@@ -142,7 +192,9 @@ renderTableQueue num { packageName, priority } =
              , HH.td
                  [ HP.class_ (H.ClassName "package-name") ]
                  [ HH.a
-                     [HP.href $ "#/package/" <> packageName]
+                     [HP.href $ "#/package/" <> packageName
+                      <> lookupIndex packageName state.packageIndexQueue
+                     ]
                      [HH.text $ packageName]
                  ]
              , HH.td

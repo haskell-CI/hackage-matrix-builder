@@ -35,7 +35,7 @@ import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 import Partial.Unsafe (unsafePartial)
-import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>))
+import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>), (/=))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
 
@@ -87,7 +87,7 @@ ui =
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
             (T.PackagePage pkgName) ->
               HH.slot' CP.cp4 unit PagePackage.component
-                  (getPackageMeta pkgName st.package) (HE.input HandlePagePackage)
+                  (getPackageMeta (Str.takeWhile ((/=)'@') pkgName) st.package) (HE.input HandlePagePackage)
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
             (T.UserPage usr) ->

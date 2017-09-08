@@ -20,7 +20,7 @@ type HdiffUrl = String
 type Cell = String
 type Word = Int
 type Prefixs = String
-
+type PkgIdxTs = Int
 
 data PageRoute = HomePage
                | LatestPage

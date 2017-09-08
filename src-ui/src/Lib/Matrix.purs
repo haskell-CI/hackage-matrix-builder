@@ -6,17 +6,34 @@ import Data.Function.Uncurried as U
 import Lib.Types as T
 import Network.RemoteData as RD
 import Run as R
-import Control.Monad.Aff (Aff, attempt, makeAff)
+import Control.Monad.Aff (Aff, attempt, makeAff, launchAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff.Ref (Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
+import Control.Monad.Except as Except
 import Data.Maybe (Maybe(..))
 import Data.Nullable (Nullable, toMaybe)
 import Halogen.Aff (HalogenEffects)
 import Lib.MiscFFI (undefine)
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
-import Prelude (Unit, pure, bind, const, map, ($), (<<<))
+import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>))
+import Network.HTTP.Affjax as Affjax
+import Network.HTTP.Affjax.Response as Affjax
+import Data.HTTP.Method (Method(..))
+import Data.Either (Either(..))
+import Data.String as Str
+import Data.String.Regex as Regex
+import Data.String.Regex.Flags as RegexF
+import Data.Array
+import Data.Traversable as TRV
+import Data.Maybe as M
+import Prelude ((/=))
+import Network.HTTP.StatusCode as SC
+import Data.Argonaut as Arg
+import Data.Argonaut.Core as Arg
+import Data.Argonaut.Decode as Arg
+import Data.Foreign as Foreign
 
 foreign import data MatrixApi :: Type
 
@@ -26,11 +43,11 @@ type Environment e = { matrixClient :: MatrixApi
                    , packageList :: Ref (RD.RemoteData (Eff (api :: API | e) Unit) (T.ApiList T.PackageMeta))
                    }
 
-type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API | eff)))
+type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API, ajax :: Affjax.AJAX | eff)))
 
 type Matrix eff = MatrixApi' eff
 
-type MatrixEffects = HalogenEffects (api :: API)
+type MatrixEffects = HalogenEffects (api :: API, ajax :: Affjax.AJAX)
 
 foreign import newApi :: forall eff
    . String
@@ -40,6 +57,30 @@ foreign import newApi :: forall eff
 foreign import data JQueryXHR :: Type
 
 type ApiEff e o = Eff (api :: API | e) o
+
+getTimestamp :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
+             => T.PackageName
+             -> m (RD.RemoteData String Arg.Json)
+getTimestamp pkgName = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/packages/" <> pkgName <> "/reports"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  pure (RD.fromEither decodedApi)
+
+fromRes :: Arg.Json
+        -> Maybe Arg.JArray
+fromRes resp =
+  case Arg.isArray resp of
+    true -> Arg.toArray resp
+    false -> Nothing
+
+toArrayString :: Maybe Arg.JArray
+              -> Maybe (Array Arg.JString)
+toArrayString (Just resp) = TRV.traverse Arg.toString resp
+toArrayString Nothing = Nothing
 
 getPackageList :: forall e a m. MonadReader (Environment a) m
                => MonadAff (api :: API | e) m
@@ -54,7 +95,7 @@ getQueueByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
              -> m (RD.RemoteData E.Error (Maybe T.QueueItem))
 getQueueByName pkg = do
   client <- asks _.matrixClient
-  queueI <- liftAff $ attempt (queueByName client pkg)
+  queueI <- liftAff (attempt (queueByName client pkg))
   pure (RD.fromEither queueI)
 
 getQueueList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
@@ -77,7 +118,7 @@ getListLatestReports :: forall a e m. MonadReader { matrixClient :: MatrixApi | 
                      => m (T.ApiList T.LatestItem)
 getListLatestReports = do
   client <- asks _.matrixClient
-  liftAff (listLatestReports client { count : (Just 100), offset : Nothing })
+  liftAff (listLatestReports client { count : (Just 50), offset : Nothing })
 
 putQueueSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                    => MonadAff (api :: API | e) m
