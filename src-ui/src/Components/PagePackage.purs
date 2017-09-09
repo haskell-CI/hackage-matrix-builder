@@ -130,6 +130,25 @@ component selectedPkg = H.lifecycleComponent
                     ]
                 ]
             ]
+        renderBody' state RD.NotAsked =
+          HH.div
+            [ HP.id_ "page-package"
+            , HP.class_ (H.ClassName "page")
+            ]
+            [ HH.div
+                [ HP.class_ (H.ClassName "rightcol") ]
+                [ legend
+                , queueing state
+                , tagging state
+                ]
+            , HH.div
+                [ HP.class_ (H.ClassName "leftcol") ]
+                [ HH.h2
+                    [ HP.class_ (H.ClassName "main-header") ]
+                    [ HH.text $ _.name state.package ]
+                ]
+            ]
+
         renderBody' state _ =
           HH.div
             [ HP.id_ "page-package"
@@ -224,13 +243,13 @@ component selectedPkg = H.lifecycleComponent
             _              -> []
         sObj = SM.singleton "name" (Arg.encodeJson selectedPkg)
         jObj = F.toForeign (SM.insert "index" (Arg.encodeJson idx) sObj)
-        pageName = DOM.DocumentTitle $ (selectedPkg) <> " - " <> idx
+        pageName = DOM.DocumentTitle $ selectedPkg <> " - " <> idx
         pageUrl = DOM.URL $ "#/package/" <> selectedPkg <> "@" <> idx
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
       traceAnyA hist
-      packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
-      queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
+      packageByName <- H.lift $ Api.getPackageByName selectedPkg
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName selectedPkg
+      queueStat <- H.lift $ Api.getQueueByName selectedPkg
       H.modify _  { package = packageByName
                   , report = reportPackage
                   , highlighted = false

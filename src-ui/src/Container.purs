@@ -73,7 +73,7 @@ ui =
   where
     initialState :: State
     initialState =
-      { route: T.HomePage
+      { route: T.ErrorPage
       , package: []
       }
 
@@ -145,7 +145,7 @@ ui =
       pkgList <- H.lift Api.getPackageList
       pkgRef <- asks _.packageList
       _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)
-      _ <- H.modify (_ { package = pkgList.items })
+      _ <- H.modify (_ { package = pkgList.items, route = T.HomePage})
       pure next
 
     eval (HandlePagePackage PagePackage.FromPagePackage next) = eval (Initialize next)
