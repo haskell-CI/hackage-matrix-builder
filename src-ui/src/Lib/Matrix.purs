@@ -14,10 +14,10 @@ import Control.Monad.Except as Except
 import Data.Maybe (Maybe(..))
 import Data.Nullable (Nullable, toMaybe)
 import Halogen.Aff (HalogenEffects)
-import Lib.MiscFFI (undefine)
+import Lib.MiscFFI as Misc
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
-import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>))
+import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>), (<$>), show, (/=))
 import Network.HTTP.Affjax as Affjax
 import Network.HTTP.Affjax.Response as Affjax
 import Data.HTTP.Method (Method(..))
@@ -25,17 +25,20 @@ import Data.Either (Either(..))
 import Data.String as Str
 import Data.String.Regex as Regex
 import Data.String.Regex.Flags as RegexF
-import Data.Array
+import Data.Array as Arr
 import Data.Traversable as TRV
 import Data.Maybe as M
-import Prelude ((/=))
 import Network.HTTP.StatusCode as SC
 import Data.Argonaut as Arg
 import Data.Argonaut.Core as Arg
 import Data.Argonaut.Decode as Arg
-import Data.Foreign as Foreign
+import DOM
+import DOM.HTML.Types as DOM
+import Data.Tuple as Tuple
+import Data.Int as Int
 
 foreign import data MatrixApi :: Type
+
 
 foreign import data API :: Effect
 
@@ -43,11 +46,11 @@ type Environment e = { matrixClient :: MatrixApi
                    , packageList :: Ref (RD.RemoteData (Eff (api :: API | e) Unit) (T.ApiList T.PackageMeta))
                    }
 
-type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API, ajax :: Affjax.AJAX | eff)))
+type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API, ajax :: Affjax.AJAX  , dom :: DOM, history :: DOM.HISTORY| eff)))
 
 type Matrix eff = MatrixApi' eff
 
-type MatrixEffects = HalogenEffects (api :: API, ajax :: Affjax.AJAX)
+type MatrixEffects = HalogenEffects (api :: API, ajax :: Affjax.AJAX, dom :: DOM, history :: DOM.HISTORY)
 
 foreign import newApi :: forall eff
    . String
@@ -70,17 +73,19 @@ getTimestamp pkgName = do
     decodedApi = Arg.decodeJson (res.response :: Arg.Json)
   pure (RD.fromEither decodedApi)
 
-fromRes :: Arg.Json
-        -> Maybe Arg.JArray
-fromRes resp =
-  case Arg.isArray resp of
-    true -> Arg.toArray resp
-    false -> Nothing
-
-toArrayString :: Maybe Arg.JArray
-              -> Maybe (Array Arg.JString)
-toArrayString (Just resp) = TRV.traverse Arg.toString resp
-toArrayString Nothing = Nothing
+latestIndex :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+            => T.PackageName
+            -> m (Tuple.Tuple T.PackageName String)
+latestIndex pkgName = do
+  idx <- getTimestamp pkgName
+  case idx of
+    RD.Success idx -> getIdx ((show <<< Int.round) <$> (Misc.fromIndexToNumber (Arg.toArray idx))) pkgName
+    _              -> pure $ Tuple.Tuple "" ""
+  where
+    getIdx idx' pkg'=
+      case Arr.last idx' of
+        Just a  -> pure $ Tuple.Tuple pkg' a
+        Nothing -> pure $ Tuple.Tuple "" ""
 
 getPackageList :: forall e a m. MonadReader (Environment a) m
                => MonadAff (api :: API | e) m
@@ -443,7 +448,7 @@ packageList api range = makeAff \err succ ->
     (stringyErr err "Getting package list failed")
   where
     packageMetaFromFFI :: PackageMetaFFI -> T.PackageMeta
-    packageMetaFromFFI p = p { report = undefine p.report }
+    packageMetaFromFFI p = p { report = Misc.undefine p.report }
 
 type PackageMetaFFI =
   { name   :: T.PackageName

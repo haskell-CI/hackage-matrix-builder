@@ -15,7 +15,18 @@ import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI (formatDate)
-import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
+import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=))
+import DOM.HTML as DOM
+import DOM.HTML.History as DOM
+import DOM.HTML.Window as DOM
+import Debug.Trace
+import Lib.MiscFFI as Misc
+import Data.Traversable as TRV
+import Data.Tuple as Tuple
+import Data.Argonaut as Arg
+import Data.Foreign as F
+import Data.StrMap as SM
+import Data.Int as Int
 
 type State =
   { initPackage :: T.PackageMeta
@@ -49,8 +60,8 @@ data Message = FromPagePackage
 ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-component :: forall e. H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
-component = H.lifecycleComponent
+component :: forall e. T.PackageName -> H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
+component selectedPkg = H.lifecycleComponent
   { initialState: initialState
   , render
   , eval
@@ -203,6 +214,20 @@ component = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
+      hist <- H.liftEff $ DOM.window >>= DOM.history
+      Tuple.Tuple _ idx <-  Api.latestIndex selectedPkg
+      pkgTs <- Api.getTimestamp selectedPkg
+      let
+        listIndex =
+          case pkgTs of
+            RD.Success idx -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx))
+            _              -> []
+        sObj = SM.singleton "name" (Arg.encodeJson selectedPkg)
+        jObj = F.toForeign (SM.insert "index" (Arg.encodeJson idx) sObj)
+        pageName = DOM.DocumentTitle $ (selectedPkg) <> " - " <> idx
+        pageUrl = DOM.URL $ "#/package/" <> selectedPkg <> "@" <> idx
+      pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
+      traceAnyA hist
       packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
       reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
       queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
@@ -268,7 +293,6 @@ component = H.lifecycleComponent
       pure next
 
 checkQueueStatus :: forall p i. RD.RemoteData E.Error (Maybe T.QueueItem) ->  Array (HH.HTML p i)
-
 checkQueueStatus (RD.Success (Just qi)) =
   [ HH.div
       [ HP.class_ (H.ClassName "already-queued") ]
@@ -325,7 +349,6 @@ isPrioSelected prio (RD.Success (Just qi)) =
     false -> []
 -- isPrioSelected prio (RD.Success Nothing)   = []
 isPrioSelected prio _                      = []
-
 
 renderMissingPackage :: forall p i. T.PackageName -> HH.HTML p i
 renderMissingPackage pkgName =

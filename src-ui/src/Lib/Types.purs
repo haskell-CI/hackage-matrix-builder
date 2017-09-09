@@ -34,6 +34,10 @@ derive instance gPageRoute :: G.Generic PageRoute _
 
 instance sPageRoute :: Show PageRoute where show = genericShow
 
+type PackageState =
+  { name :: PackageName
+  , index :: PkgIdxTs
+  }
 
 data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 
