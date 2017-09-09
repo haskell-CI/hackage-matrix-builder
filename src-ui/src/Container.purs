@@ -86,7 +86,7 @@ ui =
             T.LatestPage ->
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
             (T.PackagePage pkgName) ->
-              HH.slot' CP.cp4 unit (PagePackage.component pkgName)
+              HH.slot' CP.cp4 unit (PagePackage.component (Str.takeWhile ((/=)'@') pkgName))
                   (getPackageMeta (Str.takeWhile ((/=)'@') pkgName) st.package) (HE.input HandlePagePackage)
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
