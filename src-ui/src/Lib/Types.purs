@@ -21,6 +21,7 @@ type Cell = String
 type Word = Int
 type Prefixs = String
 type PkgIdxTs = Int
+type PackageTS = String
 
 data PageRoute = HomePage
                | LatestPage

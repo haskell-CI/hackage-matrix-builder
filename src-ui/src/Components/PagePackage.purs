@@ -60,8 +60,9 @@ data Message = FromPagePackage
 ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-component :: forall e. T.PackageName -> H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
-component selectedPkg = H.lifecycleComponent
+component :: forall e. (Tuple.Tuple T.PackageName String)
+          -> H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
+component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
   { initialState: initialState
   , render
   , eval
@@ -234,24 +235,30 @@ component selectedPkg = H.lifecycleComponent
     eval (Initialize next) = do
       st <- H.get
       hist <- H.liftEff $ DOM.window >>= DOM.history
-      Tuple.Tuple _ idx <-  Api.latestIndex selectedPkg
+      Tuple.Tuple _ idx' <-  Api.latestIndex selectedPkg
       pkgTs <- Api.getTimestamp selectedPkg
       let
         listIndex =
           case pkgTs of
-            RD.Success idx -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx))
+            RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
             _              -> []
+        latestIdx = Misc.getLastIdx listIndex
+        idx  = if  Str.null selectedIdx then "" else "@" <> selectedIdx
         sObj = SM.singleton "name" (Arg.encodeJson selectedPkg)
         jObj = F.toForeign (SM.insert "index" (Arg.encodeJson idx) sObj)
         pageName = DOM.DocumentTitle $ selectedPkg <> " - " <> idx
-        pageUrl = DOM.URL $ "#/package/" <> selectedPkg <> "@" <> idx
+        pageUrl = DOM.URL $ "#/package/" <> selectedPkg <> idx
+      traceAnyA idx
+      traceAnyA listIndex
+      traceAnyA latestIdx
+      traceAnyA selectedIdx
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
-      traceAnyA hist
       packageByName <- H.lift $ Api.getPackageByName selectedPkg
       reportPackage <- H.lift $ Api.getLatestReportByPackageName selectedPkg
+      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp selectedPkg (if Str.null selectedIdx then latestIdx else selectedIdx)
       queueStat <- H.lift $ Api.getQueueByName selectedPkg
       H.modify _  { package = packageByName
-                  , report = reportPackage
+                  , report = if Str.null selectedIdx then reportPackage else Api.parseShallowReport reportPackageTS
                   , highlighted = false
                   , queueStatus = queueStat
                   }

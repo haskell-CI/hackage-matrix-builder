@@ -17,6 +17,7 @@ import Lib.Types as T
 import Data.Argonaut as Arg
 import Data.Traversable as TR
 import Data.Tuple as Tuple
+import Data.String as Str
 import Network.RemoteData as RD
 import Network.HTTP.Affjax as Affjax
 import Network.HTTP.Affjax.Response as Affjax
@@ -153,4 +154,12 @@ fromIndexToNumber (Just arrJson) =
     Nothing      -> []
 fromIndexToNumber Nothing        = []
 
+makeTuplePkgIdx :: T.PackageName -> Tuple.Tuple T.PackageName String
+makeTuplePkgIdx pkg = Tuple.Tuple (Str.takeWhile ((/=) '@') pkg) (((Str.drop 1) <<< Str.dropWhile ((/=) '@')) pkg)
+
+getLastIdx :: Array Int -> String
+getLastIdx arrInt=
+  case Arr.last arrInt of
+    Just a -> show a
+    Nothing -> ""
 

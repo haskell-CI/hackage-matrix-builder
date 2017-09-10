@@ -86,7 +86,7 @@ ui =
             T.LatestPage ->
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
             (T.PackagePage pkgName) ->
-              HH.slot' CP.cp4 unit (PagePackage.component (Str.takeWhile ((/=)'@') pkgName))
+              HH.slot' CP.cp4 unit (PagePackage.component (Misc.makeTuplePkgIdx pkgName))
                   (getPackageMeta (Str.takeWhile ((/=)'@') pkgName) st.package) (HE.input HandlePagePackage)
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
@@ -145,7 +145,7 @@ ui =
       pkgList <- H.lift Api.getPackageList
       pkgRef <- asks _.packageList
       _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)
-      _ <- H.modify (_ { package = pkgList.items, route = T.HomePage})
+      _ <- H.modify (_ { package = pkgList.items})
       pure next
 
     eval (HandlePagePackage PagePackage.FromPagePackage next) = eval (Initialize next)
