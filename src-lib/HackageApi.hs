@@ -11,7 +11,7 @@ module HackageApi where
 
 import           Prelude.Local
 
-import qualified Data.Aeson               as J
+-- import qualified Data.Aeson               as J
 import           Servant.API
 import           Servant.API.ContentTypes
 

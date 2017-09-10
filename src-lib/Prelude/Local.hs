@@ -29,6 +29,7 @@ module Prelude.Local
     , Set
     , Map
     , IntMap
+    , Vector
 
     , NonEmpty(..)
     , UUID.UUID
@@ -107,6 +108,7 @@ import           Data.Time.Clock.POSIX    (POSIXTime, getPOSIXTime,
                                            posixSecondsToUTCTime,
                                            utcTimeToPOSIXSeconds)
 import qualified Data.UUID.Types          as UUID
+import           Data.Vector              (Vector)
 import           Data.Word
 import qualified Distribution.Text        as C
 import           GHC.Generics
