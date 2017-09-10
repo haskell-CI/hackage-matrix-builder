@@ -46,20 +46,33 @@ type ControllerApi m =
   :<|> "v1.0.0" :> "user"                :> "name" :> Capture "username" UserName                      :> Get '[JSON] UserPkgs
 
   -- New-style API; we stick w/ the more common RESTful convention of using plural nouns for listable collections
+  :<|> "v2" :> "packages" :> Get '[JSON] [PkgN]
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
+
+  :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
+  :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Set PkgN)
+  :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> PutNoContent '[JSON] NoContent
+  :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> DeleteNoContent '[JSON] NoContent
 
 type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 
 type TagName = Text
 
+data TagsInfo = TagsInfo     (Set TagName)
+              | TagsInfoPkgs (Map TagName (Set PkgN))
+
+instance ToJSON TagsInfo where
+    toJSON (TagsInfo x)     = toJSON x
+    toJSON (TagsInfoPkgs x) = toJSON x
+
 data TagListEntry = TagListEntry
     { teName     :: !TagName
-    , tePackages :: [PkgN]
+    , tePackages :: !(Set PkgN)
     } deriving (Generic)
 
 data PkgListEntry = PkgListEntry
     { pleName   :: !PkgN
-    , pleTags   :: [TagName]
+    , pleTags   :: !(Set TagName)
     , pleReport :: Maybe UTCTime
     } deriving (Generic)
 

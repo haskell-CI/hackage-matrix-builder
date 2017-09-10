@@ -41,6 +41,7 @@ import qualified Data.Map.Strict                  as Map
 import           Data.Pool
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
+import Data.Coerce
 import qualified Database.PostgreSQL.Simple       as PGS
 import           Database.PostgreSQL.Simple.Types (Only (..))
 import           Network.HTTP.Client              (defaultManagerSettings,
@@ -134,7 +135,13 @@ server = tagListH
     :<|> usrListH
 
     -- v2
+    :<|> packagesH
     :<|> reportsH
+
+    :<|> tagsH
+    :<|> tagsGetH
+    :<|> tagsPutH
+    :<|> tagsDelH
 
   where
 
@@ -192,7 +199,7 @@ server = tagListH
                              (Only cnt)
 
             tags <- queryAllTagsInv dbconn
-            let ents = [ PkgListEntry pn (Map.findWithDefault [] pn tags) (fmap ptime2utc pt)
+            let ents = [ PkgListEntry pn (Map.findWithDefault mempty pn tags) (fmap ptime2utc pt)
                        | (pn,pt) <- res ]
             pure $! mkListSlice 0 ents
 
@@ -271,6 +278,9 @@ server = tagListH
     ----------------------------------------------------------------------------
     -- package v2 --------------------------------------------------------------
 
+    packagesH :: AppHandler [PkgN]
+    packagesH = withDbc $ \dbconn -> (coerce :: [Only PkgN] -> [PkgN]) <$> PGS.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
+
     reportsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
         ptimes1 <- PGS.query dbconn "SELECT DISTINCT ptime FROM solution_fail WHERE pname = ?" (PGS.Only pkgn)
         ptimes2 <- PGS.query dbconn "SELECT DISTINCT ptime FROM iplan_job JOIN solution USING (jobid) WHERE pname = ?" (PGS.Only pkgn)
@@ -279,8 +289,30 @@ server = tagListH
 
     pkgnExists :: PkgN -> PGS.Connection -> IO Bool
     pkgnExists pkgn dbconn = do
-       [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM pkgname WHERE pname = ?)" (PGS.Only pkgn)
-       pure ex
+        [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM pkgname WHERE pname = ?)" (PGS.Only pkgn)
+        pure ex
+
+    ----------------------------------------------------------------------------
+    -- tags v2 --------------------------------------------------------------
+
+    tagsH :: Bool -> AppHandler TagsInfo
+    tagsH False = TagsInfo <$> withDbc queryAllTagnames
+    tagsH True  = TagsInfoPkgs <$> withDbc queryAllTags
+
+    tagsGetH :: TagName -> AppHandler (Set PkgN)
+    tagsGetH tn = do
+        r <- withDbc $ \dbconn -> do
+            res <- PGS.query dbconn "SELECT pname FROM pname_tag WHERE tagname = ? ORDER BY pname" (PGS.Only tn)
+            pure (Set.fromList $ map PGS.fromOnly res)
+
+        when (r == mempty) $
+            throwServantErr' err404
+
+        pure r
+
+    tagsPutH, tagsDelH :: TagName -> PkgN -> AppHandler NoContent
+    tagsPutH tagn pkgn = tagSetH tagn pkgn >> pure NoContent
+    tagsDelH tagn pkgn = tagDelH tagn pkgn >> pure NoContent
 
     ----------------------------------------------------------------------------
     -- queue -------------------------------------------------------------------
@@ -354,15 +386,20 @@ withDbcGuard cond body = do
 
 type AppHandler = Handler App App
 
-queryAllTags :: PGS.Connection -> IO (Map TagName [PkgN])
+queryAllTags :: PGS.Connection -> IO (Map TagName (Set PkgN))
 queryAllTags dbconn = do
     res <- PGS.query_ dbconn "SELECT tagname,pname FROM pname_tag"
-    pure $ Map.fromListWith (++) [ (tn,[pn]) | (tn,pn) <- res ]
+    pure $ Map.fromListWith (<>) [ (tn,Set.singleton pn) | (tn,pn) <- res ]
 
-queryAllTagsInv :: PGS.Connection -> IO (Map PkgN [TagName])
+queryAllTagnames :: PGS.Connection -> IO (Set TagName)
+queryAllTagnames dbconn = do
+    tgs <- PGS.query_ dbconn "SELECT tagname FROM pname_tag ORDER by tagname"
+    pure (Set.fromList $ map fromOnly tgs)
+
+queryAllTagsInv :: PGS.Connection -> IO (Map PkgN (Set TagName))
 queryAllTagsInv dbconn = do
     res <- PGS.query_ dbconn "SELECT tagname,pname FROM pname_tag"
-    pure $ Map.fromListWith (++) [ (pn,[tn]) | (tn,pn) <- res ]
+    pure $ Map.fromListWith (<>) [ (pn,Set.singleton tn) | (tn,pn) <- res ]
 
 is2lbs :: InputStream ByteString -> IO LBS.ByteString
 is2lbs s = LBS.fromChunks <$> Streams.toList s
