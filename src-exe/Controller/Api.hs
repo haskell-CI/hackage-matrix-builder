@@ -47,6 +47,7 @@ type ControllerApi m =
 
   -- New-style API; we stick w/ the more common RESTful convention of using plural nouns for listable collections
   :<|> "v2" :> "packages" :> Get '[JSON] [PkgN]
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
