@@ -24,6 +24,7 @@ import Network.HTTP.Affjax.Response as Affjax
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Data.Int as Int
 import Data.Array as Arr
+import Control.Monad.Eff.Exception as E
 
 
 foreign import onPopstate :: forall e
@@ -133,6 +134,10 @@ formatDate date =
   case date of
     Just dt -> formatDate_ dt
     Nothing -> ""
+
+formatDate' :: RD.RemoteData E.Error T.ShallowReport -> String
+formatDate' (RD.Success date) = formatDate_ (_.modified date)
+formatDate' _ = ""
 
 undefine :: forall a . Undefined a -> Maybe a
 undefine u = undefine_ u Nothing (Just unit)

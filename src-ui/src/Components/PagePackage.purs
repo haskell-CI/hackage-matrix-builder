@@ -14,7 +14,7 @@ import Lib.Types as T
 import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
-import Lib.MiscFFI (formatDate)
+import Lib.MiscFFI as Misc
 import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=))
 import DOM.HTML as DOM
 import DOM.HTML.History as DOM
@@ -29,7 +29,7 @@ import Data.StrMap as SM
 import Data.Int as Int
 
 type State =
-  { initPackage :: T.PackageMeta
+  { initPackage :: Tuple.Tuple T.PackageMeta T.PackageTS
   , logdisplay  :: D.Display
   , package     :: T.Package
   , report      :: RD.RemoteData E.Error T.ShallowReport
@@ -47,7 +47,7 @@ data Query a
   | FailingPackage a
   | HighlightCell T.PackageName T.VersionName T.VersionName a
   | HandleTag T.TagName a
-  | Receive T.PackageMeta a
+  | Receive (Tuple.Tuple T.PackageMeta T.PackageTS) a
   | AddingNewTag T.PackageName T.TagName a
   | RemoveTag T.PackageName T.TagName a
   | UpdateTag (T.PackageName -> a)
@@ -60,9 +60,9 @@ data Message = FromPagePackage
 ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-component :: forall e. (Tuple.Tuple T.PackageName String)
-          -> H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
-component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
+component :: forall e.
+             H.Component HH.HTML Query (Tuple.Tuple T.PackageMeta T.PackageTS) Message (Api.Matrix e)
+component = H.lifecycleComponent
   { initialState: initialState
   , render
   , eval
@@ -72,7 +72,7 @@ component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
   }
   where
 
-    initialState :: T.PackageMeta -> State
+    initialState :: Tuple.Tuple T.PackageMeta T.PackageTS -> State
     initialState i =
       {
         initPackage: i
@@ -114,7 +114,7 @@ component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
                     [ HH.text $ _.name state.package ]
                 , HH.div
                     [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-                    [ HH.text $ "index-state: " <> (formatDate (_.report  state.initPackage))                ]
+                    [ HH.text $ "index-state: " <> (Misc.formatDate' state.report)                ]
                 , HH.div
                     [ HP.id_ "package-buildreport" ]
                     [ HH.h3
@@ -198,7 +198,7 @@ component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
                 [ HP.id_ "tagging" ]
                 [ HH.ul
                     [ HP.class_ (H.ClassName "tags") ] $
-                    renderPackageTag (_.name st.initPackage ) st.initPackage st.newtag
+                    renderPackageTag (_.name (Tuple.fst st.initPackage)) (Tuple.fst st.initPackage) st.newtag
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -213,7 +213,7 @@ component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
                         , HE.onClick $ HE.input_ (AddingNewTag st.newtag
-                                                               (_.name st.initPackage))
+                                                               (_.name (Tuple.fst st.initPackage)))
                         ]
                         [ HH.text "Add Tag" ]
                      ]
@@ -234,31 +234,21 @@ component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      hist <- H.liftEff $ DOM.window >>= DOM.history
-      Tuple.Tuple _ idx' <-  Api.latestIndex selectedPkg
-      pkgTs <- Api.getTimestamp selectedPkg
+      Tuple.Tuple _ idx' <-  Api.latestIndex (_.name (Tuple.fst st.initPackage))
+      pkgTs <- Api.getTimestamp  (_.name (Tuple.fst st.initPackage))
       let
         listIndex =
           case pkgTs of
             RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
-        idx  = if  Str.null selectedIdx then "" else "@" <> selectedIdx
-        sObj = SM.singleton "name" (Arg.encodeJson selectedPkg)
-        jObj = F.toForeign (SM.insert "index" (Arg.encodeJson idx) sObj)
-        pageName = DOM.DocumentTitle $ selectedPkg <> " - " <> idx
-        pageUrl = DOM.URL $ "#/package/" <> selectedPkg <> idx
-      traceAnyA idx
-      traceAnyA listIndex
-      traceAnyA latestIdx
-      traceAnyA selectedIdx
-      pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
-      packageByName <- H.lift $ Api.getPackageByName selectedPkg
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName selectedPkg
-      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp selectedPkg (if Str.null selectedIdx then latestIdx else selectedIdx)
-      queueStat <- H.lift $ Api.getQueueByName selectedPkg
+      packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst st.initPackage))
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name (Tuple.fst st.initPackage))
+      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp  (_.name (Tuple.fst st.initPackage))
+                         (if Str.null (Tuple.snd st.initPackage) then latestIdx else  (Tuple.snd st.initPackage))
+      queueStat <- H.lift $ Api.getQueueByName ( _.name (Tuple.fst st.initPackage))
       H.modify _  { package = packageByName
-                  , report = if Str.null selectedIdx then reportPackage else Api.parseShallowReport reportPackageTS
+                  , report = if Str.null (Tuple.snd st.initPackage) then reportPackage else Api.parseShallowReport reportPackageTS
                   , highlighted = false
                   , queueStatus = queueStat
                   }
@@ -288,16 +278,28 @@ component (Tuple.Tuple selectedPkg selectedIdx) = H.lifecycleComponent
       pure next
     eval (UpdateTag reply) = do
       st <- H.get
-      let packageName = _.name st.initPackage
+      let packageName = (_.name (Tuple.fst st.initPackage))
       reply <$> (pure packageName)
     eval (Receive pkgMeta next) = do
       st <- H.get
-      packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
-      queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
+      Tuple.Tuple _ idx' <- Api.latestIndex (_.name (Tuple.fst pkgMeta))
+      pkgTs <- Api.getTimestamp (_.name (Tuple.fst pkgMeta))
+      let
+        listIndex =
+          case pkgTs of
+            RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
+            _              -> []
+        latestIdx = Misc.getLastIdx listIndex
+      traceAnyA latestIdx
+      traceAnyA (Str.null (Tuple.snd pkgMeta))
+      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp  (_.name (Tuple.fst pkgMeta))
+                         (if Str.null (Tuple.snd pkgMeta) then latestIdx else  (Tuple.snd pkgMeta))
+      packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst pkgMeta))
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name (Tuple.fst pkgMeta))
+      queueStat <- H.lift $ Api.getQueueByName (_.name (Tuple.fst pkgMeta))
       H.modify _ { initPackage = pkgMeta
                  , package = packageByName
-                 , report = reportPackage
+                 , report = if Str.null (Tuple.snd pkgMeta) then reportPackage else Api.parseShallowReport reportPackageTS
                  , queueStatus = queueStat
                  }
       pure next
@@ -360,7 +362,7 @@ generateQueueButton st =
             ]
         , HH.button
             [ HP.class_ (H.ClassName "action")
-            , HE.onClick $ HE.input_ (QueueBuild (_.name st.initPackage) st.newPrio st.queueStatus)
+            , HE.onClick $ HE.input_ (QueueBuild (_.name (Tuple.fst st.initPackage)) st.newPrio st.queueStatus)
             ]
             [ HH.text "Queue build for this package" ]
         ]
