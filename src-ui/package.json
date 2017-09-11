@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "build": "pulp browserify --to ../ui/ui.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+      "test": "echo \"Error: no test specified\" && exit 1",
+    "pulp":"pulp"
   },
   "author": "",
   "license": "ISC",

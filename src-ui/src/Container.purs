@@ -34,8 +34,9 @@ import Data.Either (fromRight)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
+import Data.Tuple as Tuple
 import Partial.Unsafe (unsafePartial)
-import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>))
+import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>), (/=))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
 
@@ -73,7 +74,7 @@ ui =
   where
     initialState :: State
     initialState =
-      { route: T.HomePage
+      { route: T.ErrorPage
       , package: []
       }
 
@@ -87,7 +88,7 @@ ui =
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
             (T.PackagePage pkgName) ->
               HH.slot' CP.cp4 unit PagePackage.component
-                  (getPackageMeta pkgName st.package) (HE.input HandlePagePackage)
+                  (getPackageMeta (Misc.makeTuplePkgIdx pkgName) st.package) (HE.input HandlePagePackage)
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
             (T.UserPage usr) ->
@@ -145,7 +146,7 @@ ui =
       pkgList <- H.lift Api.getPackageList
       pkgRef <- asks _.packageList
       _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)
-      _ <- H.modify (_ { package = pkgList.items })
+      _ <- H.modify (_ { package = pkgList.items})
       pure next
 
     eval (HandlePagePackage PagePackage.FromPagePackage next) = eval (Initialize next)
@@ -189,11 +190,11 @@ routing =  latest
     user = T.UserPage <$> (slash *> lit "user" *> str)
     error = T.ErrorPage <$ lit "error"
 
-getPackageMeta :: T.PackageName -> Array T.PackageMeta  -> T.PackageMeta
-getPackageMeta pkgName pkgMetaArr =
+getPackageMeta :: Tuple.Tuple T.PackageName T.PackageTS -> Array T.PackageMeta  -> Tuple.Tuple T.PackageMeta T.PackageTS
+getPackageMeta (Tuple.Tuple pkgName idx) pkgMetaArr =
   case Arr.uncons filteredPkgMetaArr of
-    Just { head: x, tail: xs } -> x
-    Nothing                    -> { name: "", report: Nothing, tags: []}
+    Just { head: x, tail: xs } -> Tuple.Tuple x idx
+    Nothing                    -> Tuple.Tuple { name: "", report: Nothing, tags: []} "no index state"
   where
     filteredPkgMetaArr = Arr.filter (\x -> x.name == pkgName) pkgMetaArr
 

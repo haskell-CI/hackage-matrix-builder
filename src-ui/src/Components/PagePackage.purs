@@ -14,11 +14,22 @@ import Lib.Types as T
 import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
-import Lib.MiscFFI (formatDate)
-import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||))
+import Lib.MiscFFI as Misc
+import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=))
+import DOM.HTML as DOM
+import DOM.HTML.History as DOM
+import DOM.HTML.Window as DOM
+import Debug.Trace
+import Lib.MiscFFI as Misc
+import Data.Traversable as TRV
+import Data.Tuple as Tuple
+import Data.Argonaut as Arg
+import Data.Foreign as F
+import Data.StrMap as SM
+import Data.Int as Int
 
 type State =
-  { initPackage :: T.PackageMeta
+  { initPackage :: Tuple.Tuple T.PackageMeta T.PackageTS
   , logdisplay  :: D.Display
   , package     :: T.Package
   , report      :: RD.RemoteData E.Error T.ShallowReport
@@ -36,7 +47,7 @@ data Query a
   | FailingPackage a
   | HighlightCell T.PackageName T.VersionName T.VersionName a
   | HandleTag T.TagName a
-  | Receive T.PackageMeta a
+  | Receive (Tuple.Tuple T.PackageMeta T.PackageTS) a
   | AddingNewTag T.PackageName T.TagName a
   | RemoveTag T.PackageName T.TagName a
   | UpdateTag (T.PackageName -> a)
@@ -49,7 +60,8 @@ data Message = FromPagePackage
 ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
-component :: forall e. H.Component HH.HTML Query T.PackageMeta Message (Api.Matrix e)
+component :: forall e.
+             H.Component HH.HTML Query (Tuple.Tuple T.PackageMeta T.PackageTS) Message (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: initialState
   , render
@@ -60,7 +72,7 @@ component = H.lifecycleComponent
   }
   where
 
-    initialState :: T.PackageMeta -> State
+    initialState :: Tuple.Tuple T.PackageMeta T.PackageTS -> State
     initialState i =
       {
         initPackage: i
@@ -102,7 +114,7 @@ component = H.lifecycleComponent
                     [ HH.text $ _.name state.package ]
                 , HH.div
                     [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-                    [ HH.text $ "index-state: " <> (formatDate (_.report  state.initPackage))                ]
+                    [ HH.text $ "index-state: " <> (Misc.formatDate' state.report)                ]
                 , HH.div
                     [ HP.id_ "package-buildreport" ]
                     [ HH.h3
@@ -119,6 +131,25 @@ component = H.lifecycleComponent
                     ]
                 ]
             ]
+        renderBody' state RD.NotAsked =
+          HH.div
+            [ HP.id_ "page-package"
+            , HP.class_ (H.ClassName "page")
+            ]
+            [ HH.div
+                [ HP.class_ (H.ClassName "rightcol") ]
+                [ legend
+                , queueing state
+                , tagging state
+                ]
+            , HH.div
+                [ HP.class_ (H.ClassName "leftcol") ]
+                [ HH.h2
+                    [ HP.class_ (H.ClassName "main-header") ]
+                    [ HH.text $ _.name state.package ]
+                ]
+            ]
+
         renderBody' state _ =
           HH.div
             [ HP.id_ "page-package"
@@ -167,7 +198,7 @@ component = H.lifecycleComponent
                 [ HP.id_ "tagging" ]
                 [ HH.ul
                     [ HP.class_ (H.ClassName "tags") ] $
-                    renderPackageTag (_.name st.initPackage ) st.initPackage st.newtag
+                    renderPackageTag (_.name (Tuple.fst st.initPackage)) (Tuple.fst st.initPackage) st.newtag
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -182,7 +213,7 @@ component = H.lifecycleComponent
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
                         , HE.onClick $ HE.input_ (AddingNewTag st.newtag
-                                                               (_.name st.initPackage))
+                                                               (_.name (Tuple.fst st.initPackage)))
                         ]
                         [ HH.text "Add Tag" ]
                      ]
@@ -203,11 +234,21 @@ component = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
-      queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
+      Tuple.Tuple _ idx' <-  Api.latestIndex (_.name (Tuple.fst st.initPackage))
+      pkgTs <- Api.getTimestamp  (_.name (Tuple.fst st.initPackage))
+      let
+        listIndex =
+          case pkgTs of
+            RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
+            _              -> []
+        latestIdx = Misc.getLastIdx listIndex
+      packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst st.initPackage))
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name (Tuple.fst st.initPackage))
+      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp  (_.name (Tuple.fst st.initPackage))
+                         (if Str.null (Tuple.snd st.initPackage) then latestIdx else  (Tuple.snd st.initPackage))
+      queueStat <- H.lift $ Api.getQueueByName ( _.name (Tuple.fst st.initPackage))
       H.modify _  { package = packageByName
-                  , report = reportPackage
+                  , report = if Str.null (Tuple.snd st.initPackage) then reportPackage else Api.parseShallowReport reportPackageTS
                   , highlighted = false
                   , queueStatus = queueStat
                   }
@@ -237,16 +278,28 @@ component = H.lifecycleComponent
       pure next
     eval (UpdateTag reply) = do
       st <- H.get
-      let packageName = _.name st.initPackage
+      let packageName = (_.name (Tuple.fst st.initPackage))
       reply <$> (pure packageName)
     eval (Receive pkgMeta next) = do
       st <- H.get
-      packageByName <- H.lift $ Api.getPackageByName (_.name st.initPackage)
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name st.initPackage)
-      queueStat <- H.lift $ Api.getQueueByName (_.name st.initPackage)
+      Tuple.Tuple _ idx' <- Api.latestIndex (_.name (Tuple.fst pkgMeta))
+      pkgTs <- Api.getTimestamp (_.name (Tuple.fst pkgMeta))
+      let
+        listIndex =
+          case pkgTs of
+            RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
+            _              -> []
+        latestIdx = Misc.getLastIdx listIndex
+      traceAnyA latestIdx
+      traceAnyA (Str.null (Tuple.snd pkgMeta))
+      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp  (_.name (Tuple.fst pkgMeta))
+                         (if Str.null (Tuple.snd pkgMeta) then latestIdx else  (Tuple.snd pkgMeta))
+      packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst pkgMeta))
+      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name (Tuple.fst pkgMeta))
+      queueStat <- H.lift $ Api.getQueueByName (_.name (Tuple.fst pkgMeta))
       H.modify _ { initPackage = pkgMeta
                  , package = packageByName
-                 , report = reportPackage
+                 , report = if Str.null (Tuple.snd pkgMeta) then reportPackage else Api.parseShallowReport reportPackageTS
                  , queueStatus = queueStat
                  }
       pure next
@@ -268,7 +321,6 @@ component = H.lifecycleComponent
       pure next
 
 checkQueueStatus :: forall p i. RD.RemoteData E.Error (Maybe T.QueueItem) ->  Array (HH.HTML p i)
-
 checkQueueStatus (RD.Success (Just qi)) =
   [ HH.div
       [ HP.class_ (H.ClassName "already-queued") ]
@@ -310,7 +362,7 @@ generateQueueButton st =
             ]
         , HH.button
             [ HP.class_ (H.ClassName "action")
-            , HE.onClick $ HE.input_ (QueueBuild (_.name st.initPackage) st.newPrio st.queueStatus)
+            , HE.onClick $ HE.input_ (QueueBuild (_.name (Tuple.fst st.initPackage)) st.newPrio st.queueStatus)
             ]
             [ HH.text "Queue build for this package" ]
         ]
@@ -325,7 +377,6 @@ isPrioSelected prio (RD.Success (Just qi)) =
     false -> []
 -- isPrioSelected prio (RD.Success Nothing)   = []
 isPrioSelected prio _                      = []
-
 
 renderMissingPackage :: forall p i. T.PackageName -> HH.HTML p i
 renderMissingPackage pkgName =

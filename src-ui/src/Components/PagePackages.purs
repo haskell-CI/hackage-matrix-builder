@@ -5,6 +5,8 @@ import Data.Array as Arr
 import Data.Char as Char
 import Data.Set as Set
 import Data.String as Str
+import Data.Traversable as TR
+import Data.Tuple as Tuple
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -13,10 +15,18 @@ import Lib.MatrixApi as Api
 import Lib.MiscFFI as MiscFFI
 import Lib.Types as T
 import Network.RemoteData as RD
+import Network.HTTP.Affjax as Affjax
+import Network.HTTP.Affjax.Response as Affjax
 import Control.Monad.Eff.Class (liftEff)
+import Control.Monad.Aff (Aff)
+import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Reader.Class (asks)
+import Control.Monad.Eff.Exception as E
 import Data.Maybe (Maybe(..), isNothing)
-import Prelude ( type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
+import Prelude ( type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>), (<*>), show)
+import Data.Argonaut as Arg
+import Debug.Trace
+import Data.Int as Int
 
 type State =
  {
@@ -90,7 +100,7 @@ component = H.lifecycleComponent
               [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
           , HH.ol
               [ HP.class_ (H.ClassName "packages") ] $
-                Arr.take 650 $ buildPackages <$> packages'
+                Arr.take 650 $ buildPackages state <$> packages'
           ]
       ]
     where
@@ -105,7 +115,7 @@ component = H.lifecycleComponent
     pkgRef <- asks _.packageList
     packageList <- liftEff (Ref.readRef pkgRef)
     let packages = RD.withDefault {offset: 0, count: 0, items: []} packageList
-    initState <- H.put $ st { packages = packages.items, tags = tagItem.items, clicked = false}
+    initState <- H.put $ st { packages = packages.items, tags = tagItem.items, clicked = false }
     pure next
 
   eval (SelectedTag tag next) = do
@@ -160,12 +170,11 @@ buildTags' st tag =
   where
     clickStatus = if (Set.member tag.name st.selectedTag)  then "active" else " "
 
-buildPackages :: forall p. T.PackageMeta -> HH.HTML p (Query Unit)
-buildPackages packageMeta =
+buildPackages :: forall p. State -> T.PackageMeta -> HH.HTML p (Query Unit)
+buildPackages state packageMeta =
   HH.li_ $
     [ HH.a
-        [ HP.href $ "#/package/" <> packageMeta.name
-        ]
+        [ HP.href $ "#/package/" <> packageMeta.name]
         [ HH.text packageMeta.name ]
     ] <> (buildTags <$> packageMeta.tags) <> [ HH.small_ [ HH.text $ " - index-state: " <> (MiscFFI.formatDate packageMeta.report) ] ]
 

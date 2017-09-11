@@ -6,9 +6,11 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
+import Lib.MiscFFI as Misc
 import Data.Maybe (Maybe(..))
-import Data.Traversable (Accum, mapAccumL)
 import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
+import Data.Traversable as TR
+import Data.Tuple as Tuple
 
 type State =
  {
@@ -70,7 +72,7 @@ component = H.lifecycleComponent
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text "Latest Builds" ]
                 , HH.ul
-                    [ HP.id_ "build-list" ] $ buildPackages <$> state.latestlist
+                    [ HP.id_ "build-list" ] $ buildPackages state <$> state.latestlist
 
                 ]
             , HH.div
@@ -80,20 +82,22 @@ component = H.lifecycleComponent
                     [ HH.text "Build Queue" ]
                 , HH.table
                     [ HP.id_ "queue-list" ]
-                    [ HH.tbody_ $ getTheResult accumResult ]
+                    [ HH.tbody_ $ getTheResult (accumResult state) ]
                 ]
             ]
         ]
       where
-        accumResult = mapAccumL renderTableQueue 1 (state.queuelist)
+        accumResult st = TR.mapAccumL (renderTableQueue st) 1 (state.queuelist)
         getTheResult { value } = value
 
     eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      qlist <- H.lift Api.getQueueList
-      llist <- H.lift Api.getListLatestReports
-      initState <- H.put $ st { latestlist = llist.items, queuelist = qlist.items }
+      qList <- H.lift Api.getQueueList
+      lList <- H.lift Api.getListLatestReports
+      initState <- H.put $ st { latestlist = lList.items
+                              , queuelist = qList.items
+                              }
       pure next
     eval (PriorityUp pkgName priority next) = do
       _ <- H.lift $ Api.putQueueSaveByName pkgName (case priority of
@@ -120,8 +124,8 @@ component = H.lifecycleComponent
     eval (Finalize next) = do
       pure next
 
-buildPackages :: forall p i. T.LatestItem -> HH.HTML p i
-buildPackages latestItem =
+buildPackages :: forall p i. State -> T.LatestItem -> HH.HTML p i
+buildPackages state latestItem =
   HH.li_ $
     [ HH.a
         [ HP.href $ "#/package/" <> latestItem.packageName
@@ -129,10 +133,11 @@ buildPackages latestItem =
         [ HH.text latestItem.packageName ]
     ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (latestItem.modified) ] ]
 
-renderTableQueue :: forall p. Int
+renderTableQueue :: forall p. State
+                 -> Int
                  -> T.QueueItem
-                 -> Accum Int (HH.HTML p (Query Unit))
-renderTableQueue num { packageName, priority } =
+                 -> TR.Accum Int (HH.HTML p (Query Unit))
+renderTableQueue state num { packageName, priority } =
   { accum: num + 1
   , value: HH.tr
              [ HP.class_ (H.ClassName priority) ] $
@@ -142,7 +147,8 @@ renderTableQueue num { packageName, priority } =
              , HH.td
                  [ HP.class_ (H.ClassName "package-name") ]
                  [ HH.a
-                     [HP.href $ "#/package/" <> packageName]
+                     [HP.href $ "#/package/" <> packageName
+                     ]
                      [HH.text $ packageName]
                  ]
              , HH.td
