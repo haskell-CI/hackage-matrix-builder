@@ -13,6 +13,19 @@ import Lib.Uri (Uri)
 import Lib.Uri as Uri
 import Lib.Undefined
 import Unsafe.Coerce
+import Lib.Types as T
+import Data.Argonaut as Arg
+import Data.Traversable as TR
+import Data.Tuple as Tuple
+import Data.String as Str
+import Network.RemoteData as RD
+import Network.HTTP.Affjax as Affjax
+import Network.HTTP.Affjax.Response as Affjax
+import Control.Monad.Aff.Class (class MonadAff, liftAff)
+import Data.Int as Int
+import Data.Array as Arr
+import Control.Monad.Eff.Exception as E
+
 
 foreign import onPopstate :: forall e
    . (JQueryEvent -> Eff (dom :: DOM | e) Unit)
@@ -122,9 +135,36 @@ formatDate date =
     Just dt -> formatDate_ dt
     Nothing -> ""
 
+formatDate' :: RD.RemoteData E.Error T.ShallowReport -> String
+formatDate' (RD.Success date) = formatDate_ (_.modified date)
+formatDate' _ = ""
+
 undefine :: forall a . Undefined a -> Maybe a
 undefine u = undefine_ u Nothing (Just unit)
 
 foreign import undefine_ :: forall a b . Undefined a -> Maybe b -> Maybe b -> Maybe a
 
 foreign import tabs :: forall e . JQuery -> Eff (dom :: DOM | e) Unit
+
+lookupIndex :: T.PackageName -> Array (Tuple.Tuple T.PackageName String) -> String
+lookupIndex pkgName pkgIdxTuple =
+  case Tuple.lookup pkgName pkgIdxTuple of
+    Just a  -> "@" <> a
+    Nothing -> ""
+
+fromIndexToNumber :: Maybe Arg.JArray -> Array Number
+fromIndexToNumber (Just arrJson) =
+  case TR.traverse Arg.toNumber arrJson of
+    Just arrStr -> arrStr
+    Nothing      -> []
+fromIndexToNumber Nothing        = []
+
+makeTuplePkgIdx :: T.PackageName -> Tuple.Tuple T.PackageName String
+makeTuplePkgIdx pkg = Tuple.Tuple (Str.takeWhile ((/=) '@') pkg) (((Str.drop 1) <<< Str.dropWhile ((/=) '@')) pkg)
+
+getLastIdx :: Array Int -> String
+getLastIdx arrInt=
+  case Arr.last arrInt of
+    Just a -> show a
+    Nothing -> ""
+

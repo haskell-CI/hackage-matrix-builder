@@ -6,19 +6,40 @@ import Data.Function.Uncurried as U
 import Lib.Types as T
 import Network.RemoteData as RD
 import Run as R
-import Control.Monad.Aff (Aff, attempt, makeAff)
+import Control.Monad.Aff (Aff, attempt, makeAff, launchAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff.Ref (Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
+import Control.Monad.Except as Except
 import Data.Maybe (Maybe(..))
 import Data.Nullable (Nullable, toMaybe)
 import Halogen.Aff (HalogenEffects)
-import Lib.MiscFFI (undefine)
+import Lib.MiscFFI as Misc
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
-import Prelude (Unit, pure, bind, const, map, ($), (<<<))
+import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>), (<$>), show, (/=), (==), otherwise)
+import Network.HTTP.Affjax as Affjax
+import Network.HTTP.Affjax.Response as Affjax
+import Data.HTTP.Method (Method(..))
+import Data.Either (Either(..))
+import Data.String as Str
+import Data.String.Regex as Regex
+import Data.String.Regex.Flags as RegexF
+import Data.Array as Arr
+import Data.Traversable as TRV
+import Data.Maybe as M
+import Data.StrMap as SM
+import Network.HTTP.StatusCode as SC
+import Data.Argonaut as Arg
+import Data.Argonaut.Core as Arg
+import Data.Argonaut.Decode as Arg
+import DOM
+import DOM.HTML.Types as DOM
+import Data.Tuple as Tuple
+import Data.Int as Int
 
 foreign import data MatrixApi :: Type
+
 
 foreign import data API :: Effect
 
@@ -26,11 +47,11 @@ type Environment e = { matrixClient :: MatrixApi
                    , packageList :: Ref (RD.RemoteData (Eff (api :: API | e) Unit) (T.ApiList T.PackageMeta))
                    }
 
-type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API | eff)))
+type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API, ajax :: Affjax.AJAX  , dom :: DOM, history :: DOM.HISTORY| eff)))
 
 type Matrix eff = MatrixApi' eff
 
-type MatrixEffects = HalogenEffects (api :: API)
+type MatrixEffects = HalogenEffects (api :: API, ajax :: Affjax.AJAX, dom :: DOM, history :: DOM.HISTORY)
 
 foreign import newApi :: forall eff
    . String
@@ -40,6 +61,192 @@ foreign import newApi :: forall eff
 foreign import data JQueryXHR :: Type
 
 type ApiEff e o = Eff (api :: API | e) o
+
+getTimestamp :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
+             => T.PackageName
+             -> m (RD.RemoteData String Arg.Json)
+getTimestamp pkgName = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/packages/" <> pkgName <> "/reports"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  pure (RD.fromEither decodedApi)
+
+getLatestReportByPackageTimestamp :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
+                                  => T.PackageName
+                                  -> T.PackageTS
+                                  -> m (RD.RemoteData E.Error Arg.Json)
+getLatestReportByPackageTimestamp pkgName pkgTs = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v1.0.0/package/name/" <> pkgName <> "/report/idxstate/"<> pkgTs
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+parseShallowReport :: RD.RemoteData E.Error Arg.Json
+                 -> RD.RemoteData E.Error T.ShallowReport
+parseShallowReport (RD.Success a) =
+  case Arg.toObject a of
+    Just a' ->
+      let
+        packageName' =
+          case SM.lookup "packageName" a' of
+            Just pkgName ->
+              case Arg.toString pkgName of
+                Just pkgName' -> pkgName'
+                Nothing -> "package is not String"
+            Nothing -> "package name does not exist"
+        modified' =
+          case SM.lookup "modified" a' of
+            Just mod ->
+              case Arg.toString mod of
+                Just mod' -> mod'
+                Nothing -> "modified is not string"
+            Nothing -> "modified does not exist"
+        results' =
+          case SM.lookup "results" a' of
+            Just res ->
+              case Arg.toArray res of
+                Just res' -> parseShallowGhcResult (TRV.traverse Arg.toObject res')
+                Nothing -> []
+            Nothing -> []
+      in RD.Success
+           { packageName : packageName'
+           , modified : modified'
+           , results : results'
+           }
+    Nothing -> RD.Failure (E.error "This is not an Object")
+parseShallowReport (RD.Failure e) = RD.Failure e
+parseShallowReport RD.Loading = RD.Loading
+parseShallowReport RD.NotAsked = RD.NotAsked
+
+shallowReportDefault :: T.ShallowReport
+shallowReportDefault =
+  { packageName: ""
+  , modified: ""
+  , results: []
+  }
+
+parseShallowGhcResult :: Maybe (Array Arg.JObject) -> Array T.ShallowGhcResult
+parseShallowGhcResult (Just a) = singleShallowGhcResult <$> a
+parseShallowGhcResult Nothing = []
+
+singleShallowGhcResult :: Arg.JObject -> T.ShallowGhcResult
+singleShallowGhcResult jObj =
+  let
+    ghcVer' =
+      case SM.lookup "ghcVersion" jObj of
+        Just ver ->
+          case Arg.toString ver of
+            Just ver' -> ver'
+            Nothing -> "version is not String"
+        Nothing -> "version does not exist"
+    ghcFullVer' =
+      case SM.lookup "ghcFullVersion" jObj of
+        Just fullVer ->
+          case Arg.toString fullVer of
+            Just fullVer' -> fullVer'
+            Nothing -> "full version is not String"
+        Nothing -> "full version does not exist"
+    ghcResult' =
+      case SM.lookup "ghcResult" jObj of
+        Just result ->
+          case Arg.toArray result of
+            Just result' -> parseShallowVersionResult (TRV.traverse Arg.toObject result')
+            Nothing -> []
+        Nothing -> []
+  in
+   { ghcVersion : ghcVer'
+   , ghcFullVersion : ghcFullVer'
+   , ghcResult : ghcResult'
+   }
+
+shallowGhcResultDefault :: T.ShallowGhcResult
+shallowGhcResultDefault =
+  { ghcVersion     : ""
+  , ghcFullVersion : ""
+  , ghcResult      : []
+  }
+
+parseShallowVersionResult :: Maybe (Array Arg.JObject) -> Array T.ShallowVersionResult
+parseShallowVersionResult (Just a) = singleShallowVersionResult <$> a
+parseShallowVersionResult Nothing = []
+
+singleShallowVersionResult :: Arg.JObject -> T.ShallowVersionResult
+singleShallowVersionResult jObj =
+  let
+    pkgVer' =
+      case SM.lookup "packageVersion" jObj of
+        Just ver ->
+          case Arg.toString ver of
+            Just ver' -> ver'
+            Nothing -> "version is not String"
+        Nothing -> "version does not exist"
+    pkgRev' =
+      case SM.lookup "packageRevision" jObj of
+        Just rev ->
+          case Arg.toNumber rev of
+            Just rev' -> Int.round rev'
+            Nothing -> 0
+        Nothing -> 0
+    result' =
+      case SM.lookup "result" jObj of
+        Just result ->
+          case Arg.toObject result of
+            Just result' -> parseShallowResult result'
+            Nothing -> T.Unknown
+        Nothing -> T.Unknown
+  in
+   { packageVersion : pkgVer'
+   , packageRevision : pkgRev'
+   , result : result'
+   }
+
+parseShallowResult :: Arg.JObject -> T.ShallowResult
+parseShallowResult jObj =
+  case Arr.head (SM.keys jObj) of
+    Just a -> toShallowResult a
+    Nothing -> T.Unknown
+
+toShallowResult :: String -> T.ShallowResult
+toShallowResult  str
+  | str == "ok" = T.ShallowOk
+  | str == "nop" = T.ShallowNop
+  | str == "noip" = T.ShallowNoIp
+  | str == "noipbjlimit" = T.ShallowNoIpBjLimit 0
+  | str == "noipfail" = T.ShallowNoIpFail
+  | str == "fail" = T.ShallowFail
+  | str == "faildeps" = T.ShallowFailDeps 0
+  | otherwise = T.Unknown
+
+
+
+shallowVersionResultDefault :: T.ShallowVersionResult
+shallowVersionResultDefault =
+ { packageVersion  : ""
+ , packageRevision : 0
+ , result          : T.Unknown
+ }
+
+latestIndex :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+            => T.PackageName
+            -> m (Tuple.Tuple T.PackageName String)
+latestIndex pkgName = do
+  idx <- getTimestamp pkgName
+  case idx of
+    RD.Success idx -> getIdx ((show <<< Int.round) <$> (Misc.fromIndexToNumber (Arg.toArray idx))) pkgName
+    _              -> pure $ Tuple.Tuple "" ""
+  where
+    getIdx idx' pkg'=
+      case Arr.last idx' of
+        Just a  -> pure $ Tuple.Tuple pkg' a
+        Nothing -> pure $ Tuple.Tuple "" ""
 
 getPackageList :: forall e a m. MonadReader (Environment a) m
                => MonadAff (api :: API | e) m
@@ -54,7 +261,7 @@ getQueueByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
              -> m (RD.RemoteData E.Error (Maybe T.QueueItem))
 getQueueByName pkg = do
   client <- asks _.matrixClient
-  queueI <- liftAff $ attempt (queueByName client pkg)
+  queueI <- liftAff (attempt (queueByName client pkg))
   pure (RD.fromEither queueI)
 
 getQueueList :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
@@ -77,7 +284,7 @@ getListLatestReports :: forall a e m. MonadReader { matrixClient :: MatrixApi | 
                      => m (T.ApiList T.LatestItem)
 getListLatestReports = do
   client <- asks _.matrixClient
-  liftAff (listLatestReports client { count : (Just 100), offset : Nothing })
+  liftAff (listLatestReports client { count : (Just 50), offset : Nothing })
 
 putQueueSaveByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                    => MonadAff (api :: API | e) m
@@ -402,7 +609,7 @@ packageList api range = makeAff \err succ ->
     (stringyErr err "Getting package list failed")
   where
     packageMetaFromFFI :: PackageMetaFFI -> T.PackageMeta
-    packageMetaFromFFI p = p { report = undefine p.report }
+    packageMetaFromFFI p = p { report = Misc.undefine p.report }
 
 type PackageMetaFFI =
   { name   :: T.PackageName

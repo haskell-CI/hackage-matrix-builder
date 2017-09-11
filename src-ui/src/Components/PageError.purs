@@ -29,19 +29,10 @@ component =
     render :: State -> H.ComponentHTML Query
     render state =
       HH.div
-        [ HP.id_ "page-notfound"
+        [ HP.id_ "page-home"
         , HP.class_ (H.ClassName "page")
         ]
-        [ HH.div
-            [ HP.class_ (H.ClassName "leftcol") ]
-            [ HH.h2
-                [ HP.class_ (H.ClassName "main-header") ]
-                [ HH.text "404'd!" ]
-            , HH.div
-                [ HP.classes (H.ClassName <$> ["main-header-subtext", "error"]) ]
-                [ HH.text "The page could not be found!" ]
-            ]
-        ]
+        []
 
     eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (ReadStates next) = do

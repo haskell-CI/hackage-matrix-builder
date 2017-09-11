@@ -20,7 +20,8 @@ type HdiffUrl = String
 type Cell = String
 type Word = Int
 type Prefixs = String
-
+type PkgIdxTs = Int
+type PackageTS = String
 
 data PageRoute = HomePage
                | LatestPage
@@ -34,6 +35,10 @@ derive instance gPageRoute :: G.Generic PageRoute _
 
 instance sPageRoute :: Show PageRoute where show = genericShow
 
+type PackageState =
+  { name :: PackageName
+  , index :: PkgIdxTs
+  }
 
 data Tags = Tags { unTags :: Map TagName (Array PackageName) }
 
