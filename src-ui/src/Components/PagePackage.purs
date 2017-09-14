@@ -15,7 +15,7 @@ import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI as Misc
-import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=))
+import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=), (-))
 import DOM.HTML as DOM
 import DOM.HTML.History as DOM
 import DOM.HTML.Window as DOM
@@ -26,7 +26,10 @@ import Data.Tuple as Tuple
 import Data.Argonaut as Arg
 import Data.Foreign as F
 import Data.StrMap as SM
+import Data.Either (Either(..))
 import Data.Int as Int
+import Data.Map as Map
+import Data.Formatter.DateTime as FDT
 
 type State =
   { initPackage :: Tuple.Tuple T.PackageMeta T.PackageTS
@@ -40,6 +43,10 @@ type State =
   , newPrio :: T.Priority
   , queueStatus :: RD.RemoteData E.Error (Maybe T.QueueItem)
   , queueClicked :: Boolean
+  , listTimeStamp :: Array T.PkgIdxTs
+  , currentSelectedIdx :: T.PackageTS
+  , latestIndex :: T.PackageTS
+  , mapIndexState :: Map.Map Int T.PackageTS
   }
 
 data Query a
@@ -53,6 +60,7 @@ data Query a
   | UpdateTag (T.PackageName -> a)
   | HandleQueue Int a
   | QueueBuild T.PackageName T.Priority (RD.RemoteData E.Error (Maybe T.QueueItem)) a
+  | HandleIndex State Int a
   | Finalize a
 
 data Message = FromPagePackage
@@ -90,6 +98,10 @@ component = H.lifecycleComponent
       , newPrio: T.Low
       , queueStatus: RD.NotAsked
       , queueClicked: false
+      , listTimeStamp: []
+      , currentSelectedIdx: ""
+      , latestIndex: ""
+      , mapIndexState: Map.empty
       }
 
     render :: State -> H.ComponentHTML Query
@@ -106,6 +118,7 @@ component = H.lifecycleComponent
                 [ legend
                 , queueing state
                 , tagging state
+                , indexing state
                 ]
             , HH.div
                 [ HP.class_ (H.ClassName "leftcol") ]
@@ -231,6 +244,17 @@ component = H.lifecycleComponent
                 if st.queueClicked then buildIsQueued else generateQueueButton st
             ]
 
+        indexing st =
+          HH.div
+            [ HP.class_ (H.ClassName "sub") ] $
+            [ HH.h4
+                [ HP.class_ (H.ClassName "header") ]
+                [ HH.text "Index State"]
+            , HH.div
+                [ HP.id_ "indexing" ] $
+                if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st
+            ]
+
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
@@ -242,15 +266,22 @@ component = H.lifecycleComponent
             RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
+        mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
       packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst st.initPackage))
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name (Tuple.fst st.initPackage))
-      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp  (_.name (Tuple.fst st.initPackage))
-                         (if Str.null (Tuple.snd st.initPackage) then latestIdx else  (Tuple.snd st.initPackage))
+      reportPackage <- H.lift $
+        if Str.null (Tuple.snd st.initPackage)
+        then Api.getLatestReportByPackageName (_.name (Tuple.fst st.initPackage))
+        else (Api.getLatestReportByPackageTimestamp (_.name (Tuple.fst st.initPackage)) (Tuple.snd st.initPackage))
+                >>= Api.parseShallowReport
       queueStat <- H.lift $ Api.getQueueByName ( _.name (Tuple.fst st.initPackage))
       H.modify _  { package = packageByName
-                  , report = if Str.null (Tuple.snd st.initPackage) then reportPackage else Api.parseShallowReport reportPackageTS
+                  , report = reportPackage
                   , highlighted = false
                   , queueStatus = queueStat
+                  , listTimeStamp = listIndex
+                  , currentSelectedIdx = Tuple.snd st.initPackage
+                  , latestIndex = latestIdx
+                  , mapIndexState = mapIdxSt
                   }
       pure next
     eval (FailingPackage next) = do
@@ -290,17 +321,22 @@ component = H.lifecycleComponent
             RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
-      traceAnyA latestIdx
-      traceAnyA (Str.null (Tuple.snd pkgMeta))
-      reportPackageTS <- H.lift $ Api.getLatestReportByPackageTimestamp  (_.name (Tuple.fst pkgMeta))
-                         (if Str.null (Tuple.snd pkgMeta) then latestIdx else  (Tuple.snd pkgMeta))
+        mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
       packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst pkgMeta))
-      reportPackage <- H.lift $ Api.getLatestReportByPackageName (_.name (Tuple.fst pkgMeta))
+      reportPackage <- H.lift $
+        if Str.null (Tuple.snd pkgMeta)
+        then  Api.getLatestReportByPackageName (_.name (Tuple.fst pkgMeta))
+        else  (Api.getLatestReportByPackageTimestamp (_.name (Tuple.fst pkgMeta)) (Tuple.snd pkgMeta))
+                 >>= Api.parseShallowReport
       queueStat <- H.lift $ Api.getQueueByName (_.name (Tuple.fst pkgMeta))
       H.modify _ { initPackage = pkgMeta
                  , package = packageByName
-                 , report = if Str.null (Tuple.snd pkgMeta) then reportPackage else Api.parseShallowReport reportPackageTS
+                 , report = reportPackage
                  , queueStatus = queueStat
+                 , listTimeStamp = listIndex
+                 , latestIndex = latestIdx
+                 , currentSelectedIdx = Tuple.snd pkgMeta
+                 , mapIndexState = mapIdxSt
                  }
       pure next
     eval (HandleQueue idx next) = do
@@ -317,6 +353,23 @@ component = H.lifecycleComponent
       H.modify _ { queueClicked = true }
       _ <- H.lift $ Api.putQueueCreate pkgName prio
       pure next
+    eval (HandleIndex st idx next) = do
+      traceAnyA ("current index is : " <> (show idx))
+      let
+        selectedIndex' =
+          case Map.lookup idx st.mapIndexState of
+            Just a -> a
+            Nothing -> ""
+        package = Tuple.fst st.initPackage
+        sObj = SM.singleton "name" (Arg.encodeJson (_.name st.package))
+        jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
+        indexURL = if Str.null selectedIndex' then "" else "@" <> selectedIndex'
+        pageName = DOM.DocumentTitle $ (_.name st.package) <> " - " <> selectedIndex'
+        pageUrl = DOM.URL $ "#/package/" <> (_.name st.package) <> indexURL
+      hist <- H.liftEff $ DOM.window >>= DOM.history
+      pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
+      traceAnyA selectedIndex'
+      eval (Receive (Tuple.Tuple package selectedIndex') next)
     eval (Finalize next) = do
       pure next
 
@@ -331,7 +384,6 @@ checkQueueStatus (RD.Success (Just qi)) =
   ]
 checkQueueStatus _              = []
 
-
 buildIsQueued :: forall p i. Array (HH.HTML p i)
 buildIsQueued =
   [ HH.div
@@ -343,7 +395,7 @@ generateQueueButton :: forall p. State -> Array (HH.HTML p (Query Unit))
 generateQueueButton st =
   [ HH.div
       [ HP.class_ (H.ClassName "form") ]
-        [ HH.label_ 
+        [ HH.label_
             [ HH.text "Priority"
             , HH.select
                 [ HP.class_ (H.ClassName "prio")
@@ -368,6 +420,51 @@ generateQueueButton st =
         ]
   ]
 
+generateIndexStateButton :: forall p. State -> Array (HH.HTML p (Query Unit))
+generateIndexStateButton st =
+  [ HH.div
+      [ HP.class_ (H.ClassName "form") ]
+        [ HH.label_
+            [ HH.text "Index State"
+            , HH.select
+                [ HP.class_ (H.ClassName "prio")
+                , HE.onSelectedIndexChange $ HE.input (HandleIndex st)
+                ] $ createIndexOption st <$> st.listTimeStamp
+            ]
+        ]
+  ]
+
+toTupleArray :: Array T.PkgIdxTs -> Array (Tuple.Tuple Int T.PackageTS)
+toTupleArray xs =
+  let len = (Arr.length xs) - 1
+      idx = Arr.(..) 0 len
+  in Arr.zip idx (show <$> xs)
+
+createIndexOption :: forall p i. State -> T.PkgIdxTs -> HH.HTML p i
+createIndexOption st idx' =
+  let
+    idx = show idx'
+  in
+     HH.option
+       ([ HP.value idx ] <> isIndexSelected st idx )
+       [ HH.text (toDateTime idx) ]
+
+toDateTime :: T.PackageTS -> T.PackageTS
+toDateTime idx =
+  case (FDT.unformatDateTime "X" idx) >>= (FDT.formatDateTime "YYYY-MMMM-DD HH:mm:ss:SS") of
+    (Right date) -> date
+    Left _       -> ""
+
+isIndexSelected :: forall p i. State
+                -> T.PackageTS
+                -> Array (HH.IProp (selected :: Boolean | p) i)
+isIndexSelected st idx =
+  case st.currentSelectedIdx == idx of
+    true  -> [HP.selected true]
+    false -> if Str.null st.currentSelectedIdx && st.latestIndex == idx
+                then [HP.selected true]
+                else []
+
 isPrioSelected :: forall p i. String
                -> RD.RemoteData E.Error (Maybe T.QueueItem)
                -> Array (HH.IProp (selected :: Boolean | p) i)
@@ -375,7 +472,6 @@ isPrioSelected prio (RD.Success (Just qi)) =
   case prio == qi.priority of
     true -> [HP.selected true]
     false -> []
--- isPrioSelected prio (RD.Success Nothing)   = []
 isPrioSelected prio _                      = []
 
 renderMissingPackage :: forall p i. T.PackageName -> HH.HTML p i
@@ -437,6 +533,13 @@ renderPackageTag pkgName { tags } newtag =
                [HH.text "╳"]
            ]
   ) <$> tags
+
+timeStampIsEmpty :: forall p i. Array (HH.HTML p i)
+timeStampIsEmpty =
+  [ HH.div
+      [ HP.class_ (H.ClassName "success") ]
+      [ HH.text "Index State is empty." ]
+  ]
 
 pickLogMessage :: T.SingleResult -> String
 pickLogMessage { resultA } = logMessage resultA
