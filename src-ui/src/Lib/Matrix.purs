@@ -89,8 +89,9 @@ getLatestReportByPackageTimestamp pkgName pkgTs = do
     (Right a) -> pure (RD.Success a)
     (Left e)  -> pure (RD.Failure (E.error e))
 
-parseShallowReport :: RD.RemoteData E.Error Arg.Json
-                 -> RD.RemoteData E.Error T.ShallowReport
+parseShallowReport :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
+                   => RD.RemoteData E.Error Arg.Json
+                   -> m (RD.RemoteData E.Error T.ShallowReport)
 parseShallowReport (RD.Success a) =
   case Arg.toObject a of
     Just a' ->
@@ -116,15 +117,15 @@ parseShallowReport (RD.Success a) =
                 Just res' -> parseShallowGhcResult (TRV.traverse Arg.toObject res')
                 Nothing -> []
             Nothing -> []
-      in RD.Success
-           { packageName : packageName'
-           , modified : modified'
-           , results : results'
-           }
-    Nothing -> RD.Failure (E.error "This is not an Object")
-parseShallowReport (RD.Failure e) = RD.Failure e
-parseShallowReport RD.Loading = RD.Loading
-parseShallowReport RD.NotAsked = RD.NotAsked
+      in pure $ RD.Success
+                  { packageName : packageName'
+                  , modified : modified'
+                  , results : results'
+                  }
+    Nothing -> pure $ RD.Failure (E.error "This is not an Object")
+parseShallowReport (RD.Failure e) = pure $ RD.Failure e
+parseShallowReport RD.Loading = pure RD.Loading
+parseShallowReport RD.NotAsked = pure RD.NotAsked
 
 shallowReportDefault :: T.ShallowReport
 shallowReportDefault =
@@ -218,11 +219,11 @@ toShallowResult :: String -> T.ShallowResult
 toShallowResult  str
   | str == "ok" = T.ShallowOk
   | str == "nop" = T.ShallowNop
-  | str == "noip" = T.ShallowNoIp
-  | str == "noipbjlimit" = T.ShallowNoIpBjLimit 0
-  | str == "noipfail" = T.ShallowNoIpFail
+  | str == "noIp" = T.ShallowNoIp
+  | str == "noIpBjLimit" = T.ShallowNoIpBjLimit 0
+  | str == "noIpFail" = T.ShallowNoIpFail
   | str == "fail" = T.ShallowFail
-  | str == "faildeps" = T.ShallowFailDeps 0
+  | str == "failDeps" = T.ShallowFailDeps 0
   | otherwise = T.Unknown
 
 
