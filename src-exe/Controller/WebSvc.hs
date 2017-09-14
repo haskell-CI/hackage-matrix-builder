@@ -136,6 +136,7 @@ server = tagListH
 
     -- v2
     :<|> packagesH
+    :<|> packagesTagsH
     :<|> reportsH
 
     :<|> tagsH
@@ -280,6 +281,11 @@ server = tagListH
 
     packagesH :: AppHandler [PkgN]
     packagesH = withDbc $ \dbconn -> (coerce :: [Only PkgN] -> [PkgN]) <$> PGS.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
+
+    packagesTagsH :: PkgN -> AppHandler (Set TagName)
+    packagesTagsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
+        res <- PGS.query dbconn "SELECT tagname FROM pname_tag WHERE pname = ? ORDER BY tagname" (PGS.Only pkgn)
+        pure (Set.fromList $ map PGS.fromOnly res)
 
     reportsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
         ptimes1 <- PGS.query dbconn "SELECT DISTINCT ptime FROM solution_fail WHERE pname = ?" (PGS.Only pkgn)
