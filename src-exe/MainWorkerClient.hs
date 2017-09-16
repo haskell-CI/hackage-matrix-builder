@@ -53,7 +53,7 @@ main = do
 
     let Just ghcver = mapM simpleParse (words ghcverstr)
         Just pkgs   = mapM simpleParse args
-        idxts = read idxtss
+        idxts = PkgIdxTs (read idxtss)
 
 
     manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })

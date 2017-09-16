@@ -48,7 +48,7 @@ newtype UUIDs = UUIDs { unUUIDs :: [UUID] }
     deriving (Eq,Generic,Show)
 
 ptime2utc :: PkgIdxTs -> UTCTime
-ptime2utc = posixSecondsToUTCTime . fromIntegral
+ptime2utc = posixSecondsToUTCTime . fromIntegral . unPkgIdxTs
 
 -- we assume that 'show' doesn't use non-latin1 code-points
 toUUID :: Show a => a -> UUID

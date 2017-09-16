@@ -24,7 +24,7 @@ module PkgId
     , CompilerID, compilerVer
     , compilerIDFromCompilerId
 
-    , PkgIdxTs
+    , PkgIdxTs(..), unPkgIdxTs
     , PkgRev
     ) where
 
@@ -227,5 +227,27 @@ instance ToField CompilerID where
 
 ----------------------------------------------------------------------------
 
-type PkgIdxTs = Int -- simpler for now (i.e. until year 2038 brings everything down); 'Word' would be more accurate
+-- simpler for now (i.e. until year 2038 brings everything down); 'Word' would be more accurate
+newtype PkgIdxTs = PkgIdxTs Int
+    deriving (Show,Ord,Eq,NFData,FromJSON,ToJSON,FromField,ToField,FromHttpApiData,ToHttpApiData)
+
+unPkgIdxTs :: PkgIdxTs -> Int
+unPkgIdxTs (PkgIdxTs i) = i
+
+instance ToSchema PkgIdxTs where
+    declareNamedSchema _ = pure $ NamedSchema (Just "IdxState") $ mempty
+        & type_ .~ SwaggerInteger
+        & example ?~ toJSON (PkgIdxTs 1491048000)
+        & description ?~ "Seconds elapsed since 1970-01-01T00:00:00Z"
+        & minimum_ ?~ 0
+        & maximum_ ?~ 0x7fffffff
+
+instance ToParamSchema PkgIdxTs where
+    toParamSchema _ = mempty
+        & type_ .~ SwaggerInteger
+        & minimum_ ?~ 0
+        & maximum_ ?~ 0x7fffffff
+
+----------------------------------------------------------------------------
+
 type PkgRev = Word

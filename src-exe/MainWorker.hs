@@ -233,7 +233,7 @@ server =
 
           Just (ghcExe,_,_) -> do
               itm0 <- liftIO $ readPkgIndex
-              let headts0 = fromIntegral $ fst (IntMap.findMax itm0)
+              let headts0 = PkgIdxTs $ fst (IntMap.findMax itm0)
 
               (itm,its) <- case cjrqIndexTs of
                 Nothing -> pure (itm0,headts0)
@@ -246,11 +246,11 @@ server =
 
                     itm <- liftIO $ readPkgIndex
 
-                    if IntMap.member (fromIntegral ts0) itm
+                    if IntMap.member (unPkgIdxTs ts0) itm
                             then pure (itm,ts0)
                             else (throwServantErr' err400) --FIXME
 
-              let Just itm' = IntMap.lookup its itm
+              let Just itm' = IntMap.lookup (unPkgIdxTs its) itm
                   exists = Set.member cjrqPkgId itm'
 
               unless exists $

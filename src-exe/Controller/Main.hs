@@ -67,7 +67,7 @@ pkgIdxTupleToDB PkgIdxTuple{..} = (pn, ver, rev, t, pitOwner)
     pn  = T.pack $ display pitName
     ver = maybe "" (T.pack . display) $ pitVer
     rev = fromIntegral pitRev
-    t   = fromIntegral pitTime
+    t   = unPkgIdxTs pitTime
 
 data PkgIdxKey = PkgIdxKey !Text !Text !Int
                deriving (Generic,Eq,Ord)

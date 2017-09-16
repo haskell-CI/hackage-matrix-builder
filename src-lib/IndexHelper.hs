@@ -63,7 +63,7 @@ readIndexTuples idxtar = do
       decode :: Tar.Entry -> Maybe IdxTuple
       decode (Tar.Entry{..}) = do
           (pkgn,mpkgv) <- decodeEntry (Tar.Entry{..})
-          pure (pkgn,mpkgv, 0, fromIntegral entryTime, owner)
+          pure (pkgn,mpkgv, 0, PkgIdxTs (fromIntegral entryTime), owner)
         where
           owner = T.pack $ Tar.ownerName $ entryOwnership
 
@@ -115,9 +115,9 @@ getPkgIndexTs :: IO PkgIdxTs
 getPkgIndexTs = do
     itm <- readPkgIndex
     if IntMap.null itm
-        then pure 0
+        then pure (PkgIdxTs 0)
         else do let !ts = fst (IntMap.findMax itm)
-                pure (fromIntegral ts)
+                pure (PkgIdxTs $ fromIntegral ts)
 
 ----------------------------------------------------------------------------
 
