@@ -16,10 +16,20 @@ import           Data.Set (Set)
 import qualified Data.Aeson                           as J
 import qualified Data.Aeson.Types                     as J
 import           Data.Char
+import qualified Data.Swagger                         as Swag
 import qualified Database.PostgreSQL.Simple           as PGS
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
 import           Servant.API
+import           Servant.Swagger                      as Swag
+
+
+swaggerDoc :: Swag.Swagger
+swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
+    & Swag.info.Swag.title        .~ "Hackage Matrix Builder Controller API"
+    & Swag.info.Swag.version      .~ "3"
+    & Swag.basePath               ?~ "/api"
+    & Swag.schemes                ?~ [Swag.Http]
 
 type ControllerApi m =
   -- legacy rest-core style API
@@ -61,6 +71,10 @@ type TagName = Text
 
 data TagsInfo = TagsInfo     (Set TagName)
               | TagsInfoPkgs (Map TagName (Set PkgN))
+              deriving Generic
+
+instance ToSchema TagsInfo -- FIXME
+
 
 instance ToJSON TagsInfo where
     toJSON (TagsInfo x)     = toJSON x
@@ -134,25 +148,33 @@ data QEntry = QEntry
 
 instance PGS.FromRow QEntry
 
-instance ToJSON a => ToJSON (ListSlice a) where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToJSON   a => ToJSON   (ListSlice a) where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON a => FromJSON (ListSlice a) where { parseJSON = myParseJSON }
+instance ToSchema a => ToSchema (ListSlice a) where { declareNamedSchema = myDeclareNamedSchema }
 
 instance ToJSON   TagListEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON TagListEntry where { parseJSON = myParseJSON }
+instance ToSchema TagListEntry where { declareNamedSchema = myDeclareNamedSchema }
 
 instance ToJSON   QPrio where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON QPrio where { parseJSON = myParseJSON }
+instance ToSchema QPrio where { declareNamedSchema = myDeclareNamedSchema }
 
 instance ToJSON   QEntry where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON QEntry where { parseJSON = myParseJSONCml }
+instance ToSchema QEntry where { declareNamedSchema = myDeclareNamedSchemaCml }
 
-instance ToJSON PkgListEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
-instance ToJSON PkgListEntry2 where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
+instance ToJSON   PkgListEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToSchema PkgListEntry where { declareNamedSchema = myDeclareNamedSchema }
 
-instance ToJSON PkgVerInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
-instance ToJSON PkgVerInfoEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToJSON   PkgListEntry2 where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
+instance ToSchema PkgListEntry2 where { declareNamedSchema = myDeclareNamedSchemaCml }
 
+instance ToJSON   PkgVerInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToSchema PkgVerInfo where { declareNamedSchema = myDeclareNamedSchema }
 
+instance ToJSON   PkgVerInfoEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToSchema PkgVerInfoEntry where { declareNamedSchema = myDeclareNamedSchema }
 
 data JobReport = JobReport
  { jrPackageName :: PkgN
@@ -162,6 +184,7 @@ data JobReport = JobReport
 
 instance ToJSON   JobReport where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON JobReport where { parseJSON = myParseJSONCml }
+instance ToSchema JobReport where { declareNamedSchema = myDeclareNamedSchemaCml }
 
 data JobResult = JobResult
   { jrGhcVersion     :: Ver
@@ -171,6 +194,7 @@ data JobResult = JobResult
 
 instance ToJSON   JobResult where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON JobResult where { parseJSON = myParseJSONCml }
+instance ToSchema JobResult where { declareNamedSchema = myDeclareNamedSchemaCml }
 
 data JobGhcResult = JobGhcResult
   { jgrPackageVersion  :: Ver
@@ -180,6 +204,7 @@ data JobGhcResult = JobGhcResult
 
 instance ToJSON   JobGhcResult where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON JobGhcResult where { parseJSON = myParseJSONCml }
+instance ToSchema JobGhcResult where { declareNamedSchema = myDeclareNamedSchemaCml }
 
 data JobResultType
     = JRTOk
@@ -193,6 +218,19 @@ data JobResultType
 
 instance ToJSON   JobResultType where { toJSON = J.genericToJSON jobResOpts }
 instance FromJSON JobResultType where { parseJSON = J.genericParseJSON jobResOpts }
+
+-- fixme
+instance ToSchema JobResultType where
+    declareNamedSchema _ = pure $ Swag.NamedSchema (Just "JobResultType") $ mempty
+
+jobResOpts :: J.Options
+jobResOpts = J.defaultOptions { J.sumEncoding = J.ObjectWithSingleField
+                              , J.constructorTagModifier = labelModCml }
+  where
+    labelModCml = uncap . drop 3
+
+    uncap []     = []
+    uncap (c:cs) = toLower c : cs
 
 data CellReport = CellReport
   { crGhcVersion     :: Ver
@@ -210,17 +248,9 @@ instance ToJSON CellReport where
 
            -- [ "ghcVersion" J..= crGhcVersion ]
 
-
-jobResOpts :: J.Options
-jobResOpts = J.defaultOptions { J.sumEncoding = J.ObjectWithSingleField
-                              , J.constructorTagModifier = labelModCml }
-  where
-    labelModCml = uncap . drop 3
-
-    uncap []     = []
-    uncap (c:cs) = toLower c : cs
-
-
+-- fixme
+instance ToSchema CellReport where
+    declareNamedSchema _ = pure $ Swag.NamedSchema (Just "CellReport") $ mempty
 
 data UserPkgs = UserPkgs
   { upName     :: UserName
@@ -229,3 +259,4 @@ data UserPkgs = UserPkgs
 
 instance ToJSON   UserPkgs where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON UserPkgs where { parseJSON = myParseJSONCml }
+instance ToSchema UserPkgs where { declareNamedSchema = myDeclareNamedSchemaCml }

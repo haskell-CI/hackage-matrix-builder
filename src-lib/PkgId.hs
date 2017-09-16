@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StrictData                 #-}
+{-# LANGUAGE OverloadedStrings          #-}
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -12,6 +13,7 @@ module PkgId
     , Ver(..)
     , verFromVersion
     , alterVer
+    , mkVer
 
     , PkgId(..)
     , pkgIdFromPackageIdentifier
@@ -31,6 +33,7 @@ import           Prelude.Local
 import           Data.Aeson
 import           Data.String
 import qualified Data.Text                            as T
+import qualified Data.List.NonEmpty                   as NE
 import           Distribution.Compiler                (CompilerFlavor (..),
                                                        CompilerId (..))
 import           Distribution.Package
@@ -42,6 +45,7 @@ import           Distribution.Version
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
 
+import           Data.Swagger
 import           Servant.API
 
 ----------------------------------------------------------------------------
@@ -83,6 +87,15 @@ instance IsString PkgN where
 instance FromHttpApiData PkgN where
     parseUrlPiece = maybe (Left (T.pack "invalid pkg-name")) Right . simpleParse . T.unpack
 
+instance ToParamSchema PkgN where
+    toParamSchema _ = mempty
+        & type_ .~ SwaggerString
+
+instance ToSchema PkgN where
+    declareNamedSchema _ = pure $ NamedSchema (Just "PkgName") $ mempty
+        & type_ .~ SwaggerString
+        & example ?~ toJSON (PkgN "lens")
+
 ----------------------------------------------------------------------------
 
 newtype Ver = Ver Version deriving (Eq,Ord,NFData,C.Text)
@@ -110,6 +123,11 @@ instance FromField Ver where
 instance ToField Ver where
     toField = toField . display
 
+instance ToSchema Ver where
+    declareNamedSchema _ = pure $ NamedSchema (Just "Version") $ mempty
+        & type_ .~ SwaggerString
+        & example ?~ toJSON (mkVer (4 :| [15,3]))
+
 verFromVersion :: Version -> Maybe Ver
 verFromVersion v
   | null (versionNumbers v) = Nothing
@@ -117,6 +135,9 @@ verFromVersion v
 
 alterVer :: ([Int] -> [Int]) -> Ver -> Ver
 alterVer f (Ver v) = Ver (alterVersion f v)
+
+mkVer :: NonEmpty Int -> Ver
+mkVer = Ver . mkVersion . NE.toList
 
 ----------------------------------------------------------------------------
 

@@ -35,6 +35,7 @@ import           Prelude.Local
 import           Control.Monad.Except
 import           Control.Monad.State
 import qualified Crypto.Hash.SHA256               as SHA256
+import qualified Data.Aeson                       as J
 import qualified Data.ByteString.Char8            as BS
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.Map.Strict                  as Map
@@ -57,6 +58,7 @@ import           Snap.Http.Server                 (defaultConfig)
 import qualified Snap.Http.Server.Config          as Snap
 import           Snap.Snaplet
 import qualified Snap.Util.FileServe              as Snap
+import qualified Snap.CORS                        as Snap
 import qualified System.IO.Streams                as Streams
 
 -- local modules
@@ -81,7 +83,8 @@ runController !app port =
 
     initApp :: SnapletInit App App
     initApp = makeSnaplet "matrix-controller" "Matrix CI controller" Nothing $ do
-        addRoutes [("/api/",      apiHandler)
+        addRoutes [("/api/swagger.json",apiSwaggerJsonHandler)
+                  ,("/api/",      apiHandler)
 
                   ,("/package/",  hashRedir)
                   ,("/packages/", hashRedir)
@@ -93,9 +96,16 @@ runController !app port =
                   ]
         return app
 
+    apiSwaggerJsonHandler :: AppHandler ()
+    apiSwaggerJsonHandler = Snap.applyCORS Snap.defaultOptions $ do
+        modifyResponse $ setContentType "application/json"
+        writeLBS (J.encode swaggerDoc)
+
     apiHandler :: AppHandler ()
-    apiHandler = do
+    apiHandler = Snap.applyCORS Snap.defaultOptions $ do
         serveSnap controllerApi server
+        -- TODO: find out why we need this second 'applyCORS' invocation
+        Snap.applyCORS Snap.defaultOptions $ pure ()
 
     uiHandler :: AppHandler ()
     uiHandler = Snap.serveDirectory "ui"

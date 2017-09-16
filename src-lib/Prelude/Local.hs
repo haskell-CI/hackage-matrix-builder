@@ -1,11 +1,15 @@
+{-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PolyKinds             #-}
+{-# LANGUAGE RankNTypes            #-}
 
 module Prelude.Local
     ( T.Text
     , Generic
     , FromJSON(..)
     , ToJSON(..)
+    , Swag.ToSchema(..)
 
     , C.simpleParse, C.display
 
@@ -39,6 +43,8 @@ module Prelude.Local
     , firstJustM
     , myToJSON, myToEncoding, myParseJSON
     , myToJSONCml, myToEncodingCml, myParseJSONCml
+    , myDeclareNamedSchema
+    , myDeclareNamedSchemaCml
 
     -- ** UUID helpers
     , uuidHash
@@ -101,6 +107,10 @@ import           Data.Proxy
 import           Data.Semigroup
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set
+import qualified Data.Swagger             as Swag
+import qualified Data.Swagger.Declare     as Swag
+import qualified Data.Swagger.Internal.Schema as Swag
+import qualified Data.Swagger.Internal.TypeShape as Swag
 import qualified Data.Text                as T
 import           Data.Time.Clock          (NominalDiffTime, UTCTime,
                                            diffUTCTime, getCurrentTime)
@@ -118,6 +128,10 @@ import           System.Exit
 import           System.FilePath
 import           System.IO.Streams        (InputStream, OutputStream)
 import           Text.Read
+
+myDeclareNamedSchema, myDeclareNamedSchemaCml :: forall a proxy . (Generic a, Swag.GToSchema (Rep a), Swag.TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted") => proxy a -> Swag.Declare (Swag.Definitions Swag.Schema) Swag.NamedSchema
+myDeclareNamedSchema = Swag.genericDeclareNamedSchema (Swag.defaultSchemaOptions { Swag.fieldLabelModifier = labelMod, Swag.constructorTagModifier = tagMod })
+myDeclareNamedSchemaCml = Swag.genericDeclareNamedSchema (Swag.defaultSchemaOptions { Swag.fieldLabelModifier = labelModCml })
 
 myToJSON, myToJSONCml :: (Generic a, GToJSON Zero (Rep a)) => a -> Value
 myToJSON = genericToJSON (defaultOptions { omitNothingFields = True, fieldLabelModifier = labelMod, constructorTagModifier = tagMod })
