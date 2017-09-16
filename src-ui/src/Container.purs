@@ -8,6 +8,7 @@ import Components.PagePackage as PagePackage
 import Components.PagePackages as PagePackages
 import Components.PageUser as PageUser
 import Control.Monad.Eff.JQuery as J
+import Control.Monad.Eff.Exception as E
 import DOM as DOM
 import Data.Array as Arr
 import Data.String as Str
@@ -20,6 +21,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
+import Lib.MatrixApi2 as Api
 import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Network.RemoteData as RD
@@ -43,6 +45,7 @@ import Routing.Match.Class (lit, str)
 type State = {
     route :: T.PageRoute
   , package :: Array T.PackageMeta
+  , packages :: Array T.PackageName
 }
 
 data Query a =
@@ -76,6 +79,7 @@ ui =
     initialState =
       { route: T.ErrorPage
       , package: []
+      , packages: []
       }
 
     render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api.Matrix e)
@@ -88,7 +92,7 @@ ui =
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
             (T.PackagePage pkgName) ->
               HH.slot' CP.cp4 unit PagePackage.component
-                  (getPackageMeta (Misc.makeTuplePkgIdx pkgName) st.package) (HE.input HandlePagePackage)
+                  (getPackageMeta (Misc.makeTuplePkgIdx pkgName) st.packages) (HE.input HandlePagePackage)
             T.PackagesPage ->
               HH.slot' CP.cp5 unit PagePackages.component unit absurd
             (T.UserPage usr) ->
@@ -144,9 +148,18 @@ ui =
     eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (Api.Matrix e)
     eval (Initialize next) = do
       pkgList <- H.lift Api.getPackageList
+      pkgList2 <- H.lift (Api.getPackages >>= Api.parseJsonToArrayS)
       pkgRef <- asks _.packageList
+      pkg2Ref <- asks _.packages
       _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)
-      _ <- H.modify (_ { package = pkgList.items})
+      _ <- liftEff $ writeRef pkg2Ref pkgList2
+      _ <- H.modify (_ { package = pkgList.items
+                       , packages =
+                           case pkgList2 of
+                             RD.Success arr -> arr
+                             _              -> []
+                       }
+                    )
       pure next
 
     eval (HandlePagePackage PagePackage.FromPagePackage next) = eval (Initialize next)
@@ -190,13 +203,13 @@ routing =  latest
     user = T.UserPage <$> (slash *> lit "user" *> str)
     error = T.ErrorPage <$ lit "error"
 
-getPackageMeta :: Tuple.Tuple T.PackageName T.PackageTS -> Array T.PackageMeta  -> Tuple.Tuple T.PackageMeta T.PackageTS
+getPackageMeta :: Tuple.Tuple T.PackageName T.PackageTS -> Array T.PackageName  -> Tuple.Tuple T.PackageName T.PackageTS
 getPackageMeta (Tuple.Tuple pkgName idx) pkgMetaArr =
   case Arr.uncons filteredPkgMetaArr of
     Just { head: x, tail: xs } -> Tuple.Tuple x idx
-    Nothing                    -> Tuple.Tuple { name: "", report: Nothing, tags: []} "no index state"
+    Nothing                    -> Tuple.Tuple "not found" "no index state"
   where
-    filteredPkgMetaArr = Arr.filter (\x -> x.name == pkgName) pkgMetaArr
+    filteredPkgMetaArr = Arr.filter (\x -> x == pkgName) pkgMetaArr
 
 packageContained :: String -> T.PackageMeta -> Boolean
 packageContained str pkgMeta = Str.contains (Str.Pattern str) pkgMeta.name

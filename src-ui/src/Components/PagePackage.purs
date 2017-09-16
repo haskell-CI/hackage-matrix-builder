@@ -10,18 +10,17 @@ import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
+import Lib.MatrixApi2 as Api
 import Lib.Types as T
 import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI as Misc
-import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=), (-))
-import DOM.HTML as DOM
-import DOM.HTML.History as DOM
-import DOM.HTML.Window as DOM
+import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=), (-), (*))
+import DOM.HTML (window) as DOM
+import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
+import DOM.HTML.Window (history) as DOM
 import Debug.Trace
-import Lib.MiscFFI as Misc
-import Data.Traversable as TRV
 import Data.Tuple as Tuple
 import Data.Argonaut as Arg
 import Data.Foreign as F
@@ -30,9 +29,12 @@ import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Map as Map
 import Data.Formatter.DateTime as FDT
+import Data.Time.Duration (Milliseconds(Milliseconds)) as DT
+import Data.DateTime (DateTime) as DT
+import Data.DateTime.Instant (instant, toDateTime) as DT
 
 type State =
-  { initPackage :: Tuple.Tuple T.PackageMeta T.PackageTS
+  { initPackage :: Tuple.Tuple T.PackageName T.PackageTS
   , logdisplay  :: D.Display
   , package     :: T.Package
   , report      :: RD.RemoteData E.Error T.ShallowReport
@@ -47,6 +49,7 @@ type State =
   , currentSelectedIdx :: T.PackageTS
   , latestIndex :: T.PackageTS
   , mapIndexState :: Map.Map Int T.PackageTS
+  , listTags :: Array T.TagName
   }
 
 data Query a
@@ -54,7 +57,7 @@ data Query a
   | FailingPackage a
   | HighlightCell T.PackageName T.VersionName T.VersionName a
   | HandleTag T.TagName a
-  | Receive (Tuple.Tuple T.PackageMeta T.PackageTS) a
+  | Receive (Tuple.Tuple T.PackageName T.PackageTS) a
   | AddingNewTag T.PackageName T.TagName a
   | RemoveTag T.PackageName T.TagName a
   | UpdateTag (T.PackageName -> a)
@@ -69,7 +72,7 @@ ghcVersions :: Array T.VersionName
 ghcVersions = ["8.2","8.0","7.10","7.8","7.6","7.4"]
 
 component :: forall e.
-             H.Component HH.HTML Query (Tuple.Tuple T.PackageMeta T.PackageTS) Message (Api.Matrix e)
+             H.Component HH.HTML Query (Tuple.Tuple T.PackageName T.PackageTS) Message (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: initialState
   , render
@@ -80,7 +83,7 @@ component = H.lifecycleComponent
   }
   where
 
-    initialState :: Tuple.Tuple T.PackageMeta T.PackageTS -> State
+    initialState :: Tuple.Tuple T.PackageName T.PackageTS -> State
     initialState i =
       {
         initPackage: i
@@ -102,6 +105,7 @@ component = H.lifecycleComponent
       , currentSelectedIdx: ""
       , latestIndex: ""
       , mapIndexState: Map.empty
+      , listTags: []
       }
 
     render :: State -> H.ComponentHTML Query
@@ -211,7 +215,7 @@ component = H.lifecycleComponent
                 [ HP.id_ "tagging" ]
                 [ HH.ul
                     [ HP.class_ (H.ClassName "tags") ] $
-                    renderPackageTag (_.name (Tuple.fst st.initPackage)) (Tuple.fst st.initPackage) st.newtag
+                    renderPackageTag (Tuple.fst st.initPackage) st.listTags st.newtag
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -226,7 +230,7 @@ component = H.lifecycleComponent
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
                         , HE.onClick $ HE.input_ (AddingNewTag st.newtag
-                                                               (_.name (Tuple.fst st.initPackage)))
+                                                               (Tuple.fst st.initPackage))
                         ]
                         [ HH.text "Add Tag" ]
                      ]
@@ -258,8 +262,9 @@ component = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      Tuple.Tuple _ idx' <-  Api.latestIndex (_.name (Tuple.fst st.initPackage))
-      pkgTs <- Api.getTimestamp  (_.name (Tuple.fst st.initPackage))
+      Tuple.Tuple _ idx' <-  Api.latestIndex (Tuple.fst st.initPackage)
+      pkgTs <- Api.getTimestamp  (Tuple.fst st.initPackage)
+      tags <- Api.getTagsByPackageName (Tuple.fst st.initPackage) >>= Api.parseJsonToArrayS
       let
         listIndex =
           case pkgTs of
@@ -267,13 +272,13 @@ component = H.lifecycleComponent
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
-      packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst st.initPackage))
+      packageByName <- H.lift $ Api.getPackageByName (Tuple.fst st.initPackage)
       reportPackage <- H.lift $
         if Str.null (Tuple.snd st.initPackage)
-        then Api.getLatestReportByPackageName (_.name (Tuple.fst st.initPackage))
-        else (Api.getLatestReportByPackageTimestamp (_.name (Tuple.fst st.initPackage)) (Tuple.snd st.initPackage))
+        then Api.getLatestReportByPackageName (Tuple.fst st.initPackage)
+        else (Api.getLatestReportByPackageTimestamp (Tuple.fst st.initPackage) (Tuple.snd st.initPackage))
                 >>= Api.parseShallowReport
-      queueStat <- H.lift $ Api.getQueueByName ( _.name (Tuple.fst st.initPackage))
+      queueStat <- H.lift $ Api.getQueueByName (Tuple.fst st.initPackage)
       H.modify _  { package = packageByName
                   , report = reportPackage
                   , highlighted = false
@@ -282,6 +287,10 @@ component = H.lifecycleComponent
                   , currentSelectedIdx = Tuple.snd st.initPackage
                   , latestIndex = latestIdx
                   , mapIndexState = mapIdxSt
+                  , listTags =
+                      case tags of
+                        (RD.Success a) -> a
+                        _              -> []
                   }
       pure next
     eval (FailingPackage next) = do
@@ -300,21 +309,22 @@ component = H.lifecycleComponent
       H.put $ st { newtag = value }
       pure next
     eval (AddingNewTag newTag pkgName next) = do
-      _ <- H.lift $ Api.putTagSaveByName newTag pkgName
+      _ <- H.lift $ Api.putTagsByPackage newTag pkgName
       H.raise $ FromPagePackage
       pure next
     eval (RemoveTag tagName pkgName next) = do
-      _ <- H.lift $ Api.deleteTagRemove pkgName tagName
+      _ <- H.lift $ Api.deleteTagsByPackage tagName pkgName
       H.raise $ FromPagePackage
       pure next
     eval (UpdateTag reply) = do
       st <- H.get
-      let packageName = (_.name (Tuple.fst st.initPackage))
+      let packageName = Tuple.fst st.initPackage
       reply <$> (pure packageName)
-    eval (Receive pkgMeta next) = do
+    eval (Receive pkg next) = do
       st <- H.get
-      Tuple.Tuple _ idx' <- Api.latestIndex (_.name (Tuple.fst pkgMeta))
-      pkgTs <- Api.getTimestamp (_.name (Tuple.fst pkgMeta))
+      Tuple.Tuple _ idx' <- Api.latestIndex (Tuple.fst pkg)
+      pkgTs <- Api.getTimestamp (Tuple.fst pkg)
+      tags <- Api.getTagsByPackageName (Tuple.fst pkg) >>= Api.parseJsonToArrayS
       let
         listIndex =
           case pkgTs of
@@ -322,21 +332,25 @@ component = H.lifecycleComponent
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
-      packageByName <- H.lift $ Api.getPackageByName (_.name (Tuple.fst pkgMeta))
+      packageByName <- H.lift $ Api.getPackageByName (Tuple.fst pkg)
       reportPackage <- H.lift $
-        if Str.null (Tuple.snd pkgMeta)
-        then  Api.getLatestReportByPackageName (_.name (Tuple.fst pkgMeta))
-        else  (Api.getLatestReportByPackageTimestamp (_.name (Tuple.fst pkgMeta)) (Tuple.snd pkgMeta))
+        if Str.null (Tuple.snd pkg)
+        then  Api.getLatestReportByPackageName (Tuple.fst pkg)
+        else  (Api.getLatestReportByPackageTimestamp (Tuple.fst pkg) (Tuple.snd pkg))
                  >>= Api.parseShallowReport
-      queueStat <- H.lift $ Api.getQueueByName (_.name (Tuple.fst pkgMeta))
-      H.modify _ { initPackage = pkgMeta
+      queueStat <- H.lift $ Api.getQueueByName (Tuple.fst pkg)
+      H.modify _ { initPackage = pkg
                  , package = packageByName
                  , report = reportPackage
                  , queueStatus = queueStat
                  , listTimeStamp = listIndex
                  , latestIndex = latestIdx
-                 , currentSelectedIdx = Tuple.snd pkgMeta
+                 , currentSelectedIdx = Tuple.snd pkg
                  , mapIndexState = mapIdxSt
+                 , listTags =
+                      case tags of
+                        (RD.Success a) -> a
+                        _              -> []
                  }
       pure next
     eval (HandleQueue idx next) = do
@@ -414,7 +428,7 @@ generateQueueButton st =
             ]
         , HH.button
             [ HP.class_ (H.ClassName "action")
-            , HE.onClick $ HE.input_ (QueueBuild (_.name (Tuple.fst st.initPackage)) st.newPrio st.queueStatus)
+            , HE.onClick $ HE.input_ (QueueBuild (Tuple.fst st.initPackage) st.newPrio st.queueStatus)
             ]
             [ HH.text "Queue build for this package" ]
         ]
@@ -447,13 +461,19 @@ createIndexOption st idx' =
   in
      HH.option
        ([ HP.value idx ] <> isIndexSelected st idx )
-       [ HH.text (toDateTime idx) ]
+       [ HH.text (toDateTime idx') ]
 
-toDateTime :: T.PackageTS -> T.PackageTS
+toDateTime :: T.PkgIdxTs -> T.PackageTS
 toDateTime idx =
-  case (FDT.unformatDateTime "X" idx) >>= (FDT.formatDateTime "YYYY-MMMM-DD HH:mm:ss:SS") of
-    (Right date) -> date
-    Left _       -> idx
+  case ptimeToDateTime idx of
+    (Just ts) ->
+      case FDT.formatDateTime "YYYY-MM-DDTHH:mm:ssZ" ts of
+        (Right date) -> date
+        Left _      -> ""
+    Nothing   -> ""
+
+ptimeToDateTime :: T.PkgIdxTs -> Maybe DT.DateTime
+ptimeToDateTime idx = DT.toDateTime <$> DT.instant (DT.Milliseconds (1000.0 * (Int.toNumber idx)))
 
 isIndexSelected :: forall p i. State
                 -> T.PackageTS
@@ -520,10 +540,10 @@ renderLogResult logdisplay log { name } { ghcVer, pkgVer } =
     ]
 
 renderPackageTag ::  forall p. T.PackageName
-                 -> T.PackageMeta
+                 -> Array T.TagName
                  -> T.TagName
                  -> Array (HH.HTML p (Query Unit))
-renderPackageTag pkgName { tags } newtag =
+renderPackageTag pkgName tags newtag =
   (\x -> HH.li_
            [ HH.span_ [HH.text $ x]
            , HH.a
