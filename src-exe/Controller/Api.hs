@@ -2,6 +2,7 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE PolyKinds         #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
@@ -30,6 +31,7 @@ swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
     & Swag.info.Swag.version      .~ "3"
     & Swag.basePath               ?~ "/api"
     & Swag.schemes                ?~ [Swag.Http]
+    & Swag.securityDefinitions    .~ [("basicAuth",Swag.SecurityScheme Swag.SecuritySchemeBasic Nothing)]
 
 type ControllerApi m =
   -- legacy rest-core style API
