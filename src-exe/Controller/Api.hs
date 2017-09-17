@@ -64,6 +64,7 @@ type ControllerApi m =
   :<|> "v2" :> "packages" :> Get '[JSON] [PkgN]
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] [PkgHistoryEntry]
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Set PkgN)
@@ -124,6 +125,16 @@ data PkgVerInfoEntry = PkgVerInfoEntry
     , pvieRevision   :: !Word
     , pviePreference :: !Text
     } deriving (Generic,Eq,Ord)
+
+data PkgHistoryEntry = PkgHistoryEntry !PkgIdxTs !Ver !Int !UserName
+                     deriving (Generic,Eq,Ord)
+    -- { pheIdxState :: !PkgIdxTs
+    -- , pheVersion  :: !Ver
+    -- , pheRevision :: !Int
+    -- , pheUsername :: !UserName
+    -- } deriving (Generic,Eq,Ord)
+
+instance PGS.FromRow PkgHistoryEntry
 
 data QPrio = QPlow
            | QPmedium
@@ -211,6 +222,13 @@ instance ToSchema PkgVerInfo where { declareNamedSchema = myDeclareNamedSchema }
 
 instance ToJSON   PkgVerInfoEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance ToSchema PkgVerInfoEntry where { declareNamedSchema = myDeclareNamedSchema }
+
+instance ToJSON   PkgHistoryEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToSchema PkgHistoryEntry where
+    declareNamedSchema p = do -- (        & (example ?~ toJSON (PkgIdxTs 1491048000)
+        s <- myDeclareNamedSchema p
+        pure $ s & Swag.schema.Swag.description ?~ "Package history entry represented as 4-tuple (idxstate,version,revision,username)"
+                 & Swag.schema.Swag.example     ?~ toJSON (PkgHistoryEntry (PkgIdxTs 1343543615) (mkVer (1 :| [0])) 0 "EdwardKmett")
 
 data JobReport = JobReport
  { jrPackageName :: PkgN
