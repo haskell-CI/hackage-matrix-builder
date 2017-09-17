@@ -31,7 +31,14 @@ swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
     & Swag.info.Swag.version      .~ "3"
     & Swag.basePath               ?~ "/api"
     & Swag.schemes                ?~ [Swag.Http]
-    & Swag.securityDefinitions    .~ [("basicAuth",Swag.SecurityScheme Swag.SecuritySchemeBasic Nothing)]
+    -- Simplified scheme: GET doesn't require auth; DELETE & PUT require auth; POST may or may not requires auth...
+    & Swag.securityDefinitions    .~ [("basicAuth", Swag.SecurityScheme Swag.SecuritySchemeBasic Nothing)]
+    & Swag.paths . traversed . Swag.delete . _Just . Swag.security .~ basicAuth
+    & Swag.paths . traversed . Swag.put    . _Just . Swag.security .~ basicAuth
+    -- so far only a single POST service requires auth
+    & Swag.paths . ix "/v1.0.0/queue" . Swag.post . _Just . Swag.security .~ basicAuth
+  where
+    basicAuth = [Swag.SecurityRequirement [("basicAuth",[])]]
 
 type ControllerApi m =
   -- legacy rest-core style API
