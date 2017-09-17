@@ -58,6 +58,9 @@ type ControllerApi m =
   :<|> "v1.0.0" :> "user"                :> "name" :> Capture "username" UserName                      :> Get '[JSON] UserPkgs
 
   -- New-style API; we stick w/ the more common RESTful convention of using plural nouns for listable collections
+  :<|> "v2" :> "idxstates" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] [PkgIdxTs]
+  :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
+
   :<|> "v2" :> "packages" :> Get '[JSON] [PkgN]
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)

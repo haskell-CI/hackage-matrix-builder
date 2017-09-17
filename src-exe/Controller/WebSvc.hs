@@ -145,6 +145,9 @@ server = tagListH
     :<|> usrListH
 
     -- v2
+    :<|> idxStatesH
+    :<|> idxStatesLatestH
+
     :<|> packagesH
     :<|> packagesTagsH
     :<|> reportsH
@@ -293,7 +296,21 @@ server = tagListH
         withDbcGuard (pkgnExists pname) $ \dbconn -> queryCellReport dbconn (PkgId pname pver) gv ptime
 
     ----------------------------------------------------------------------------
-    -- package v2 --------------------------------------------------------------
+    -- v2/idxstates-------------------------------------------------------------
+
+    idxStatesH :: Maybe PkgIdxTs -> Maybe PkgIdxTs -> AppHandler [PkgIdxTs]
+    idxStatesH Nothing Nothing     = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query_ dbconn "SELECT ptime FROM idxstate ORDER by ptime"
+    idxStatesH (Just lb) Nothing   = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime >= ? ORDER by ptime" (Only lb)
+    idxStatesH Nothing (Just ub)   = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime <= ? ORDER by ptime" (Only ub)
+    idxStatesH (Just lb) (Just ub) = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime BETWEEN ? AND ? ORDER by ptime" (lb,ub)
+
+    idxStatesLatestH :: AppHandler PkgIdxTs
+    idxStatesLatestH = do
+        [Only is] <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT max(ptime) FROM idxstates"
+        pure is
+
+    ----------------------------------------------------------------------------
+    -- v2/packages -------------------------------------------------------------
 
     packagesH :: AppHandler [PkgN]
     packagesH = withDbc $ \dbconn -> (coerce :: [Only PkgN] -> [PkgN]) <$> PGS.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
