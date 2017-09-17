@@ -67,6 +67,13 @@ type ControllerApi m =
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> PutNoContent '[JSON] NoContent
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> DeleteNoContent '[JSON] NoContent
 
+  :<|> "v2" :> "queue" :>                                                          Get '[JSON] [QEntryRow]
+  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :>                                Get '[JSON] [QEntryRow]
+--  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> ReqBody '[JSON] QEntryUpd :> Post '[JSON] QEntryRow
+  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> Get '[JSON]  QEntryRow
+  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow
+  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> DeleteNoContent '[JSON] NoContent
+
 type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 
 type TagName = Text
@@ -141,6 +148,7 @@ instance ToField QPrio where
             QPmedium ->   0
             QPlow    -> -10
 
+-- deprecated, used by V1 API
 data QEntry = QEntry
     { qPriority    :: QPrio
     , qModified    :: Maybe UTCTime
@@ -149,6 +157,21 @@ data QEntry = QEntry
     } deriving (Generic,Eq,Ord,Show)
 
 instance PGS.FromRow QEntry
+
+-- V2 API
+data QEntryRow = QEntryRow
+    { qrPriority    :: Int
+    , qrModified    :: UTCTime
+    , qrPkgname     :: PkgN
+    , qrIdxState    :: PkgIdxTs
+    } deriving (Generic,Eq,Ord,Show)
+
+instance PGS.FromRow QEntryRow
+
+-- | Subset of 'QEntryRow' which can be set/updated via PUT request
+data QEntryUpd = QEntryUpd
+    { quPriority :: Int
+    } deriving (Generic,Eq,Ord,Show)
 
 instance ToJSON   a => ToJSON   (ListSlice a) where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON a => FromJSON (ListSlice a) where { parseJSON = myParseJSON }
@@ -165,6 +188,14 @@ instance ToSchema QPrio where { declareNamedSchema = myDeclareNamedSchema }
 instance ToJSON   QEntry where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON QEntry where { parseJSON = myParseJSONCml }
 instance ToSchema QEntry where { declareNamedSchema = myDeclareNamedSchemaCml }
+
+instance ToJSON   QEntryRow where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
+instance FromJSON QEntryRow where { parseJSON = myParseJSONCml }
+instance ToSchema QEntryRow where { declareNamedSchema = myDeclareNamedSchemaCml }
+
+instance ToJSON   QEntryUpd where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
+instance FromJSON QEntryUpd where { parseJSON = myParseJSONCml }
+instance ToSchema QEntryUpd where { declareNamedSchema = myDeclareNamedSchemaCml }
 
 instance ToJSON   PkgListEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance ToSchema PkgListEntry where { declareNamedSchema = myDeclareNamedSchema }

@@ -154,6 +154,12 @@ server = tagListH
     :<|> tagsPutH
     :<|> tagsDelH
 
+    :<|> queueGetH
+    :<|> queueGetPkgH
+    :<|> queueGetPkgIdxStH
+    :<|> queuePutPkgIdxStH
+    :<|> queueDelPkgIdxStH
+
   where
 
     needAuth :: AppHandler a -> AppHandler a
@@ -308,6 +314,11 @@ server = tagListH
         [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM pkgname WHERE pname = ?)" (PGS.Only pkgn)
         pure ex
 
+    pkgIdxTsExists :: PkgIdxTs -> PGS.Connection -> IO Bool
+    pkgIdxTsExists ptime dbconn = do
+        [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM idxstate WHERE ptime = ?)" (PGS.Only ptime)
+        pure ex
+
     ----------------------------------------------------------------------------
     -- tags v2 --------------------------------------------------------------
 
@@ -331,6 +342,47 @@ server = tagListH
     tagsDelH tagn pkgn = tagDelH tagn pkgn >> pure NoContent
 
     ----------------------------------------------------------------------------
+    -- queue v2 --------------------------------------------------------------
+
+    queueGetH :: Handler App App [QEntryRow]
+    queueGetH = withDbc $ \dbconn ->
+      PGS.query_ dbconn "SELECT prio,modified,pname,ptime FROM queue ORDER BY prio desc, modified desc"
+
+    queueGetPkgH :: PkgN -> Handler App App [QEntryRow]
+    queueGetPkgH pname = withDbcGuard (pkgnExists pname) $ \dbconn ->
+      PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ? ORDER BY prio desc, modified desc" (Only pname)
+
+    queueGetPkgIdxStH :: PkgN -> PkgIdxTs -> AppHandler QEntryRow
+    queueGetPkgIdxStH pname idxstate = headOr404M $ withDbc $ \dbconn ->
+      PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue \
+                       \WHERE pname = ? AND ptime = ? \
+                       \ORDER BY prio desc, modified desc"
+                       (pname,idxstate)
+
+    queuePutPkgIdxStH :: PkgN -> PkgIdxTs -> QEntryUpd -> AppHandler QEntryRow
+    queuePutPkgIdxStH pname idxstate (QEntryUpd prio) = needAuth $ do
+        headOr404M $ withDbcGuard check $ \dbconn -> do
+            _ <- PGS.execute dbconn "INSERT INTO queue(pname,ptime,prio) \
+                                    \VALUES (?,?,?) \
+                                    \ON CONFLICT (pname,ptime) \
+                                    \DO UPDATE SET prio = EXCLUDED.prio, modified = DEFAULT"
+                                    (pname,idxstate,prio)
+
+            PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue \
+                             \WHERE pname = ? AND ptime = ? \
+                             \ORDER BY prio desc, modified desc"
+                             (pname,idxstate)
+      where
+        check dbc = liftM2 (&&) (pkgnExists pname dbc) (pkgIdxTsExists idxstate dbc)
+
+    queueDelPkgIdxStH :: PkgN -> PkgIdxTs -> AppHandler NoContent
+    queueDelPkgIdxStH pname idxstate = needAuth $ do
+        cnt <- withDbc $ \dbconn -> PGS.execute dbconn "DELETE FROM queue WHERE pname = ? AND ptime = ?" (pname,idxstate)
+        when (cnt == 0) $
+            throwServantErr' err404
+        pure NoContent
+
+    ----------------------------------------------------------------------------
     -- queue -------------------------------------------------------------------
 
     queListH _cnt = do
@@ -349,23 +401,14 @@ server = tagListH
                                 (pn,pp)
         pure ()
 
-    queGetH pkgn = do
-        ents <- withDbc $ \dbconn -> do
-            PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ?" (PGS.Only pkgn)
-        case ents of
-          []    -> throwServantErr' err404
-          (e:_) -> pure e
+    queGetH pkgn = headOr404M $ withDbc $ \dbconn ->
+        PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ?" (Only pkgn)
 
-    quePutH pkgn prio = needAuth $ do
-        ents <- withDbc $ \dbconn -> do
-            PGS.query dbconn "UPDATE queue SET prio = ?, modified = DEFAULT \
-                             \WHERE pname = ? \
-                             \RETURNING prio,modified,pname,ptime"
-                             (prio,pkgn)
-
-        case ents of
-          []    -> throwServantErr' err404
-          (e:_) -> pure e
+    quePutH pkgn prio = needAuth $ headOr404M $withDbc $ \dbconn ->
+        PGS.query dbconn "UPDATE queue SET prio = ?, modified = DEFAULT \
+                         \WHERE pname = ? \
+                         \RETURNING prio,modified,pname,ptime"
+                         (prio,pkgn)
 
     queDelH pkgn = needAuth $ do
         withDbc $ \dbconn -> do
@@ -398,7 +441,15 @@ withDbcGuard cond body = do
 
     maybe (throwServantErr' err404) pure res
 
+headOr404M :: AppHandler [e] -> AppHandler e
+headOr404M act = headOr404 =<< act
+  where
+    headOr404 :: [e] -> AppHandler e
+    headOr404 [] = throwServantErr' err404
+    headOr404 (e:_) = pure e
 
+foldableToMaybe :: Foldable t => t a -> Maybe a
+foldableToMaybe = foldr (\x _ -> Just x) Nothing
 
 type AppHandler = Handler App App
 
