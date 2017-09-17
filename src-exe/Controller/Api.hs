@@ -166,7 +166,7 @@ data QEntryRow = QEntryRow
     { qrPriority    :: Int
     , qrModified    :: UTCTime
     , qrPkgname     :: PkgN
-    , qrIdxState    :: PkgIdxTs
+    , qrIdxstate    :: PkgIdxTs
     } deriving (Generic,Eq,Ord,Show)
 
 instance PGS.FromRow QEntryRow
