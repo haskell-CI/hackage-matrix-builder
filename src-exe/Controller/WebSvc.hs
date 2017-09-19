@@ -122,7 +122,7 @@ runController !app port =
 mkListSlice :: Word -> [a] -> ListSlice a
 mkListSlice ofs xs = ListSlice ofs (fromIntegral $ length xs) xs
 
-server :: Server (ControllerApi AppHandler) AppHandler
+server :: Server (ControllerApi AppHandler) '[] AppHandler
 server = tagListH
     :<|> tagSetH
     :<|> tagDelH

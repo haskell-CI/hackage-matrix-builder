@@ -30,7 +30,7 @@ swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
     & Swag.info.Swag.title        .~ "Hackage Matrix Builder Controller API"
     & Swag.info.Swag.version      .~ "3"
     & Swag.basePath               ?~ "/api"
-    & Swag.schemes                ?~ [Swag.Http]
+    & Swag.schemes                ?~ [Swag.Http,Swag.Https]
     -- Simplified scheme: GET doesn't require auth; DELETE & PUT require auth; POST may or may not requires auth...
     & Swag.securityDefinitions    .~ [("basicAuth", Swag.SecurityScheme Swag.SecuritySchemeBasic Nothing)]
     & Swag.paths . traversed . Swag.delete . _Just . Swag.security .~ basicAuth

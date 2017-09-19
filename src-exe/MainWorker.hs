@@ -36,7 +36,7 @@ import           Snap.Core
 import           Snap.Http.Server                  (defaultConfig)
 import qualified Snap.Http.Server.Config           as Config
 import           Snap.Snaplet
-import qualified System.IO.Streams                 as Streams
+-- import qualified System.IO.Streams as Streams
 -- import qualified System.IO.Streams.List as Streams
 -- import           System.IO.Streams.Process
 -- import           System.IO.Unsafe (unsafePerformIO)
@@ -149,15 +149,10 @@ main = do
     createDirectoryIfMissing True wcWorkDir
     runWorker App {..} wcPort
 
+-- is2lbs :: InputStream ByteString -> IO LBS.ByteString
+-- is2lbs s = LBS.fromChunks <$> Streams.toList s
 
-
-is2lbs :: InputStream ByteString -> IO LBS.ByteString
-is2lbs s = LBS.fromChunks <$> Streams.toList s
-
-
-
-
-server :: Server (WorkerApi AppHandler) AppHandler
+server :: Server (WorkerApi AppHandler) '[] AppHandler
 server =
     infoH :<|> jobsInfoH :<|> createJobH :<|> getJobSolveH :<|> getJobBuildDepsH :<|> getJobBuildH :<|> destroyJobH :<|> listCompilers :<|> listPkgDbGlobal :<|> listPkgDbStore :<|> destroyPkgDbStoreH
   where

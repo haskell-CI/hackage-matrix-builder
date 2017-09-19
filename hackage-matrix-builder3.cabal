@@ -89,7 +89,7 @@ executable matrix-worker
                      , lens
                      , mtl
                      , servant
-                     , servant-snap         ^>= 0.7.3
+                     , servant-snap         ^>= 0.8
                      , snap                 ^>= 1
                      , snap-core            ^>= 1
                      , snap-server          ^>= 1
@@ -160,7 +160,7 @@ executable matrix-controller
                      , postgresql-simple
                      , resource-pool        ^>= 0.2.3.2
                      , servant
-                     , servant-snap         ^>= 0.7.3
+                     , servant-snap         ^>= 0.8
                      , servant-swagger      ^>= 1.1.3
                      , snap                 ^>= 1
                      , snap-core            ^>= 1
