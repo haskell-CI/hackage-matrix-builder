@@ -307,7 +307,7 @@ server = tagListH
 
     idxStatesLatestH :: AppHandler PkgIdxTs
     idxStatesLatestH = do
-        [Only is] <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT max(ptime) FROM idxstates"
+        [Only is] <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT max(ptime) FROM idxstate"
         pure is
 
     ----------------------------------------------------------------------------
