@@ -219,5 +219,3 @@ decodeURI uri =
   G.decodeURIComponent $
     Rgx.replace (unsafePartial fromRight $ Rgx.regex "\\+" RXF.global) " " uri
 
-encodeURIPath :: String -> String
-encodeURIPath path = G.encodeURIComponent path
