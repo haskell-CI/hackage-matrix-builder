@@ -10,6 +10,7 @@ import Data.Argonaut.Core as Arg
 import Data.Argonaut.Decode as Arg
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
+import Data.StrMap as SM
 import Network.RemoteData as RD
 import Control.Monad.Reader (class MonadReader, ReaderT)
 import Control.Monad.Eff.Ref (Ref)
@@ -40,25 +41,11 @@ type MatrixApi2 eff =
                             , dom :: DOM
                             , history :: DOM.HISTORY| eff)))
 
-getTimestamp :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
-             => T.PackageName
-             -> m (RD.RemoteData String Arg.Json)
-getTimestamp pkgName = do
+getIdxstate :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+            => m (RD.RemoteData E.Error Arg.Json)
+getIdxstate = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
-                                   url = "/api/v2/packages/" <> pkgName <> "/reports"
-                                 , method = Left GET
-                                 })
-  let
-    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-  pure (RD.fromEither decodedApi)
-
-getLatestReportByPackageTimestamp :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                                  => T.PackageName
-                                  -> T.PackageTS
-                                  -> m (RD.RemoteData E.Error Arg.Json)
-getLatestReportByPackageTimestamp pkgName pkgTs = do
-  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
-                                   url = "/api/v1.0.0/package/name/" <> pkgName <> "/report/idxstate/"<> pkgTs
+                                   url = "/api/v2/idxstates?min=0&max=2147483647"
                                  , method = Left GET
                                  })
   let
@@ -66,6 +53,20 @@ getLatestReportByPackageTimestamp pkgName pkgTs = do
   case decodedApi of
     (Right a) -> pure (RD.Success a)
     (Left e)  -> pure (RD.Failure (E.error e))
+
+getLatestIdxstate :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                  => m (RD.RemoteData E.Error Arg.Json)
+getLatestIdxstate = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/idxstates/latest"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
 
 -- TODO: This function signature MUST be changed after API v2 fully implemented
 getPackages :: forall e m a. MonadReader (Api.Environment e) m
@@ -86,10 +87,10 @@ getPackages = do
     (Right a) -> pure (RD.Success a)
     (Left e)  -> pure (RD.Failure (E.error e))
 
-getTagsByPackageName :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
-                     => T.PackageName
-                     -> m (RD.RemoteData E.Error Arg.Json)
-getTagsByPackageName pkgName = do
+getPackageTags :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+               => T.PackageName
+               -> m (RD.RemoteData E.Error Arg.Json)
+getPackageTags pkgName = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
                         {
                           url = "/api/v2/packages/" <> pkgName <> "/tags"
@@ -100,6 +101,30 @@ getTagsByPackageName pkgName = do
   case decodedApi of
     (Right a) -> pure (RD.Success a)
     (Left e)  -> pure (RD.Failure (E.error e))
+
+getPackageReports :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
+                  => T.PackageName
+                  -> m (RD.RemoteData String Arg.Json)
+getPackageReports pkgName = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/packages/" <> pkgName <> "/reports"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  pure (RD.fromEither decodedApi)
+
+getPackageHistory :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
+             => T.PackageName
+             -> m (RD.RemoteData String Arg.Json)
+getPackageHistory pkgName = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/packages/" <> pkgName <> "/history"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  pure (RD.fromEither decodedApi)
 
 getTagsInfo :: forall e m a b. MonadAff (ajax :: Affjax.AJAX | e) m
              => T.PackageName
@@ -115,23 +140,129 @@ getTagsInfo pkgName = do
     (Right a) -> pure (RD.Success a)
     (Left e)  -> pure (RD.Failure (E.error e))
 
-putTagsByPackage :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getTagsWithPackage :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+                   => m (RD.RemoteData E.Error Arg.Json)
+getTagsWithPackage = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/tags?pkgnames=true"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+getTagsWithoutPackage :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+                      => m (RD.RemoteData E.Error Arg.Json)
+getTagsWithoutPackage = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/tags?pkgnames=false"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+getTagPackages :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+               => T.TagName
+               -> m (RD.RemoteData E.Error Arg.Json)
+getTagPackages tagName = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest
+                        {
+                          url = "/api/v2/tags/" <> tagName
+                          , method = Left GET
+                        })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+putPackageTag :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                  => T.TagName
                  -> T.PackageName
                  -> m (Affjax.AffjaxResponse Unit)
-putTagsByPackage tagName pkgName = do
+putPackageTag tagName pkgName = do
   let
     url = "/api/v2/tags/" <> tagName <> "/" <> pkgName
     dt = Arg.jsonEmptyString
   liftAff ( Affjax.put_ url dt )
 
-deleteTagsByPackage :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+deletePackageTag :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                  => T.TagName
                  -> T.PackageName
                  -> m (Affjax.AffjaxResponse Unit)
-deleteTagsByPackage tagName pkgName = do
+deletePackageTag tagName pkgName = do
   let
     url = "/api/v2/tags/" <> tagName <> "/" <> pkgName
+  liftAff ( Affjax.delete_ url)
+
+getQueues :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+        => m (RD.RemoteData E.Error Arg.Json)
+getQueues = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/queue"
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+getQueuePackages :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+               => T.PackageName
+               -> m (RD.RemoteData E.Error Arg.Json)
+getQueuePackages pkgName = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest
+                        {
+                          url = "/api/v2/queue/" <> pkgName
+                          , method = Left GET
+                        })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+getSpecificQueue :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
+               => T.PackageName
+               -> T.PkgIdxTs
+               -> m (RD.RemoteData E.Error Arg.Json)
+getSpecificQueue pkgName idx = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest
+                        {
+                          url = "/api/v2/queue/" <> pkgName <> "/" <> (show idx)
+                          , method = Left GET
+                        })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
+putPackageQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                 => T.PackageName
+                 -> T.PkgIdxTs
+                 -> Int
+                 -> m (Affjax.AffjaxResponse Unit)
+putPackageQueue pkgName idx prio = do
+  let
+    url = "/api/v2/queue/" <> pkgName <> "/" <> (show idx)
+    dt = Arg.fromObject (SM.singleton "priority"
+           ((Arg.fromNumber <<< Int.toNumber) prio))
+  liftAff ( Affjax.put_ url dt )
+
+deletePackageQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                 => T.PackageName
+                 -> T.PkgIdxTs
+                 -> m (Affjax.AffjaxResponse Unit)
+deletePackageQueue pkgName idx = do
+  let
+    url = "/api/v2/queue/" <> pkgName <> "/" <> (show idx)
   liftAff ( Affjax.delete_ url)
 
 parseJsonToArrayS :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
@@ -144,10 +275,23 @@ parseJsonToArrayS (RD.Success a) =
         (Just jStr) -> pure (RD.Success jStr)
         Nothing     -> pure (RD.Failure (E.error "Json is not String"))
     Nothing   -> pure (RD.Failure (E.error "Json is not Array"))
-
 parseJsonToArrayS (RD.Failure e) = pure $ RD.Failure e
 parseJsonToArrayS RD.Loading = pure RD.Loading
 parseJsonToArrayS RD.NotAsked = pure RD.NotAsked
+
+parseJsonToArrayTS :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                   => RD.RemoteData E.Error Arg.Json
+                   -> m (RD.RemoteData E.Error (Array T.PkgIdxTs))
+parseJsonToArrayTS (RD.Success a) =
+  case Arg.toArray a of
+    (Just a') ->
+      case TRV.traverse Arg.toNumber a' of
+        (Just jNum) -> pure (RD.Success (Int.round <$> jNum))
+        Nothing     -> pure (RD.Failure (E.error "Json is not String"))
+    Nothing   -> pure (RD.Failure (E.error "Json is not Array"))
+parseJsonToArrayTS (RD.Failure e) = pure $ RD.Failure e
+parseJsonToArrayTS RD.Loading = pure RD.Loading
+parseJsonToArrayTS RD.NotAsked = pure RD.NotAsked
 
 parseShallowReport :: forall e m a. MonadAff (ajax :: Affjax.AJAX | e) m
                    => RD.RemoteData E.Error Arg.Json
@@ -299,7 +443,7 @@ latestIndex :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
             => T.PackageName
             -> m (Tuple.Tuple T.PackageName String)
 latestIndex pkgName = do
-  idx <- getTimestamp pkgName
+  idx <- getPackageReports pkgName
   case idx of
     RD.Success idx -> getIdx ((show <<< Int.round) <$> (Misc.fromIndexToNumber (Arg.toArray idx))) pkgName
     _              -> pure $ Tuple.Tuple "" ""

@@ -263,8 +263,8 @@ component = H.lifecycleComponent
     eval (Initialize next) = do
       st <- H.get
       Tuple.Tuple _ idx' <-  Api.latestIndex (Tuple.fst st.initPackage)
-      pkgTs <- Api.getTimestamp  (Tuple.fst st.initPackage)
-      tags <- Api.getTagsByPackageName (Tuple.fst st.initPackage) >>= Api.parseJsonToArrayS
+      pkgTs <- Api.getPackageReports  (Tuple.fst st.initPackage)
+      tags <- Api.getPackageTags (Tuple.fst st.initPackage) >>= Api.parseJsonToArrayS
       let
         listIndex =
           case pkgTs of
@@ -309,11 +309,11 @@ component = H.lifecycleComponent
       H.put $ st { newtag = value }
       pure next
     eval (AddingNewTag newTag pkgName next) = do
-      _ <- H.lift $ Api.putTagsByPackage newTag pkgName
+      _ <- H.lift $ Api.putPackageTag newTag pkgName
       H.raise $ FromPagePackage
       pure next
     eval (RemoveTag tagName pkgName next) = do
-      _ <- H.lift $ Api.deleteTagsByPackage tagName pkgName
+      _ <- H.lift $ Api.deletePackageTag tagName pkgName
       H.raise $ FromPagePackage
       pure next
     eval (UpdateTag reply) = do
@@ -323,8 +323,8 @@ component = H.lifecycleComponent
     eval (Receive pkg next) = do
       st <- H.get
       Tuple.Tuple _ idx' <- Api.latestIndex (Tuple.fst pkg)
-      pkgTs <- Api.getTimestamp (Tuple.fst pkg)
-      tags <- Api.getTagsByPackageName (Tuple.fst pkg) >>= Api.parseJsonToArrayS
+      pkgTs <- Api.getPackageReports (Tuple.fst pkg)
+      tags <- Api.getPackageTags (Tuple.fst pkg) >>= Api.parseJsonToArrayS
       let
         listIndex =
           case pkgTs of
@@ -769,7 +769,7 @@ cellHash :: T.VersionName -> T.PackageName -> T.VersionName -> T.Cell
 cellHash ghcVer pkgName pkgVer =
   "GHC-" <> ghcVer <> "/" <> pkgName <> "-" <> pkgVer
 
-legend :: forall p i. HH.HTML p i
+legend :: forall p. HH.HTML p (Query Unit)
 legend =
   HH.div
     [ HP.class_ (H.ClassName "sub") ]
@@ -844,4 +844,10 @@ legend =
                     [ HH.text "test-result missing" ]
                 ]
             ]
+        , HH.button
+            [ HP.class_ (H.ClassName "refresh")
+            , HP.title "Refresh listings"
+            , HE.onClick $ HE.input_ (Initialize)
+            ]
+            [ HH.text "Refresh listings" ]
         ]

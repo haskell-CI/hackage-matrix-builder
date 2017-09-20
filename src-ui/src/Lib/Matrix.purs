@@ -65,6 +65,21 @@ foreign import data JQueryXHR :: Type
 
 type ApiEff e o = Eff (api :: API | e) o
 
+getLatestReportByPackageTimestamp :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                                  => T.PackageName
+                                  -> T.PackageTS
+                                  -> m (RD.RemoteData E.Error Arg.Json)
+getLatestReportByPackageTimestamp pkgName pkgTs = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v1.0.0/package/name/" <> pkgName <> "/report/idxstate/"<> pkgTs
+                                 , method = Left GET
+                                 })
+  let
+    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+  case decodedApi of
+    (Right a) -> pure (RD.Success a)
+    (Left e)  -> pure (RD.Failure (E.error e))
+
 getPackageList :: forall e a m. MonadReader (Environment a) m
                => MonadAff (api :: API | e) m
                => m (T.ApiList T.PackageMeta)
