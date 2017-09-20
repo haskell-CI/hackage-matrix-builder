@@ -130,13 +130,13 @@ component = H.lifecycleComponent
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text $ _.name state.package ]
                 , HH.div
-                    [ HP.id_ "indexing" ] $
-                    renderNavBtn state
-                , HH.div
                     [ HP.id_ "package-buildreport" ]
                     [ HH.h3
                         [ HP.class_ (H.ClassName "package-header") ]
                         [ HH.text "Solver Matrix (constrained by single version) " ]
+                    , HH.div
+                        [ HP.id_ "indexing" ] $
+                        renderNavBtn state
                     , HH.div
                         [ HP.id_ "package" ] [ (renderTableMatrix state.package shallowR) ]
                     , HH.h3
@@ -193,6 +193,9 @@ component = H.lifecycleComponent
                     [ HH.h3
                         [ HP.class_ (H.ClassName "package-header") ]
                         [ HH.text "Solver Matrix (constrained by single version) " ]
+                    , HH.div
+                        [ HP.id_ "indexing" ] $
+                        renderNavBtn state
                     , HH.div
                         [ HP.id_ "package" ]
                         [ (renderTableMatrix state.package { packageName: _.name state.package, modified: "", results: [] }) ]
@@ -434,19 +437,6 @@ generateQueueButton st =
         ]
   ]
 
-generateIndexStateButton :: forall p. State -> Array (HH.HTML p (Query Unit))
-generateIndexStateButton st =
-  [ HH.div
-      [ HP.class_ (H.ClassName "form") ]
-        [ HH.label_
-            [ HH.text "index-state: "
-            , HH.select
-                [ HP.class_ (H.ClassName "prio")
-                , HE.onSelectedIndexChange $ HE.input (HandleIndex st)
-                ] $ createIndexOption st <$> st.listTimeStamp
-            ]
-        ]
-  ]
 
 toTupleArray :: Array T.PkgIdxTs -> Array (Tuple.Tuple Int T.PackageTS)
 toTupleArray xs =
@@ -553,6 +543,20 @@ renderPackageTag pkgName tags newtag =
                [HH.text "╳"]
            ]
   ) <$> tags
+
+generateIndexStateButton :: forall p. State -> Array (HH.HTML p (Query Unit))
+generateIndexStateButton st =
+  [ HH.div
+      [ HP.class_ (H.ClassName "form") ]
+        [ HH.label_
+            [ HH.text "index-state: "
+            , HH.select
+                [ HP.class_ (H.ClassName "prio")
+                , HE.onSelectedIndexChange $ HE.input (HandleIndex st)
+                ] $ createIndexOption st <$> st.listTimeStamp
+            ]
+        ]
+  ]
 
 timeStampIsEmpty :: forall p i. Array (HH.HTML p i)
 timeStampIsEmpty =
@@ -772,54 +776,35 @@ cellHash ghcVer pkgName pkgVer =
 renderNavBtn :: forall p. State -> Array (HH.HTML p (Query Unit))
 renderNavBtn st =
   [
-    HH.nav
-      [ -- HP.id_ "menu"
-        HP.class_ (H.ClassName "clearfix")
-      ]
-      [ HH.div
-          [ HP.classes (H.ClassName <$> ["idxNav","left"])
+    HH.div
+      [ HP.id_ "menuIdx"
+      , HP.class_ (H.ClassName "idxOuter")
+      ] $
+      [ HH.button
+          [ HP.class_ (H.ClassName "idxBtn")
+          , HP.title "First Index-State"
+          , HE.onClick $ HE.input_ (Initialize)
           ]
-          [ HH.button
-              [ HP.class_ (H.ClassName "refresh")
-              , HP.title "First Index-State"
-              , HE.onClick $ HE.input_ (Initialize)
-              ]
-              [ HH.text "|< First" ]
+          [ HH.text "|< First" ]
+      , HH.button
+          [ HP.class_ (H.ClassName "idxBtn")
+          , HP.title "Previous Index-State"
+          , HE.onClick $ HE.input_ (Initialize)
           ]
-      , HH.div
-          [HP.classes (H.ClassName <$> ["idxNav","left"])
-          ]
-          [ HH.button
-              [ HP.class_ (H.ClassName "refresh")
-              , HP.title "Previous Index-State"
-              , HE.onClick $ HE.input_ (Initialize)
-              ]
-              [ HH.text "< Previous" ]
-          ]
-      , HH.div
-          [HP.classes (H.ClassName <$> ["idxNav","left"])
-          ] $ if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st
-      , HH.div
-          [HP.classes (H.ClassName <$> ["idxNav","left"])
-          ]
-          [  HH.button
-              [ HP.class_ (H.ClassName "refresh")
-              , HP.title "Next Index-State"
-              , HE.onClick $ HE.input_ (Initialize)
-              ]
-              [ HH.text "Next >" ]
-          ]
-      , HH.div
-          [HP.classes (H.ClassName <$> ["idxNav","right","clearfix"])
-          ]
-          [ HH.button
-              [ HP.class_ (H.ClassName "refresh")
-              , HP.title "Last Index-State"
-              , HE.onClick $ HE.input_ (Initialize)
-              ]
-              [ HH.text "Last >|" ]
-          ]
-      ]
+          [ HH.text "< Previous" ]
+      ] <> (if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st) <> [ HH.button
+                     [ HP.class_ (H.ClassName "idxBtn")
+                     , HP.title "Next Index-State"
+                     , HE.onClick $ HE.input_ (Initialize)
+                     ]
+                     [ HH.text "Next >" ]
+                 , HH.button
+                     [ HP.class_ (H.ClassName "idxBtn")
+                     , HP.title "Last Index-State"
+                     , HE.onClick $ HE.input_ (Initialize)
+                     ]
+                     [ HH.text "Last >|" ]
+                 ]
   ]
 
 legend :: forall p. HH.HTML p (Query Unit)

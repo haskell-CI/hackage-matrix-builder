@@ -334,3 +334,25 @@ body .ui-widget-content { background: none; background-color: #FAFAFF; }
 body .ui-widget-header .ui-state-default { background: #E6E6F9; }
 body .ui-widget-header .ui-state-active { background: #FAFAFF; }
 body .ui-tabs-nav.ui-widget-header { height: 40px; }
+
+.idxOuter {
+    display: inline-flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: flex-start;
+    align-content: flex-start;
+    height: 100%;
+    width: 100%;
+    flex-wrap: nowrap;
+    margin-top: 16px;
+    margin-bottom: 16px;
+}
+
+.idxOuter button {
+    margin-left: 16px;
+}
+
+.idxOuter .form label {
+    margin-left: 16px;
+}
+
