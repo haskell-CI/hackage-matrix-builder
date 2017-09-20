@@ -16,7 +16,7 @@ import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI as Misc
-import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=), (-), (*))
+import Prelude (type (~>), Unit, bind, const, discard, otherwise, pure, show, ($), (&&), (/=), (<$>), (<>), (==), (>), (||), (>>=), (-), (*), (+))
 import DOM.HTML (window) as DOM
 import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
 import DOM.HTML.Window (history) as DOM
@@ -50,6 +50,7 @@ type State =
   , latestIndex :: T.PackageTS
   , mapIndexState :: Map.Map Int T.PackageTS
   , listTags :: Array T.TagName
+  , currKey :: Int
   }
 
 data Query a
@@ -106,6 +107,7 @@ component = H.lifecycleComponent
       , latestIndex: ""
       , mapIndexState: Map.empty
       , listTags: []
+      , currKey: 0
       }
 
     render :: State -> H.ComponentHTML Query
@@ -130,13 +132,13 @@ component = H.lifecycleComponent
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text $ _.name state.package ]
                 , HH.div
-                    [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-                    [ HH.text $ "index-state: " <> (Misc.formatDate' state.report)                ]
-                , HH.div
                     [ HP.id_ "package-buildreport" ]
                     [ HH.h3
                         [ HP.class_ (H.ClassName "package-header") ]
                         [ HH.text "Solver Matrix (constrained by single version) " ]
+                    , HH.div
+                        [ HP.id_ "indexing" ] $
+                        renderNavBtn state
                     , HH.div
                         [ HP.id_ "package" ] [ (renderTableMatrix state.package shallowR) ]
                     , HH.h3
@@ -193,6 +195,9 @@ component = H.lifecycleComponent
                     [ HH.h3
                         [ HP.class_ (H.ClassName "package-header") ]
                         [ HH.text "Solver Matrix (constrained by single version) " ]
+                    , HH.div
+                        [ HP.id_ "indexing" ] $
+                        renderNavBtn state
                     , HH.div
                         [ HP.id_ "package" ]
                         [ (renderTableMatrix state.package { packageName: _.name state.package, modified: "", results: [] }) ]
@@ -272,6 +277,10 @@ component = H.lifecycleComponent
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
+        maxKey =
+          case Map.findMax mapIdxSt of
+            Just { key } -> (key :: Int)
+            Nothing      -> 0
       packageByName <- H.lift $ Api.getPackageByName (Tuple.fst st.initPackage)
       reportPackage <- H.lift $
         if Str.null (Tuple.snd st.initPackage)
@@ -291,6 +300,7 @@ component = H.lifecycleComponent
                       case tags of
                         (RD.Success a) -> a
                         _              -> []
+                  , currKey = maxKey
                   }
       pure next
     eval (FailingPackage next) = do
@@ -332,6 +342,10 @@ component = H.lifecycleComponent
             _              -> []
         latestIdx = Misc.getLastIdx listIndex
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
+        maxKey =
+          case Map.findMax mapIdxSt of
+            Just { key } -> (key :: Int)
+            Nothing      -> 0
       packageByName <- H.lift $ Api.getPackageByName (Tuple.fst pkg)
       reportPackage <- H.lift $
         if Str.null (Tuple.snd pkg)
@@ -351,6 +365,10 @@ component = H.lifecycleComponent
                       case tags of
                         (RD.Success a) -> a
                         _              -> []
+                 , currKey =
+                      case Arr.elemIndex (Tuple.snd pkg) (show <$> listIndex) of
+                        Just a  -> a
+                        Nothing -> maxKey
                  }
       pure next
     eval (HandleQueue idx next) = do
@@ -368,7 +386,8 @@ component = H.lifecycleComponent
       _ <- H.lift $ Api.putQueueCreate pkgName prio
       pure next
     eval (HandleIndex st idx next) = do
-      traceAnyA ("current index is : " <> (show idx))
+      -- traceAnyA ("current index is : " <> (show idx))
+      H.modify _ { currKey = idx }
       let
         selectedIndex' =
           case Map.lookup idx st.mapIndexState of
@@ -434,19 +453,6 @@ generateQueueButton st =
         ]
   ]
 
-generateIndexStateButton :: forall p. State -> Array (HH.HTML p (Query Unit))
-generateIndexStateButton st =
-  [ HH.div
-      [ HP.class_ (H.ClassName "form") ]
-        [ HH.label_
-            [ HH.text "Index State"
-            , HH.select
-                [ HP.class_ (H.ClassName "prio")
-                , HE.onSelectedIndexChange $ HE.input (HandleIndex st)
-                ] $ createIndexOption st <$> st.listTimeStamp
-            ]
-        ]
-  ]
 
 toTupleArray :: Array T.PkgIdxTs -> Array (Tuple.Tuple Int T.PackageTS)
 toTupleArray xs =
@@ -553,6 +559,20 @@ renderPackageTag pkgName tags newtag =
                [HH.text "╳"]
            ]
   ) <$> tags
+
+generateIndexStateButton :: forall p. State -> Array (HH.HTML p (Query Unit))
+generateIndexStateButton st =
+  [ HH.div
+      [ HP.class_ (H.ClassName "form") ]
+        [ HH.label_
+            [ HH.text "index-state: "
+            , HH.select
+                [ HP.class_ (H.ClassName "prio")
+                , HE.onSelectedIndexChange $ HE.input (HandleIndex st)
+                ] $ createIndexOption st <$> st.listTimeStamp
+            ]
+        ]
+  ]
 
 timeStampIsEmpty :: forall p i. Array (HH.HTML p i)
 timeStampIsEmpty =
@@ -768,6 +788,46 @@ revisionsUrl pkgName versionName =
 cellHash :: T.VersionName -> T.PackageName -> T.VersionName -> T.Cell
 cellHash ghcVer pkgName pkgVer =
   "GHC-" <> ghcVer <> "/" <> pkgName <> "-" <> pkgVer
+
+renderNavBtn :: forall p. State -> Array (HH.HTML p (Query Unit))
+renderNavBtn st =
+  [
+    HH.div
+      [ HP.id_ "menuIdx"
+      , HP.class_ (H.ClassName "idxOuter")
+      ] $
+      [ HH.button
+          [ HP.class_ (H.ClassName "idxBtn")
+          , HP.title "First Index-State"
+          , HE.onClick $ HE.input_ (HandleIndex st (case Map.findMin st.mapIndexState of
+                                                       Just { key } -> (key :: Int)
+                                                       Nothing      -> 0
+                                                   ))
+          ]
+          [ HH.text "|< First" ]
+      , HH.button
+          [ HP.class_ (H.ClassName "idxBtn")
+          , HP.title "Previous Index-State"
+          , HE.onClick $ HE.input_ (HandleIndex st (st.currKey - 1))
+          ]
+          [ HH.text "< Previous" ]
+      ] <> (if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st) <> [ HH.button
+                     [ HP.class_ (H.ClassName "idxBtn")
+                     , HP.title "Next Index-State"
+                     , HE.onClick $ HE.input_ (HandleIndex st (st.currKey + 1))
+                     ]
+                     [ HH.text "Next >" ]
+                 , HH.button
+                     [ HP.class_ (H.ClassName "idxBtn")
+                     , HP.title "Last Index-State"
+                     , HE.onClick $ HE.input_ (HandleIndex st (case Map.findMax st.mapIndexState of
+                                                                  Just { key } -> (key :: Int)
+                                                                  Nothing      -> 0
+                                                              ))
+                     ]
+                     [ HH.text "Last >|" ]
+                 ]
+  ]
 
 legend :: forall p. HH.HTML p (Query Unit)
 legend =
