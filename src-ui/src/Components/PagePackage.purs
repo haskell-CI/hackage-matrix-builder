@@ -130,8 +130,8 @@ component = H.lifecycleComponent
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text $ _.name state.package ]
                 , HH.div
-                    [ HP.classes (H.ClassName <$> ["main-header-subtext","last-build"]) ]
-                    [ HH.text $ "index-state: " <> (Misc.formatDate' state.report)                ]
+                    [ HP.id_ "indexing" ] $
+                    renderNavBtn state
                 , HH.div
                     [ HP.id_ "package-buildreport" ]
                     [ HH.h3
@@ -439,7 +439,7 @@ generateIndexStateButton st =
   [ HH.div
       [ HP.class_ (H.ClassName "form") ]
         [ HH.label_
-            [ HH.text "Index State"
+            [ HH.text "index-state: "
             , HH.select
                 [ HP.class_ (H.ClassName "prio")
                 , HE.onSelectedIndexChange $ HE.input (HandleIndex st)
@@ -768,6 +768,59 @@ revisionsUrl pkgName versionName =
 cellHash :: T.VersionName -> T.PackageName -> T.VersionName -> T.Cell
 cellHash ghcVer pkgName pkgVer =
   "GHC-" <> ghcVer <> "/" <> pkgName <> "-" <> pkgVer
+
+renderNavBtn :: forall p. State -> Array (HH.HTML p (Query Unit))
+renderNavBtn st =
+  [
+    HH.nav
+      [ -- HP.id_ "menu"
+        HP.class_ (H.ClassName "clearfix")
+      ]
+      [ HH.div
+          [ HP.classes (H.ClassName <$> ["idxNav","left"])
+          ]
+          [ HH.button
+              [ HP.class_ (H.ClassName "refresh")
+              , HP.title "First Index-State"
+              , HE.onClick $ HE.input_ (Initialize)
+              ]
+              [ HH.text "|< First" ]
+          ]
+      , HH.div
+          [HP.classes (H.ClassName <$> ["idxNav","left"])
+          ]
+          [ HH.button
+              [ HP.class_ (H.ClassName "refresh")
+              , HP.title "Previous Index-State"
+              , HE.onClick $ HE.input_ (Initialize)
+              ]
+              [ HH.text "< Previous" ]
+          ]
+      , HH.div
+          [HP.classes (H.ClassName <$> ["idxNav","left"])
+          ] $ if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st
+      , HH.div
+          [HP.classes (H.ClassName <$> ["idxNav","left"])
+          ]
+          [  HH.button
+              [ HP.class_ (H.ClassName "refresh")
+              , HP.title "Next Index-State"
+              , HE.onClick $ HE.input_ (Initialize)
+              ]
+              [ HH.text "Next >" ]
+          ]
+      , HH.div
+          [HP.classes (H.ClassName <$> ["idxNav","right","clearfix"])
+          ]
+          [ HH.button
+              [ HP.class_ (H.ClassName "refresh")
+              , HP.title "Last Index-State"
+              , HE.onClick $ HE.input_ (Initialize)
+              ]
+              [ HH.text "Last >|" ]
+          ]
+      ]
+  ]
 
 legend :: forall p. HH.HTML p (Query Unit)
 legend =
