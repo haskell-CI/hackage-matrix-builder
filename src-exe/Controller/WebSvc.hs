@@ -102,10 +102,7 @@ runController !app port =
         writeLBS (J.encode swaggerDoc)
 
     apiHandler :: AppHandler ()
-    apiHandler = Snap.applyCORS Snap.defaultOptions $ do
-        serveSnap controllerApi server
-        -- TODO: find out why we need this second 'applyCORS' invocation
-        Snap.applyCORS Snap.defaultOptions $ pure ()
+    apiHandler = Snap.applyCORS Snap.defaultOptions $ serveSnap controllerApi server
 
     uiHandler :: AppHandler ()
     uiHandler = Snap.serveDirectory "ui"
