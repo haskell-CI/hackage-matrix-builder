@@ -130,7 +130,7 @@ component = H.lifecycleComponent
                 [ HP.class_ (H.ClassName "leftcol") ]
                 [ HH.h2
                     [ HP.class_ (H.ClassName "main-header") ]
-                    [ HH.text $ _.name state.package ]
+                    [ HH.text $ Tuple.fst state.initPackage ]
                 , HH.div
                     [ HP.id_ "package-buildreport" ]
                     [ HH.h3
@@ -268,14 +268,14 @@ component = H.lifecycleComponent
     eval (Initialize next) = do
       st <- H.get
       Tuple.Tuple _ idx' <-  Api.latestIndex (Tuple.fst st.initPackage)
-      pkgTs <- Api.getPackageReports  (Tuple.fst st.initPackage)
+      listIndex <- Api.getPackageReports  (Tuple.fst st.initPackage)
       tags <- Api.getPackageTags (Tuple.fst st.initPackage) >>= Api.parseJsonToArrayS
       let
-        listIndex =
-          case pkgTs of
-            RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
-            _              -> []
-        latestIdx = Misc.getLastIdx listIndex
+        listIndex' =
+          case listIndex of
+            RD.Success idx' -> idx'
+            _               -> []
+        latestIdx = Misc.getLastIdx listIndex'
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
         maxKey =
           case Map.findMax mapIdxSt of
@@ -288,11 +288,12 @@ component = H.lifecycleComponent
         else (Api.getLatestReportByPackageTimestamp (Tuple.fst st.initPackage) (Tuple.snd st.initPackage))
                 >>= Api.parseShallowReport
       queueStat <- H.lift $ Api.getQueueByName (Tuple.fst st.initPackage)
+      traceAnyA "This is from Init"
       H.modify _  { package = packageByName
                   , report = reportPackage
                   , highlighted = false
                   , queueStatus = queueStat
-                  , listTimeStamp = listIndex
+                  , listTimeStamp = listIndex'
                   , currentSelectedIdx = Tuple.snd st.initPackage
                   , latestIndex = latestIdx
                   , mapIndexState = mapIdxSt
@@ -333,14 +334,14 @@ component = H.lifecycleComponent
     eval (Receive pkg next) = do
       st <- H.get
       Tuple.Tuple _ idx' <- Api.latestIndex (Tuple.fst pkg)
-      pkgTs <- Api.getPackageReports (Tuple.fst pkg)
+      listIndex <- Api.getPackageReports (Tuple.fst pkg)
       tags <- Api.getPackageTags (Tuple.fst pkg) >>= Api.parseJsonToArrayS
       let
-        listIndex =
-          case pkgTs of
-            RD.Success idx' -> Int.round <$> (Misc.fromIndexToNumber (Arg.toArray idx'))
+        listIndex' =
+          case listIndex of
+            RD.Success idx' -> idx'
             _              -> []
-        latestIdx = Misc.getLastIdx listIndex
+        latestIdx = Misc.getLastIdx listIndex'
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
         maxKey =
           case Map.findMax mapIdxSt of
@@ -353,11 +354,12 @@ component = H.lifecycleComponent
         else  (Api.getLatestReportByPackageTimestamp (Tuple.fst pkg) (Tuple.snd pkg))
                  >>= Api.parseShallowReport
       queueStat <- H.lift $ Api.getQueueByName (Tuple.fst pkg)
+      traceAnyA "This is from Receive"
       H.modify _ { initPackage = pkg
                  , package = packageByName
                  , report = reportPackage
                  , queueStatus = queueStat
-                 , listTimeStamp = listIndex
+                 , listTimeStamp = listIndex'
                  , latestIndex = latestIdx
                  , currentSelectedIdx = Tuple.snd pkg
                  , mapIndexState = mapIdxSt
@@ -366,7 +368,7 @@ component = H.lifecycleComponent
                         (RD.Success a) -> a
                         _              -> []
                  , currKey =
-                      case Arr.elemIndex (Tuple.snd pkg) (show <$> listIndex) of
+                      case Arr.elemIndex (Tuple.snd pkg) (show <$> listIndex') of
                         Just a  -> a
                         Nothing -> maxKey
                  }
@@ -394,11 +396,11 @@ component = H.lifecycleComponent
             Just a -> a
             Nothing -> ""
         package = Tuple.fst st.initPackage
-        sObj = SM.singleton "name" (Arg.encodeJson (_.name st.package))
+        sObj = SM.singleton "name" (Arg.encodeJson package)
         jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
         indexURL = if Str.null selectedIndex' then "" else "@" <> selectedIndex'
-        pageName = DOM.DocumentTitle $ (_.name st.package) <> " - " <> selectedIndex'
-        pageUrl = DOM.URL $ "#/package/" <> (_.name st.package) <> indexURL
+        pageName = DOM.DocumentTitle $ package <> " - " <> selectedIndex'
+        pageUrl = DOM.URL $ "#/package/" <> package <> indexURL
       hist <- H.liftEff $ DOM.window >>= DOM.history
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
       traceAnyA selectedIndex'
@@ -454,11 +456,12 @@ generateQueueButton st =
   ]
 
 
-toTupleArray :: Array T.PkgIdxTs -> Array (Tuple.Tuple Int T.PackageTS)
-toTupleArray xs =
+toTupleArray :: RD.RemoteData E.Error (Array T.PkgIdxTs) -> Array (Tuple.Tuple Int T.PackageTS)
+toTupleArray (RD.Success xs) =
   let len = (Arr.length xs) - 1
       idx = Arr.(..) 0 len
   in Arr.zip idx (show <$> xs)
+toTupleArray _ = []
 
 createIndexOption :: forall p i. State -> T.PkgIdxTs -> HH.HTML p i
 createIndexOption st idx' =

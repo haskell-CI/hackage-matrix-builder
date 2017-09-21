@@ -3,6 +3,7 @@ module Lib.MatrixApi2 where
 import Prelude (Unit, pure, bind, otherwise, (<>), ($), (<<<), (<$>), show, (/=), (==))
 import Network.HTTP.Affjax as Affjax
 import Network.HTTP.Affjax.Request (class Requestable)
+import Network.HTTP.StatusCode as SC
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Data.Traversable as TRV
 import Data.Maybe (Maybe(..))
@@ -17,12 +18,12 @@ import Control.Monad.Eff.Ref (Ref)
 import Control.Monad.Eff.Exception as E
 import Control.Monad.Eff
 import Control.Monad.Aff (Aff)
-import Data.StrMap as SM
 import Data.Int as Int
 import Data.Array as Arr
 import Data.Tuple as Tuple
+import Data.String as Str
 import Halogen.Aff (HalogenEffects)
-import DOM
+import DOM (DOM)
 import DOM.HTML.Types as DOM
 
 import Lib.MiscFFI as Misc
@@ -91,28 +92,40 @@ getPackageTags :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                => T.PackageName
                -> m (RD.RemoteData E.Error Arg.Json)
 getPackageTags pkgName = do
-  res <- liftAff (Affjax.affjax Affjax.defaultRequest
-                        {
-                          url = "/api/v2/packages/" <> pkgName <> "/tags"
-                          , method = Left GET
-                        })
-  let
-    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-  case decodedApi of
-    (Right a) -> pure (RD.Success a)
-    (Left e)  -> pure (RD.Failure (E.error e))
+  if Str.null pkgName
+    then pure (RD.Failure (E.error "Package is Empty"))
+    else do
+      res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                      url = "/api/v2/packages/" <> pkgName <> "/tags"
+                                    , method = Left GET
+                                    })
+      let
+        decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+      case decodedApi of
+        (Right a) -> pure (RD.Success a)
+        (Left e)  -> pure (RD.Failure (E.error e))
 
 getPackageReports :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                   => T.PackageName
-                  -> m (RD.RemoteData String Arg.Json)
-getPackageReports pkgName = do
-  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                  -> m (RD.RemoteData E.Error (Array T.PkgIdxTs))
+getPackageReports pkgName =
+ if Str.null pkgName
+  then pure (RD.Failure (E.error "Package is Empty"))
+  else do
+    res <- liftAff (Affjax.affjax Affjax.defaultRequest {
                                    url = "/api/v2/packages/" <> pkgName <> "/reports"
                                  , method = Left GET
                                  })
-  let
-    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-  pure (RD.fromEither decodedApi)
+    case res.status of
+         SC.StatusCode 200 -> do
+           let
+             decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+             result =
+               case decodedApi of
+                 (Right a) -> (RD.Success a)
+                 (Left e)  -> (RD.Failure (E.error e))
+           parseJsonToArrayTS result
+         SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 getPackageHistory :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
              => T.PackageName
@@ -445,7 +458,7 @@ latestIndex :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
 latestIndex pkgName = do
   index <- getPackageReports pkgName
   case index of
-    RD.Success idx -> getIdx ((show <<< Int.round) <$> (Misc.fromIndexToNumber (Arg.toArray idx))) pkgName
+    RD.Success idx -> getIdx (show  <$> idx) pkgName
     _              -> pure $ Tuple.Tuple "" ""
   where
     getIdx idx' pkg'=

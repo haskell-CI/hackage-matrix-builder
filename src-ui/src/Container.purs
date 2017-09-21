@@ -44,6 +44,7 @@ import Data.Tuple as Tuple
 import Data.StrMap as SM
 import Data.Argonaut as Arg
 import Data.Foreign as F
+import Data.Foldable as Fold
 import Partial.Unsafe (unsafePartial)
 import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>), (/=))
 import Routing.Match (Match)
@@ -152,7 +153,6 @@ ui =
                     , HP.id_ "search"
                     , HP.attr (H.AttrName "autocapitalize") "none"
                     , HE.onValueInput (HE.input (HandleSearchBox state))
-                    , HE.onValueInput (HE.input (HandlePackage))
                     , HE.onKeyPress (HE.input HandleKeyboard)
                     ]
                 ]
@@ -178,15 +178,16 @@ ui =
     eval (HandlePagePackage PagePackage.FromPagePackage next) = eval (Initialize next)
 
     eval (HandleSearchBox st str next) = do
-      let packages = _.name <$>
-                     Arr.filter (packageContained str) st.package
+      let packages = Arr.filter (packageContained str) st.packages
       _ <- H.subscribe
             (H.eventSource
               (\k -> J.select "#search" >>= Misc.autocomplete { source: packages
                                                               , select: k
                                                               })
               (\a -> Just $ SearchBoxChange (a.item.value) H.Listening))
-      pure next
+      if Fold.notElem str packages
+        then pure next
+        else eval (HandlePackage str next)
 
     eval (RouteChange str next) = do
       _ <- H.modify _ { route = str }
@@ -199,26 +200,17 @@ ui =
       eval (HandlePagePackage PagePackage.FromPagePackage next)
 
     eval (HandlePackage pkgName next) = do
-      st <- H.get
       _ <- H.modify _ { searchPkg = pkgName }
-      _ <- traceAnyA st.searchPkg
       pure next
 
     eval (HandleKeyboard key next) = do
       _ <- traceAnyA (DOM.key key)
-      st <- H.get
-      case DOM.key key of
+      let
+        str = DOM.key key
+      case str of
         "Enter" -> do
-          let
-            selectedIndex' = Tuple.snd (Misc.makeTuplePkgIdx st.searchPkg)
-            sObj = SM.singleton "name" (Arg.encodeJson st.searchPkg)
-            jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
-            pageName = DOM.DocumentTitle $ st.searchPkg <> " - " <> selectedIndex'
-            pageUrl = DOM.URL $ "#/package/" <> (st.searchPkg)
-          hist <- H.liftEff $ DOM.window >>= DOM.history
-          pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
-
-          eval (RouteChange (T.PackagePage st.searchPkg) next)
+          st <- H.get
+          eval (SearchBoxChange st.searchPkg next)
         _       -> pure next
 
 routing :: Match T.PageRoute
@@ -241,14 +233,14 @@ routing =  latest
 
 getPackageMeta :: Tuple.Tuple T.PackageName T.PackageTS -> Array T.PackageName  -> Tuple.Tuple T.PackageName T.PackageTS
 getPackageMeta (Tuple.Tuple pkgName idx) pkgMetaArr =
-  case Arr.uncons filteredPkgMetaArr of
+  case Arr.uncons (filteredPkgMetaArr pkgName pkgMetaArr) of
     Just { head: x, tail: xs } -> Tuple.Tuple x idx
-    Nothing                    -> Tuple.Tuple "not found" "no index state"
+    Nothing                    -> Tuple.Tuple "" ""
   where
-    filteredPkgMetaArr = Arr.filter (\x -> x == pkgName) pkgMetaArr
+    filteredPkgMetaArr pkg metaArr= Arr.filter (\x -> x == pkg) metaArr
 
-packageContained :: String -> T.PackageMeta -> Boolean
-packageContained str pkgMeta = Str.contains (Str.Pattern str) pkgMeta.name
+packageContained :: String -> T.PackageName -> Boolean
+packageContained str pkgName = Str.contains (Str.Pattern str) pkgName
 
 decodeURI :: String -> String
 decodeURI uri =
