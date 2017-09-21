@@ -17,7 +17,7 @@ import Halogen.Aff (HalogenEffects)
 import Lib.MiscFFI as Misc
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
-import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>), (<$>), show, (/=), (==), otherwise)
+import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>), (<$>), show, (/=), (==), (||), otherwise)
 import Network.HTTP.Affjax as Affjax
 import Network.HTTP.Affjax.Response as Affjax
 import Data.HTTP.Method (Method(..))
@@ -69,16 +69,19 @@ getLatestReportByPackageTimestamp :: forall e m. MonadAff (ajax :: Affjax.AJAX |
                                   => T.PackageName
                                   -> T.PackageTS
                                   -> m (RD.RemoteData E.Error Arg.Json)
-getLatestReportByPackageTimestamp pkgName pkgTs = do
-  res <- liftAff (Affjax.affjax Affjax.defaultRequest {
-                                   url = "/api/v1.0.0/package/name/" <> pkgName <> "/report/idxstate/"<> pkgTs
-                                 , method = Left GET
-                                 })
-  let
-    decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-  case decodedApi of
-    (Right a) -> pure (RD.Success a)
-    (Left e)  -> pure (RD.Failure (E.error e))
+getLatestReportByPackageTimestamp pkgName pkgTs = 
+  if Str.null pkgName || Str.null pkgTs
+    then pure (RD.Failure (E.error "Package or Timestamp is Empty"))
+    else do
+      res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                      url = "/api/v1.0.0/package/name/" <> pkgName <> "/report/idxstate/"<> pkgTs
+                                    , method = Left GET
+                                    })
+      let
+        decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+      case decodedApi of
+        (Right a) -> pure (RD.Success a)
+        (Left e)  -> pure (RD.Failure (E.error e))
 
 getPackageList :: forall e a m. MonadReader (Environment a) m
                => MonadAff (api :: API | e) m
@@ -151,18 +154,24 @@ getLatestReportByPackageName :: forall a e m.
                              => MonadAff (api :: API | e) m
                              => T.PackageName
                              -> m (RD.RemoteData E.Error T.ShallowReport)
-getLatestReportByPackageName pkgName = do
-  client <- asks _.matrixClient
-  shallowR <- liftAff $ attempt (latestReportByPackageName client pkgName)
-  pure (RD.fromEither shallowR)
+getLatestReportByPackageName pkgName = 
+  if Str.null pkgName
+    then pure (RD.Failure (E.error "Package is Empty"))
+    else do
+      client <- asks _.matrixClient
+      shallowR <- liftAff $ attempt (latestReportByPackageName client pkgName)
+      pure (RD.fromEither shallowR)
 
 getPackageByName :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                  => MonadAff (api :: API | e) m
                  => T.PackageName
                  -> m (T.Package)
-getPackageByName pkgName = do
-  client <- asks _.matrixClient
-  liftAff (packageByName client pkgName)
+getPackageByName pkgName =
+  if Str.null pkgName
+    then pure ({name: "", versions: []})
+    else do
+      client <- asks _.matrixClient
+      liftAff (packageByName client pkgName)
 
 getSingleResult :: forall a e m. MonadReader { matrixClient :: MatrixApi | a } m
                 => MonadAff (api :: API | e) m

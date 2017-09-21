@@ -6,11 +6,9 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
-import Lib.MiscFFI as Misc
 import Data.Maybe (Maybe(..))
 import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
 import Data.Traversable as TR
-import Data.Tuple as Tuple
 
 type State =
  {
