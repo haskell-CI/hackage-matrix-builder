@@ -32,11 +32,18 @@ import Control.Monad.Reader (asks)
 import DOM.HTML (window) as DOM
 import DOM.HTML.Location (setHref, origin) as DOM
 import DOM.HTML.Window (location) as DOM
+import DOM.Event.Types (KeyboardEvent) as DOM
+import DOM.Event.KeyboardEvent (key, code) as DOM
+import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
+import DOM.HTML.Window (history) as DOM
 import Data.Either (fromRight)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 import Data.Tuple as Tuple
+import Data.StrMap as SM
+import Data.Argonaut as Arg
+import Data.Foreign as F
 import Partial.Unsafe (unsafePartial)
 import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>), (/=))
 import Routing.Match (Match)
@@ -46,6 +53,7 @@ type State = {
     route :: T.PageRoute
   , package :: Array T.PackageMeta
   , packages :: Array T.PackageName
+  , searchPkg :: T.PackageName
 }
 
 data Query a =
@@ -54,6 +62,8 @@ data Query a =
   | HandleSearchBox State T.PackageName a
   | RouteChange T.PageRoute a
   | SearchBoxChange T.PackageName a
+  | HandlePackage T.PackageName a
+  | HandleKeyboard DOM.KeyboardEvent a
 
 type ChildQuery = Coproduct6 PageError.Query
                              PageHome.Query
@@ -80,6 +90,7 @@ ui =
       { route: T.ErrorPage
       , package: []
       , packages: []
+      , searchPkg: ""
       }
 
     render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api.Matrix e)
@@ -103,7 +114,7 @@ ui =
               HH.slot' CP.cp1 unit PageError.component unit absurd
         ]
       where
-        renderNavigation st =
+        renderNavigation state =
           HH.nav
             [ HP.id_ "menu"
             , HP.class_ (H.ClassName "clearfix")
@@ -140,7 +151,9 @@ ui =
                     , HP.class_ (H.ClassName "input")
                     , HP.id_ "search"
                     , HP.attr (H.AttrName "autocapitalize") "none"
-                    , HE.onValueInput (HE.input (HandleSearchBox st))
+                    , HE.onValueInput (HE.input (HandleSearchBox state))
+                    , HE.onValueInput (HE.input (HandlePackage))
+                    , HE.onKeyPress (HE.input HandleKeyboard)
                     ]
                 ]
             ]
@@ -185,6 +198,31 @@ ui =
       _ <- liftEff $ DOM.setHref (ori <> "#/package/" <> pkgName) loc
       eval (HandlePagePackage PagePackage.FromPagePackage next)
 
+    eval (HandlePackage pkgName next) = do
+      st <- H.get
+      _ <- H.modify _ { searchPkg = pkgName }
+      _ <- traceAnyA st.searchPkg
+      pure next
+
+    eval (HandleKeyboard key next) = do
+      _ <- traceAnyA (DOM.key key)
+      st <- H.get
+      case DOM.key key of
+        "Enter" -> do
+          let
+            selectedIndex' = Tuple.snd (Misc.makeTuplePkgIdx st.searchPkg)
+            sObj = SM.singleton "name" (Arg.encodeJson st.searchPkg)
+            jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
+            pageName = DOM.DocumentTitle $ st.searchPkg <> " - " <> selectedIndex'
+            pageUrl = DOM.URL $ "#/package/" <> (st.searchPkg) <> if Str.null selectedIndex'
+                                                                  then ""
+                                                                  else "@" <> selectedIndex'
+          hist <- H.liftEff $ DOM.window >>= DOM.history
+          pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
+
+          eval (RouteChange (T.PackagePage st.searchPkg) next)
+        _       -> pure next
+
 routing :: Match T.PageRoute
 routing =  latest
        <|> packages
@@ -218,4 +256,3 @@ decodeURI :: String -> String
 decodeURI uri =
   G.decodeURIComponent $
     Rgx.replace (unsafePartial fromRight $ Rgx.regex "\\+" RXF.global) " " uri
-
