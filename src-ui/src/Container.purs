@@ -214,9 +214,7 @@ ui =
             sObj = SM.singleton "name" (Arg.encodeJson st.searchPkg)
             jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
             pageName = DOM.DocumentTitle $ st.searchPkg <> " - " <> selectedIndex'
-            pageUrl = DOM.URL $ "#/package/" <> (st.searchPkg) <> if Str.null selectedIndex'
-                                                                  then ""
-                                                                  else "@" <> selectedIndex'
+            pageUrl = DOM.URL $ "#/package/" <> (st.searchPkg)
           hist <- H.liftEff $ DOM.window >>= DOM.history
           pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
 
