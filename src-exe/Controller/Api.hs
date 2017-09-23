@@ -95,7 +95,7 @@ type ControllerApi m =
   :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
-  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] [PkgHistoryEntry]
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Set PkgN)
@@ -212,6 +212,10 @@ data QEntryRow = QEntryRow
     } deriving (Generic,Eq,Ord,Show)
 
 instance PGS.FromRow QEntryRow
+instance Hashable QEntryRow where
+    hashWithSalt s (QEntryRow p m n i) = hashWithSalt s (p,m',n,i)
+        where
+          m' = realToFrac (utcTimeToPOSIXSeconds m) :: Double
 
 -- | Subset of 'QEntryRow' which can be set/updated via PUT request
 data QEntryUpd = QEntryUpd

@@ -70,6 +70,9 @@ instance FromField PkgN where
 instance ToField PkgN where
     toField = toField . display
 
+instance Hashable PkgN where
+    hashWithSalt s = hashWithSalt s . display
+
 pkgNFromPackageName :: PackageName -> Maybe PkgN
 pkgNFromPackageName pn
   | pn == mkPackageName ""  = Nothing
@@ -229,7 +232,7 @@ instance ToField CompilerID where
 
 -- simpler for now (i.e. until year 2038 brings everything down); 'Word' would be more accurate
 newtype PkgIdxTs = PkgIdxTs Int
-    deriving (Show,Ord,Eq,NFData,FromJSON,ToJSON,FromField,ToField,FromHttpApiData,ToHttpApiData)
+    deriving (Show,Ord,Eq,NFData,FromJSON,ToJSON,FromField,ToField,FromHttpApiData,ToHttpApiData,Hashable)
 
 unPkgIdxTs :: PkgIdxTs -> Int
 unPkgIdxTs (PkgIdxTs i) = i

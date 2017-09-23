@@ -41,6 +41,7 @@ import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.Map.Strict                  as Map
 import           Data.Pool
 import qualified Data.Set                         as Set
+import qualified Data.Foldable                    as F
 import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
 import Data.Coerce
@@ -78,6 +79,10 @@ data App = App
   }
 
 newtype ETag = ETag ByteString
+
+-- Quick'n'dirty helper; Try to avoid this
+etagFromHashable :: Hashable a => a -> ETag
+etagFromHashable = ETag . BS.pack . show . hash
 
 runController :: App -> Word16 -> IO ()
 runController !app port =
@@ -199,6 +204,12 @@ server = tagListH
             throwNotModified304 qetag
         modifyResponse $ setHeader "ETag" qetag
         cont
+
+    doEtagFoldableGet :: (Foldable f, Hashable a) => AppHandler (f a) -> AppHandler (f a)
+    doEtagFoldableGet h0 = do
+        xs <- h0
+        let etag = etagFromHashable (F.toList xs)
+        doEtag $ pure (etag, pure xs)
 
     ----------------------------------------------------------------------------
     -- tag ---------------------------------------------------------------------
@@ -324,9 +335,11 @@ server = tagListH
     idxStatesH (Just lb) (Just ub) = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime BETWEEN ? AND ? ORDER by ptime" (lb,ub)
 
     idxStatesLatestH :: AppHandler PkgIdxTs
-    idxStatesLatestH = do
+    idxStatesLatestH = doEtag $ do
         [Only is] <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT max(ptime) FROM idxstate"
-        pure is
+        let PkgIdxTs is' = is
+            etag = ETag (BS.pack $ show is')
+        pure (etag, pure is)
 
     ----------------------------------------------------------------------------
     -- v2/packages -------------------------------------------------------------
@@ -338,15 +351,21 @@ server = tagListH
         return (etag, pure plst)
 
     packagesTagsH :: PkgN -> AppHandler (Set TagName)
-    packagesTagsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
+    packagesTagsH pkgn = doEtagFoldableGet $ withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
         res <- PGS.query dbconn "SELECT tagname FROM pname_tag WHERE pname = ? ORDER BY tagname" (PGS.Only pkgn)
         pure (Set.fromList $ map PGS.fromOnly res)
 
-    packagesHistoryH :: PkgN -> AppHandler [PkgHistoryEntry]
-    packagesHistoryH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn ->
-        PGS.query dbconn "SELECT ptime,pver,prev,powner FROM pkgindex WHERE pname = ? ORDER BY (ptime,pver,prev,powner)" (PGS.Only pkgn)
+    packagesHistoryH :: PkgN -> AppHandler (Vector PkgHistoryEntry)
+    packagesHistoryH pkgn = doEtag $ do
+        xs <- withDbcGuard (pkgnExists pkgn) $ \dbconn ->
+          PGS.query dbconn "SELECT ptime,pver,prev,powner FROM pkgindex WHERE pname = ? ORDER BY (ptime,pver,prev,powner)" (PGS.Only pkgn)
+        let res = V.fromList xs
+            PkgHistoryEntry is _ _ _ = V.last res -- TODO: is res guarnateed to be non-empty?
+        let etag = ETag (BS.pack $ concat [show is, "-", show (V.length res)])
+        return (etag, pure res)
 
-    reportsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
+    reportsH :: PkgN -> AppHandler (Set PkgIdxTs)
+    reportsH pkgn = doEtagFoldableGet $ withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
         ptimes1 <- PGS.query dbconn "SELECT DISTINCT ptime FROM solution_fail WHERE pname = ?" (PGS.Only pkgn)
         ptimes2 <- PGS.query dbconn "SELECT DISTINCT ptime FROM iplan_job JOIN solution USING (jobid) WHERE pname = ?" (PGS.Only pkgn)
         pure (Set.fromList (map fromOnly ptimes1) <>
@@ -366,11 +385,11 @@ server = tagListH
     -- tags v2 --------------------------------------------------------------
 
     tagsH :: Bool -> AppHandler TagsInfo
-    tagsH False = TagsInfo <$> withDbc queryAllTagnames
-    tagsH True  = TagsInfoPkgs <$> withDbc queryAllTags
+    tagsH False = TagsInfo <$> doEtagFoldableGet (withDbc queryAllTagnames)
+    tagsH True  = TagsInfoPkgs <$> withDbc queryAllTags -- FIXME: ETag
 
     tagsGetH :: TagName -> AppHandler (Set PkgN)
-    tagsGetH tn = do
+    tagsGetH tn = doEtagFoldableGet $ do
         r <- withDbc $ \dbconn -> do
             res <- PGS.query dbconn "SELECT pname FROM pname_tag WHERE tagname = ? ORDER BY pname" (PGS.Only tn)
             pure (Set.fromList $ map PGS.fromOnly res)
@@ -388,13 +407,14 @@ server = tagListH
     -- queue v2 --------------------------------------------------------------
 
     queueGetH :: Handler App App [QEntryRow]
-    queueGetH = withDbc $ \dbconn ->
+    queueGetH = doEtagFoldableGet $ withDbc $ \dbconn ->
       PGS.query_ dbconn "SELECT prio,modified,pname,ptime FROM queue ORDER BY prio desc, modified desc"
 
     queueGetPkgH :: PkgN -> Handler App App [QEntryRow]
-    queueGetPkgH pname = withDbcGuard (pkgnExists pname) $ \dbconn ->
+    queueGetPkgH pname = doEtagFoldableGet $ withDbcGuard (pkgnExists pname) $ \dbconn ->
       PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ? ORDER BY prio desc, modified desc" (Only pname)
 
+    -- FIXME: etag
     queueGetPkgIdxStH :: PkgN -> PkgIdxTs -> AppHandler QEntryRow
     queueGetPkgIdxStH pname idxstate = headOr404M $ withDbc $ \dbconn ->
       PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue \
