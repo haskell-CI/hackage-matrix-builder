@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE TypeOperators     #-}
 
@@ -17,6 +18,7 @@ import           Data.Set (Set)
 import qualified Data.Aeson                           as J
 import qualified Data.Aeson.Types                     as J
 import           Data.Char
+import           Data.Data.Lens
 import qualified Data.Swagger                         as Swag
 import qualified Database.PostgreSQL.Simple           as PGS
 import           Database.PostgreSQL.Simple.FromField
@@ -31,14 +33,36 @@ swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
     & Swag.info.Swag.version      .~ "3"
     & Swag.basePath               ?~ "/api"
     & Swag.schemes                ?~ [Swag.Http,Swag.Https]
+
+    -- Authentication
     -- Simplified scheme: GET doesn't require auth; DELETE & PUT require auth; POST may or may not requires auth...
     & Swag.securityDefinitions    .~ [("basicAuth", Swag.SecurityScheme Swag.SecuritySchemeBasic Nothing)]
     & Swag.paths . traversed . Swag.delete . _Just . Swag.security .~ basicAuth
     & Swag.paths . traversed . Swag.put    . _Just . Swag.security .~ basicAuth
     -- so far only a single POST service requires auth
     & Swag.paths . ix "/v1.0.0/queue" . Swag.post . _Just . Swag.security .~ basicAuth
+
+    -- Deprecations
+    & opsByPath (isPrefixOf "/v1.0.0/queue"                      ) . Swag.deprecated .~ Just True
+    & opsByPath (isPrefixOf "/v1.0.0/tag"                        ) . Swag.deprecated .~ Just True
+    & opsByPath (isPrefixOf "/v1.0.0/package/name/{pkgname}/tags") . Swag.deprecated .~ Just True
+
+    -- Grouping
+    & Swag.applyTagsFor (v1Ops . pathOps) ["V1 API"]
+    & Swag.applyTagsFor (v2Ops . pathOps) ["V2 API"]
   where
+    v1Ops, v2Ops :: Traversal' Swag.Swagger Swag.PathItem
+    v1Ops = Swag.paths . itraversed . indices (isPrefixOf "/v1.0.0/")
+    v2Ops = Swag.paths . itraversed . indices (isPrefixOf "/v2/")
+
     basicAuth = [Swag.SecurityRequirement [("basicAuth",[])]]
+
+    pathOps :: Traversal' Swag.PathItem Swag.Operation
+    pathOps = template
+
+    opsByPath :: (FilePath -> Bool) -> Traversal' Swag.Swagger Swag.Operation
+    opsByPath p = Swag.paths . itraversed . indices p . pathOps
+
 
 type ControllerApi m =
   -- legacy rest-core style API
