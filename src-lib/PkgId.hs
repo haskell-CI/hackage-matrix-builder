@@ -1,7 +1,10 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE StrictData                 #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE StrictData                 #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -31,9 +34,10 @@ module PkgId
 import           Prelude.Local
 
 import           Data.Aeson
+import qualified Data.List.NonEmpty                   as NE
 import           Data.String
 import qualified Data.Text                            as T
-import qualified Data.List.NonEmpty                   as NE
+import           Data.Vector.Unboxed.Deriving         (derivingUnbox)
 import           Distribution.Compiler                (CompilerFlavor (..),
                                                        CompilerId (..))
 import           Distribution.Package
@@ -250,6 +254,8 @@ instance ToParamSchema PkgIdxTs where
         & type_ .~ SwaggerInteger
         & minimum_ ?~ 0
         & maximum_ ?~ 0x7fffffff
+
+derivingUnbox "PkgIdxTs" [t| PkgIdxTs -> Int |] [| \(PkgIdxTs x) -> x |] [| PkgIdxTs |]
 
 ----------------------------------------------------------------------------
 

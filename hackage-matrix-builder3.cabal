@@ -19,6 +19,7 @@ library matrix-lib
                      , IndexHelper
                      , Job
                      , PkgId
+                     , PkgIdxTsSet
                      , PlanJson
                      , WorkerApi
                      , WorkerApi.Client
@@ -62,8 +63,25 @@ library matrix-lib
                      , time                 ^>= 1.6 || ^>= 1.8
                      , uuid-types           ^>= 1.0.3
                      , vector               ^>= 0.12
+                     , vector-th-unbox      ^>= 0.2.1.6
 
   ghc-options: -Wall
+
+----------------------------------------------------------------------------
+-- tests
+
+test-suite matrix-lib-test
+  default-language:    Haskell2010
+  type: exitcode-stdio-1.0
+  hs-source-dirs:      src-test
+  main-is:             Test.hs
+
+  build-depends:       matrix-lib
+
+  build-depends:       base
+                     , containers
+                     , tasty                ^>= 0.11.2.5
+                     , tasty-quickcheck     ^>= 0.9.1
 
 ----------------------------------------------------------------------------
 -- executables
