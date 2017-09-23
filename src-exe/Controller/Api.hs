@@ -92,7 +92,7 @@ type ControllerApi m =
   :<|> "v2" :> "idxstates" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] [PkgIdxTs]
   :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
 
-  :<|> "v2" :> "packages" :> Get '[JSON] [PkgN]
+  :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] [PkgHistoryEntry]

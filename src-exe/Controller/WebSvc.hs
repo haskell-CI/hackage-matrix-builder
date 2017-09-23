@@ -42,6 +42,7 @@ import qualified Data.Map.Strict                  as Map
 import           Data.Pool
 import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
+import qualified Data.Vector                      as V
 import Data.Coerce
 import qualified Database.PostgreSQL.Simple       as PGS
 import           Database.PostgreSQL.Simple.Types (Only (..))
@@ -68,9 +69,15 @@ import           HackageApi
 import           HackageApi.Client
 import           PkgId
 
+-- | See 'fetchPkgLstCache'
+data PkgLstCache = PkgLstCache !PkgIdxTs !(Vector PkgN)
+
 data App = App
   { appDbPool   :: Pool PGS.Connection
+  , appPkgLstCache :: MVar PkgLstCache
   }
+
+newtype ETag = ETag ByteString
 
 runController :: App -> Word16 -> IO ()
 runController !app port =
@@ -178,6 +185,20 @@ server = tagListH
         h
       where
         s3cr3t = "w/\207\193f\ENQ\248\DLE\202\160.\181\203<\188!\161U\147\232\DC4R\151\152g\188\218d\NAK\SI\150\172"
+
+    -- Quick'n'dirty etag/if-none-match logic
+    -- NB: if-none-match header value is not properly parsed and may
+    -- easily not be detected if it contains trailing whitespace etc
+    doEtag :: AppHandler (ETag, AppHandler a) -> AppHandler a
+    doEtag h = do
+        rq <- getRequest
+        (ETag etag', cont) <- h
+        let qetag = mconcat ["\"", etag', "\""]
+        let mNoneMatch = getHeader "If-None-Match" rq
+        when (Just qetag == mNoneMatch) $
+            throwNotModified304 qetag
+        modifyResponse $ setHeader "ETag" qetag
+        cont
 
     ----------------------------------------------------------------------------
     -- tag ---------------------------------------------------------------------
@@ -310,8 +331,11 @@ server = tagListH
     ----------------------------------------------------------------------------
     -- v2/packages -------------------------------------------------------------
 
-    packagesH :: AppHandler [PkgN]
-    packagesH = withDbc $ \dbconn -> (coerce :: [Only PkgN] -> [PkgN]) <$> PGS.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
+    packagesH :: AppHandler (Vector PkgN)
+    packagesH = doEtag $ do
+        PkgLstCache (PkgIdxTs is) plst <- fetchPkgLstCache
+        let etag = ETag (BS.pack $ concat [show is, "-", show (V.length plst)])
+        return (etag, pure plst)
 
     packagesTagsH :: PkgN -> AppHandler (Set TagName)
     packagesTagsH pkgn = withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
@@ -445,6 +469,28 @@ server = tagListH
           Nothing   -> throwServantErr' err404
 
 
+-- | Retrieve 'PkgLstCache' and update its content if stale
+--
+-- This operation is cheap on cache-hits, as it merely needs to
+-- perform an O(1)-ish SQL lookup to test stale-ness.
+fetchPkgLstCache :: AppHandler PkgLstCache
+fetchPkgLstCache = do
+    cacheMVar <- gets appPkgLstCache
+    pool      <- gets appDbPool
+
+    liftIO $ modifyMVar cacheMVar $ \cache0@(PkgLstCache is0 _) -> do
+        withResource pool $ \dbconn -> do
+            [Only is1] <- PGS.query_ dbconn "SELECT max(ptime) FROM idxstate"
+
+            -- We assume that the 'pkgname' table is a function of 'max(ptime)'
+            if is0 == is1
+            then pure (cache0, cache0) -- no-op
+            else do
+               lst1 <- (coerce :: [Only PkgN] -> [PkgN]) <$> PGS.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
+               lst1' <- evaluate (force (V.fromList lst1))
+               let !cache1 = PkgLstCache is1 lst1'
+               pure (cache1, cache1)
+
 withDbc :: (PGS.Connection -> IO a) -> AppHandler a
 withDbc act = do
     pool <- gets appDbPool
@@ -490,6 +536,9 @@ queryAllTagsInv dbconn = do
 is2lbs :: InputStream ByteString -> IO LBS.ByteString
 is2lbs s = LBS.fromChunks <$> Streams.toList s
 
+
+throwNotModified304 :: MonadSnap m => ByteString -> m b
+throwNotModified304 etag = throwServantErr0 (err304 { errBody = "", errHeaders = [ (HTTP.hETag, etag) ]})
 
 throwBasicAuth401 :: MonadSnap m => ByteString -> m b
 throwBasicAuth401 realm =

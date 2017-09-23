@@ -212,6 +212,7 @@ main = do
       Cli.WebServer -> do
 
         appDbPool <- createPool mkConn killConn 1 10.5 4
+        appPkgLstCache <- newMVar (WebSvc.PkgLstCache (PkgIdxTs 0) mempty)
         let app = WebSvc.App{..}
 
         WebSvc.runController app (ccPort cconf)

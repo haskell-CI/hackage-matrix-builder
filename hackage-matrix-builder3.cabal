@@ -31,6 +31,7 @@ library matrix-lib
                      , Data.UUID.Types
                      , Control.Concurrent.STM
                      , Crypto.Hash.SHA256
+                     , Data.Vector
 
   -- non-locals
   build-depends:       base                 ^>= 4.9 || ^>= 4.10
