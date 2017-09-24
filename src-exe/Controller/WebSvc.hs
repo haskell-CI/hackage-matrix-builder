@@ -441,6 +441,17 @@ server = tagListH
     unitsIdH xunitid = doEtagHashableGet $ do
         (uiiHcver,uiiPkgname,uiiPkgver,uiiStatus,uiiLogmsg) <- headOr404M $ withDbc $ \dbconn -> do
             PGS.query dbconn "SELECT compiler,pname,pver,bstatus,logmsg FROM iplan_unit WHERE xunitid = ?" (Only xunitid)
+
+        (libDeps,exeDeps) <- withDbc $ \dbconn -> do
+            ld <- PGS.query dbconn "SELECT cname,child FROM iplan_comp_dep WHERE parent = ? AND not isexedep" (Only xunitid)
+            ed <- PGS.query dbconn "SELECT cname,child FROM iplan_comp_dep WHERE parent = ? AND isexedep" (Only xunitid)
+            pure (ld,ed)
+
+        let uiiLibDeps = Map.fromListWith (<>) [ (cname,Set.singleton child) | (cname,child) <- libDeps ]
+
+            uiiExeDeps | null exeDeps = Nothing
+                       | otherwise    = Just $! Map.fromListWith (<>) [ (cname,Set.singleton child) | (cname,child) <- exeDeps ]
+
         let uiiId = xunitid
         pure UnitIdInfo{..}
 

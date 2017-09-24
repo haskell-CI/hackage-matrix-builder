@@ -429,6 +429,9 @@ data UnitIdInfo = UnitIdInfo
     , uiiStatus  :: Maybe IPStatus
     , uiiLogmsg  :: Maybe Text
 --    , uiiDt
+
+    , uiiLibDeps :: Map Text (Set UUID)
+    , uiiExeDeps :: Maybe (Map Text (Set UUID))
     } deriving (Generic,Show)
 
 instance ToJSON   UnitIdInfo where { toJSON    = myToJSON; toEncoding = myToEncoding }

@@ -211,3 +211,6 @@ firstJustM act = go
 -- FIXME
 instance (Hashable k, Hashable v) => Hashable (Map k v) where
     hashWithSalt s = hashWithSalt s . Map.toList
+
+instance Hashable k => Hashable (Set k ) where
+    hashWithSalt s = hashWithSalt s . Set.toAscList
