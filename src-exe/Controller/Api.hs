@@ -360,7 +360,7 @@ instance ToSchema UserPkgs where { declareNamedSchema = myDeclareNamedSchemaCml 
 data PkgIdxTsReport = PkgIdxTsReport
     { pitrPkgname     :: PkgN
     , pitrIdxstate    :: PkgIdxTs
-    , pitrGhcversions :: [GhcVer]
+    , pitrHcversions  :: [CompilerID]
     , pitrPkgversions :: Map Ver [CellReportSummary] -- invariant: len(pitrPkgVersions) == len(pitrPkgVersions[v]) forall v
     } deriving (Generic)
 

@@ -410,7 +410,7 @@ server = tagListH
     reportsIdxStH :: PkgN -> PkgIdxTs -> AppHandler PkgIdxTsReport
     reportsIdxStH pkgn idxstate = doEtagHashableGet $ do
         res <- withDbcGuard (pkgnExists pkgn) $ \dbconn -> queryPkgReport dbconn pkgn idxstate
-        when (null (pitrGhcversions res) && null (pitrPkgversions res)) $
+        when (null (pitrHcversions res) && null (pitrPkgversions res)) $
             throwServantErr' err404
         pure res
 

@@ -336,7 +336,7 @@ queryPkgReport dbconn pname ptime = do
     let pitrIdxstate = ptime
         pitrPkgname  = pname
 
-        pitrGhcversions = gvs
+        pitrHcversions = map mkGhcCompilerID gvs
 
     pure PkgIdxTsReport{..}
   where

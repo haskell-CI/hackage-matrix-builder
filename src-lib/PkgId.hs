@@ -26,6 +26,7 @@ module PkgId
 
     , CompilerID, compilerVer
     , compilerIDFromCompilerId
+    , mkGhcCompilerID
 
     , PkgIdxTs(..), unPkgIdxTs
     , PkgRev
@@ -217,6 +218,9 @@ newtype CompilerID = CompilerID {- ghc/ghcjs/ghcvm -} Ver
 
 compilerVer :: CompilerID -> Ver
 compilerVer (CompilerID v) = v
+
+mkGhcCompilerID :: Ver -> CompilerID
+mkGhcCompilerID = CompilerID
 
 compilerIDFromCompilerId :: CompilerId -> Maybe CompilerID
 compilerIDFromCompilerId (CompilerId GHC v) = CompilerID <$> verFromVersion v
