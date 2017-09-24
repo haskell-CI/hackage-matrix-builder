@@ -138,6 +138,12 @@ instance FromField Ver where
 instance ToField Ver where
     toField = toField . display
 
+instance ToHttpApiData Ver where
+    toUrlPiece = T.pack . display
+
+instance FromHttpApiData Ver where
+    parseUrlPiece = maybe (Left "invalid Version") Right . simpleParse . T.unpack
+
 instance ToSchema Ver where
     declareNamedSchema _ = pure $ NamedSchema (Just "Version") $ mempty
         & type_ .~ SwaggerString
@@ -214,7 +220,7 @@ unitIDFromUnitId = UnitID . T.pack . unUnitId
 ----------------------------------------------------------------------------
 
 newtype CompilerID = CompilerID {- ghc/ghcjs/ghcvm -} Ver
-                   deriving (Show,Eq,Ord,NFData)
+                   deriving (Show,Eq,Ord,NFData,Hashable)
 
 compilerVer :: CompilerID -> Ver
 compilerVer (CompilerID v) = v
@@ -249,6 +255,15 @@ instance FromField CompilerID where
 
 instance ToField CompilerID where
     toField = toField . display
+
+instance ToSchema CompilerID where
+    declareNamedSchema _ = pure $ NamedSchema (Just "CompilerId") $ mempty
+        & type_ .~ SwaggerString
+        & example ?~ toJSON (CompilerID (mkVer (8 :| [0,2])))
+
+instance ToParamSchema CompilerID where
+    toParamSchema _ = mempty
+        & type_ .~ SwaggerString
 
 ----------------------------------------------------------------------------
 
