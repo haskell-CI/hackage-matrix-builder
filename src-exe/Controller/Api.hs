@@ -12,6 +12,8 @@ module Controller.Api where
 
 import           HackageApi                           (UserName)
 import           PkgId
+import qualified PkgIdxTsSet
+
 import           Prelude.Local
 
 import           Data.Set (Set)
@@ -89,7 +91,7 @@ type ControllerApi m =
   :<|> "v1.0.0" :> "user"                :> "name" :> Capture "username" UserName                      :> Get '[JSON] UserPkgs
 
   -- New-style API; we stick w/ the more common RESTful convention of using plural nouns for listable collections
-  :<|> "v2" :> "idxstates" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] [PkgIdxTs]
+  :<|> "v2" :> "idxstates" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] PkgIdxTsSet.PkgIdxTsSet
   :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
 
   :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)

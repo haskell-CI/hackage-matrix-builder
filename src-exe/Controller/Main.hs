@@ -48,6 +48,7 @@ import qualified Controller.Scheduler             as Sched
 import qualified Controller.WebSvc                as WebSvc
 import           IndexHelper
 import           PkgId
+import qualified PkgIdxTsSet
 import           WorkerApi
 import           WorkerApi.Client
 
@@ -213,6 +214,7 @@ main = do
 
         appDbPool <- createPool mkConn killConn 1 10.5 4
         appPkgLstCache <- newMVar (WebSvc.PkgLstCache (PkgIdxTs 0) mempty)
+        appPkgIdxTsCache <- newMVar PkgIdxTsSet.empty
         let app = WebSvc.App{..}
 
         WebSvc.runController app (ccPort cconf)

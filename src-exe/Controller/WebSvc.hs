@@ -38,6 +38,7 @@ import qualified Crypto.Hash.SHA256               as SHA256
 import qualified Data.Aeson                       as J
 import qualified Data.ByteString.Char8            as BS
 import qualified Data.ByteString.Lazy             as LBS
+import qualified Data.ByteString.Builder          as BB
 import qualified Data.Map.Strict                  as Map
 import           Data.Pool
 import qualified Data.Set                         as Set
@@ -69,20 +70,35 @@ import           Controller.Db
 import           HackageApi
 import           HackageApi.Client
 import           PkgId
+import qualified PkgIdxTsSet
+import           PkgIdxTsSet (PkgIdxTsSet)
 
 -- | See 'fetchPkgLstCache'
 data PkgLstCache = PkgLstCache !PkgIdxTs !(Vector PkgN)
 
 data App = App
   { appDbPool   :: Pool PGS.Connection
-  , appPkgLstCache :: MVar PkgLstCache
+  , appPkgLstCache :: MVar PkgLstCache   -- ^ see 'fetchPkgLstCache'
+  , appPkgIdxTsCache :: MVar PkgIdxTsSet -- ^ see 'fetchPkgIdxTsCache'
   }
 
 newtype ETag = ETag ByteString
 
+etagFromPkgIdxTs :: Maybe PkgIdxTs -> Int -> ETag
+etagFromPkgIdxTs mis sz
+  | sz == 0   = ETag (bb2bs (i2bb ts))
+  | otherwise = ETag (bb2bs (i2bb ts <> BB.char8 ':' <> i2bb sz))
+  where
+    ts = maybe 0 unPkgIdxTs mis
+    bb2bs = LBS.toStrict . BB.toLazyByteString
+    i2bb = BB.wordHex . fromIntegral
+
 -- Quick'n'dirty helper; Try to avoid this
 etagFromHashable :: Hashable a => a -> ETag
-etagFromHashable = ETag . BS.pack . show . hash
+etagFromHashable = ETag . i2bs . hash
+  where
+    i2bs :: Int -> ByteString
+    i2bs = LBS.toStrict . BB.toLazyByteString . BB.wordHex . fromIntegral
 
 runController :: App -> Word16 -> IO ()
 runController !app port =
@@ -328,17 +344,30 @@ server = tagListH
     ----------------------------------------------------------------------------
     -- v2/idxstates-------------------------------------------------------------
 
-    idxStatesH :: Maybe PkgIdxTs -> Maybe PkgIdxTs -> AppHandler [PkgIdxTs]
-    idxStatesH Nothing Nothing     = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query_ dbconn "SELECT ptime FROM idxstate ORDER by ptime"
-    idxStatesH (Just lb) Nothing   = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime >= ? ORDER by ptime" (Only lb)
-    idxStatesH Nothing (Just ub)   = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime <= ? ORDER by ptime" (Only ub)
-    idxStatesH (Just lb) (Just ub) = withDbc $ \dbconn -> (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query dbconn "SELECT ptime FROM idxstate WHERE ptime BETWEEN ? AND ? ORDER by ptime" (lb,ub)
+    idxStatesH :: Maybe PkgIdxTs -> Maybe PkgIdxTs -> AppHandler PkgIdxTsSet
+
+    idxStatesH mlb mub = doEtag $ do
+        pits0 <- fetchPkgIdxTsCache
+
+        let pits1 = case mlb of
+                     Nothing -> pits0
+                     Just lb -> case PkgIdxTsSet.lookupIndexGE lb pits0 of
+                                  Nothing      -> PkgIdxTsSet.empty
+                                  Just (lbi,_) -> PkgIdxTsSet.drop lbi pits0
+
+            pits = case mub of
+                     Nothing -> pits1
+                     Just ub -> case PkgIdxTsSet.lookupIndexLE ub pits1 of
+                                  Nothing      -> PkgIdxTsSet.empty
+                                  Just (ubi,_) -> PkgIdxTsSet.take (ubi+1) pits1
+
+        let etag = etagFromPkgIdxTs (PkgIdxTsSet.findMax pits) (PkgIdxTsSet.size pits)
+        return (etag, pure pits)
 
     idxStatesLatestH :: AppHandler PkgIdxTs
     idxStatesLatestH = doEtag $ do
         [Only is] <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT max(ptime) FROM idxstate"
-        let PkgIdxTs is' = is
-            etag = ETag (BS.pack $ show is')
+        let etag = etagFromPkgIdxTs (Just is) 0
         pure (etag, pure is)
 
     ----------------------------------------------------------------------------
@@ -346,8 +375,8 @@ server = tagListH
 
     packagesH :: AppHandler (Vector PkgN)
     packagesH = doEtag $ do
-        PkgLstCache (PkgIdxTs is) plst <- fetchPkgLstCache
-        let etag = ETag (BS.pack $ concat [show is, "-", show (V.length plst)])
+        PkgLstCache is plst <- fetchPkgLstCache
+        let etag = etagFromPkgIdxTs (Just is) (V.length plst)
         return (etag, pure plst)
 
     packagesTagsH :: PkgN -> AppHandler (Set TagName)
@@ -361,7 +390,7 @@ server = tagListH
           PGS.query dbconn "SELECT ptime,pver,prev,powner FROM pkgindex WHERE pname = ? ORDER BY (ptime,pver,prev,powner)" (PGS.Only pkgn)
         let res = V.fromList xs
             PkgHistoryEntry is _ _ _ = V.last res -- TODO: is res guarnateed to be non-empty?
-        let etag = ETag (BS.pack $ concat [show is, "-", show (V.length res)])
+            etag = etagFromPkgIdxTs (Just is) (V.length res)
         return (etag, pure res)
 
     reportsH :: PkgN -> AppHandler (Set PkgIdxTs)
@@ -510,6 +539,26 @@ fetchPkgLstCache = do
                lst1' <- evaluate (force (V.fromList lst1))
                let !cache1 = PkgLstCache is1 lst1'
                pure (cache1, cache1)
+
+-- | Retrieve 'PkgIdxTsSet' cache and update its content if stale
+fetchPkgIdxTsCache :: AppHandler PkgIdxTsSet
+fetchPkgIdxTsCache = do
+    cacheMVar <- gets appPkgIdxTsCache
+    pool      <- gets appDbPool
+
+    liftIO $ modifyMVar cacheMVar $ \pits -> do
+        withResource pool $ \dbconn -> do
+            let is0 = PkgIdxTsSet.findMax pits
+            [Only is1] <- PGS.query_ dbconn "SELECT max(ptime) FROM idxstate"
+
+            -- We assume that the 'idxstate' table grows monotonically/linearly
+            if is0 == Just is1
+            then pure (pits, pits) -- no-op
+            else do
+               lst1 <- (coerce :: [Only PkgIdxTs] -> [PkgIdxTs]) <$> PGS.query_ dbconn "SELECT ptime FROM idxstate ORDER by ptime"
+               Just cache1 <- evaluate (force (PkgIdxTsSet.fromDistinctAscList lst1))
+               pure (cache1, cache1)
+
 
 withDbc :: (PGS.Connection -> IO a) -> AppHandler a
 withDbc act = do
