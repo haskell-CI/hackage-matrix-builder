@@ -34,6 +34,7 @@ module PkgId
 import           Prelude.Local
 
 import           Data.Aeson
+import           Data.Aeson.Types                     (toJSONKeyText)
 import qualified Data.List.NonEmpty                   as NE
 import           Data.String
 import qualified Data.Text                            as T
@@ -124,6 +125,12 @@ instance FromJSON Ver where
 instance ToJSON Ver where
     toJSON = toJSON . display
 
+instance ToJSONKey Ver where
+    toJSONKey = toJSONKeyText (T.pack . display)
+
+instance FromJSONKey Ver where
+    fromJSONKey = FromJSONKeyTextParser (maybe (fail "Ver") pure . simpleParse . T.unpack)
+
 instance FromField Ver where
     fromField f dat = (maybe (error "FromField(Ver)") id . simpleParse) <$> fromField f dat
 
@@ -134,6 +141,13 @@ instance ToSchema Ver where
     declareNamedSchema _ = pure $ NamedSchema (Just "Version") $ mempty
         & type_ .~ SwaggerString
         & example ?~ toJSON (mkVer (4 :| [15,3]))
+
+instance ToParamSchema Ver where
+    toParamSchema _ = mempty
+        & type_ .~ SwaggerString
+
+instance Hashable Ver where
+    hashWithSalt s (Ver vs) = hashWithSalt s (versionNumbers vs)
 
 verFromVersion :: Version -> Maybe Ver
 verFromVersion v
