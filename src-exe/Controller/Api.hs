@@ -390,7 +390,7 @@ data CellReportDetail = CellReportDetail
       -- CRTpf
     , crdSolverErr  :: Maybe Text
       -- CRTse
-    , crdUnits      :: Maybe [Map UUID Text]
+    , crdUnits      :: Maybe [Map UUID (Maybe IPStatus)]
     } deriving (Generic,Show)
 
 instance ToJSON   PkgIdxTsReport where { toJSON = myToJSON; toEncoding = myToEncoding }
@@ -416,3 +416,54 @@ instance FromJSON CellReportDetail where { parseJSON = myParseJSON }
 instance ToSchema CellReportDetail where { declareNamedSchema = myDeclareNamedSchema }
 instance NFData   CellReportDetail
 instance Hashable CellReportDetail
+
+
+-- | Build-status for a build-unit
+data IPStatus = IPOk
+              | IPBuildFail
+              | IPBuildDepsFail
+              deriving (Eq,Ord,Show,Generic)
+
+instance NFData IPStatus
+instance Hashable IPStatus
+
+instance ToField IPStatus where
+    toField = toField . go
+      where
+        go :: IPStatus -> Text
+        go = \case
+            IPOk            -> "ok"
+            IPBuildFail     -> "fail"
+            IPBuildDepsFail -> "fail_deps"
+
+instance FromField IPStatus where
+    fromField _f mdata = return (go mdata) -- FIXME, check type
+      where
+        go (Just "ok")        = IPOk
+        go (Just "fail")      = IPBuildFail
+        go (Just "fail_deps") = IPBuildDepsFail
+        go _                  = error ("FromField(IPStatus) " ++ show mdata)
+
+
+instance ToJSON IPStatus where
+    toJSON x = toJSON $ case x of
+                          IPOk            -> "bok" :: Text
+                          IPBuildFail     -> "bfail"
+                          IPBuildDepsFail -> "bdfail"
+
+instance FromJSON IPStatus where
+    parseJSON o = do
+        x <- parseJSON o
+
+        case (x :: Text) of
+          "bok"    -> pure IPOk
+          "bfail"  -> pure IPBuildFail
+          "bdfail" -> pure IPBuildDepsFail
+          _        -> fail "IPStatus"
+
+instance ToSchema IPStatus where
+    declareNamedSchema _ = pure $ Swag.NamedSchema (Just "IPStatus") $ mempty
+        & Swag.type_ .~ Swag.SwaggerString
+        & Swag.example ?~ toJSON IPOk
+        & Swag.description ?~ "build status (one of `\"bok\"`, `\"bfail\"` or `\"bdfail\"`)"
+        & Swag.enum_ ?~ map toJSON [IPOk,IPBuildFail,IPBuildDepsFail]

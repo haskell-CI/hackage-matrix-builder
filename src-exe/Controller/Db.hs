@@ -58,32 +58,6 @@ toUUID = uuidHash . BS.pack . show
 instance ToField UUIDs where
     toField (UUIDs xs) = Many [toField (PGS.PGArray xs), Plain "::uuid[]" ]
 
--- | Build-status for a build-unit
-data IPStatus = IPOk
-              | IPBuildFail
-              | IPBuildDepsFail
-              deriving (Eq,Ord,Show,Generic)
-
-instance NFData IPStatus
-
-instance ToField IPStatus where
-    toField = toField . go
-      where
-        go :: IPStatus -> Text
-        go = \case
-            IPOk            -> "ok"
-            IPBuildFail     -> "fail"
-            IPBuildDepsFail -> "fail_deps"
-
-instance FromField IPStatus where
-    fromField _f mdata = return (go mdata) -- FIXME, check type
-      where
-        go (Just "ok")        = IPOk
-        go (Just "fail")      = IPBuildFail
-        go (Just "fail_deps") = IPBuildDepsFail
-        go _                  = error ("FromField(IPStatus) " ++ show mdata)
-
-
 data DB_iplan_unit = DB_iplan_unit UUID UnitID HcID PIType PkgN Ver J.Value (Maybe IPStatus) (Maybe Text) (Maybe NominalDiffTime)
                    deriving (Show,Generic)
 
@@ -378,7 +352,7 @@ queryCellReport2 dbconn crdIdxstate (PkgId crdPkgname crdPkgversion) crdHcversio
                   (crdPkgname, crdPkgversion, crdHcversion, crdIdxstate)
 
           let jobs' = Map.elems $ Map.fromListWith (<>)
-                      [ (jobid,Map.singleton xunitid (ips2txt mbstatus))
+                      [ (jobid,Map.singleton xunitid mbstatus)
                       | (jobid,xunitid,mbstatus) <- (jobs :: [(UUID, UUID, Maybe IPStatus)]) ]
 
           if null jobs'
@@ -390,9 +364,3 @@ queryCellReport2 dbconn crdIdxstate (PkgId crdPkgname crdPkgversion) crdHcversio
               let crdType = CRTse
                   crdUnits = Just jobs'
               pure CellReportDetail{..}
-  where
-    ips2txt :: Maybe IPStatus -> Text
-    ips2txt Nothing                = ""
-    ips2txt (Just IPOk)            = "ok"
-    ips2txt (Just IPBuildFail)     = "bfail"
-    ips2txt (Just IPBuildDepsFail) = "bdfail"
