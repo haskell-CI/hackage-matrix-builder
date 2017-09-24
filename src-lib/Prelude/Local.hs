@@ -4,6 +4,8 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RankNTypes            #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Prelude.Local
     ( T.Text
     , Generic
@@ -204,3 +206,8 @@ firstJustM act = go
         case y of
           Just _  -> pure y
           Nothing -> go xs
+
+
+-- FIXME
+instance (Hashable k, Hashable v) => Hashable (Map k v) where
+    hashWithSalt s = hashWithSalt s . Map.toList

@@ -382,9 +382,7 @@ instance ToJSON   PkgIdxTsReport where { toJSON = myToJSON; toEncoding = myToEnc
 instance FromJSON PkgIdxTsReport where { parseJSON = myParseJSON }
 instance ToSchema PkgIdxTsReport where { declareNamedSchema = myDeclareNamedSchema }
 instance NFData   PkgIdxTsReport
-
-instance Hashable PkgIdxTsReport where
-    hashWithSalt s (PkgIdxTsReport pn is gvs pvs) = hashWithSalt s (pn,is,gvs,Map.toList pvs)
+instance Hashable PkgIdxTsReport
 
 instance ToJSON   CellReportType where { toJSON    = myToJSON; toEncoding = myToEncoding }
 instance FromJSON CellReportType where { parseJSON = myParseJSON }
