@@ -408,8 +408,11 @@ server = tagListH
               Set.fromList (map fromOnly ptimes2))
 
     reportsIdxStH :: PkgN -> PkgIdxTs -> AppHandler PkgIdxTsReport
-    reportsIdxStH pkgn idxstate = doEtagHashableGet $
-        withDbcGuard (pkgnExists pkgn) $ \dbconn -> queryPkgReport dbconn pkgn idxstate
+    reportsIdxStH pkgn idxstate = doEtagHashableGet $ do
+        res <- withDbcGuard (pkgnExists pkgn) $ \dbconn -> queryPkgReport dbconn pkgn idxstate
+        when (null (pitrGhcversions res) && null (pitrPkgversions res)) $
+            throwServantErr' err404
+        pure res
 
     pkgnExists :: PkgN -> PGS.Connection -> IO Bool
     pkgnExists pkgn dbconn = do
