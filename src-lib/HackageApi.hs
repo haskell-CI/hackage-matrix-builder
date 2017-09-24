@@ -6,6 +6,7 @@
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE StrictData            #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module HackageApi where
 
@@ -14,6 +15,9 @@ import           Prelude.Local
 -- import qualified Data.Aeson               as J
 import           Servant.API
 import           Servant.API.ContentTypes
+import           Database.PostgreSQL.Simple.FromField
+import           Database.PostgreSQL.Simple.ToField
+import           Data.Swagger
 
 data JSON0
 
@@ -29,13 +33,12 @@ type HackageApi m =
     -- GET /user/:username
     :<|> "user"  :> Capture "username" UserName :> Get '[JSON0] UserInfo
 
-type UserName = Text
 type UserId = Word
 
 data UserNameId = UserNameId
     { uniUsername :: UserName
     , uniUserid   :: UserId
-    } deriving (Generic,Show)
+    } deriving (Generic)
 
 instance ToJSON   UserNameId where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON UserNameId where { parseJSON = myParseJSON }
@@ -44,11 +47,28 @@ data UserInfo = UserInfo
     { uiGroups   :: Set Text
     , uiUsername :: UserName
     , uiUserid   :: UserId
-    } deriving (Generic,Show)
+    } deriving (Generic)
 
 instance ToJSON   UserInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON UserInfo where { parseJSON = myParseJSON }
 
+----------------------------------------------------------------------------
 
+newtype UserName = UserName Text
+                 deriving (Show,Eq,Ord,Hashable,NFData,ToField,FromField,FromHttpApiData,ToHttpApiData)
 
+instance ToSchema UserName where
+    declareNamedSchema _ = pure $ NamedSchema (Just "UserName") $ mempty
+        & type_ .~ SwaggerString
+        & example ?~ toJSON (UserName "EdwardKmett")
+        & description ?~ "Hackage Username"
 
+instance ToParamSchema UserName where
+    toParamSchema _ = mempty & type_ .~ SwaggerString
+
+instance ToJSON UserName where
+    toJSON (UserName t) = toJSON t
+    toEncoding (UserName t) = toEncoding t
+
+instance FromJSON UserName where
+    parseJSON j = UserName <$> parseJSON j

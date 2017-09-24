@@ -10,7 +10,7 @@
 
 module Controller.Api where
 
-import           HackageApi                           (UserName)
+import           HackageApi                           (UserName(..))
 import           PkgId
 import qualified PkgIdxTsSet
 
@@ -265,7 +265,7 @@ instance ToSchema PkgHistoryEntry where
     declareNamedSchema p = do -- (        & (example ?~ toJSON (PkgIdxTs 1491048000)
         s <- myDeclareNamedSchema p
         pure $ s & Swag.schema.Swag.description ?~ "Package history entry represented as 4-tuple (idxstate,version,revision,username)"
-                 & Swag.schema.Swag.example     ?~ toJSON (PkgHistoryEntry (PkgIdxTs 1343543615) (mkVer (1 :| [0])) 0 "EdwardKmett")
+                 & Swag.schema.Swag.example     ?~ toJSON (PkgHistoryEntry (PkgIdxTs 1343543615) (mkVer (1 :| [0])) 0 (UserName "EdwardKmett"))
 
 data JobReport = JobReport
  { jrPackageName :: PkgN
