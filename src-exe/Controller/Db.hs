@@ -29,6 +29,7 @@ import           Prelude.Local
 import qualified Data.Aeson                           as J
 import qualified Data.ByteString.Char8                as BS
 import qualified Data.Map.Strict                      as Map
+import qualified Data.Set                             as Set
 import qualified Data.Text                            as T
 import qualified Database.PostgreSQL.Simple           as PGS
 import           Database.PostgreSQL.Simple.FromField
@@ -273,3 +274,77 @@ queryJobReport dbconn pname ptime = do
         jrPackageName = pname
 
     pure JobReport{..}
+
+
+queryPkgReport :: PGS.Connection -> PkgN -> PkgIdxTs -> IO PkgIdxTsReport
+queryPkgReport dbconn pname ptime = do
+    ipfails <- PGS.query dbconn
+               "SELECT compiler,pver FROM solution_fail WHERE pname = ? AND ptime = ?"
+               (pname, ptime)
+
+    evaluate (rnf ipfails)
+
+    jobs <- PGS.query dbconn
+            "SELECT DISTINCT j.compiler,j.pver,bstatus \
+            \FROM iplan_job j JOIN solution USING (jobid) \
+            \JOIN iplan_unit ON (xunitid = ANY (units)) \
+            \WHERE j.pname = ? AND ptime = ?"
+            (pname, ptime)
+
+    evaluate (rnf jobs)
+
+    let ipsols0 :: Map Ver (Map GhcVer [Maybe IPStatus])
+        ipsols0 = Map.fromListWith (Map.unionWith mappend)
+                                   [ (v, Map.singleton (compilerVer k) [st]) | (k,v,st) <- jobs ]
+
+        ipsols :: Map Ver (Map GhcVer CellReportSummary)
+        ipsols = Map.map t1 ipsols0
+
+        t1 :: Map GhcVer [Maybe IPStatus] -> Map GhcVer CellReportSummary
+        t1 vst0 = Map.fromList [ (v,st) | (v,st0) <- Map.toList vst0
+                                        , Just st <- [st2res st0]
+                                        ]
+
+        st2res :: [Maybe IPStatus] -> Maybe CellReportSummary
+        st2res [] = Just noipFailCRS
+        st2res xs
+          | all (== Nothing) xs               = Nothing
+          | all (== Just IPOk) xs             = Just bokCRS
+          | any (== Just IPBuildFail) xs      = Just bfailCRS
+          | any (== Just IPBuildDepsFail) xs  = Just bdfailCRS
+          | otherwise                         = Just noipFailCRS
+
+    let ipfailm, table :: Map Ver (Map GhcVer CellReportSummary)
+        ipfailm = Map.fromListWith mappend [ (v,Map.singleton (compilerVer k) noipCRS)
+                                           | (k,v) <- ipfails
+                                           ]
+
+        table = Map.unionWith mappend ipfailm ipsols -- TODO: assert non-overlap
+
+    let gvs :: [GhcVer]
+        gvs = Set.toDescList $ mconcat (map Map.keysSet (Map.elems table))
+
+    evaluate (rnf gvs)
+
+    let pitrPkgversions = Map.map m2l table
+
+        m2l :: Map GhcVer CellReportSummary -> [CellReportSummary]
+        m2l m = map (\gv -> Map.findWithDefault naCRS gv m) gvs
+
+    evaluate (rnf pitrPkgversions)
+
+    let pitrIdxstate = ptime
+        pitrPkgname  = pname
+
+        pitrGhcversions = gvs
+
+    pure PkgIdxTsReport{..}
+  where
+    naCRS = CellReportSummary Nothing Nothing Nothing Nothing Nothing Nothing
+
+    noipCRS     = naCRS { crsT = Just CRTpf }
+    noipFailCRS = naCRS { crsT = Just CRTpf, crsPerr = Just True }
+
+    bokCRS      = naCRS { crsT = Just CRTse, crsBok    = Just 1 }
+    bfailCRS    = naCRS { crsT = Just CRTse, crsBfail  = Just 1 }
+    bdfailCRS   = naCRS { crsT = Just CRTse, crsBdfail = Just 1 }

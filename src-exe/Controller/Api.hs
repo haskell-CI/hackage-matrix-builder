@@ -10,13 +10,14 @@
 
 module Controller.Api where
 
+import           Prelude.Local
+
 import           HackageApi                           (UserName(..))
 import           PkgId
 import qualified PkgIdxTsSet
 
-import           Prelude.Local
-
 import           Data.Set (Set)
+import qualified Data.Map as Map
 import qualified Data.Aeson                           as J
 import qualified Data.Aeson.Types                     as J
 import           Data.Char
@@ -97,6 +98,7 @@ type ControllerApi m =
   :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
@@ -341,7 +343,7 @@ instance ToJSON CellReport where
 
            -- [ "ghcVersion" J..= crGhcVersion ]
 
--- fixme
+-- soon to be obsoleted
 instance ToSchema CellReport where
     declareNamedSchema _ = pure $ Swag.NamedSchema (Just "CellReport") $ mempty
 
@@ -353,3 +355,45 @@ data UserPkgs = UserPkgs
 instance ToJSON   UserPkgs where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON UserPkgs where { parseJSON = myParseJSONCml }
 instance ToSchema UserPkgs where { declareNamedSchema = myDeclareNamedSchemaCml }
+
+-- v2 report
+data PkgIdxTsReport = PkgIdxTsReport
+    { pitrPkgname     :: PkgN
+    , pitrIdxstate    :: PkgIdxTs
+    , pitrGhcversions :: [GhcVer]
+    , pitrPkgversions :: Map Ver [CellReportSummary] -- invariant: len(pitrPkgVersions) == len(pitrPkgVersions[v]) forall v
+    } deriving (Generic)
+
+data CellReportType = CRTpf | CRTse
+                    deriving (Generic,Show,Eq)
+
+data CellReportSummary = CellReportSummary
+    { crsT      :: Maybe CellReportType -- 'Nothing' means "not available"
+    -- field for 'CRTpf' -- plain-fail
+    , crsBjle   :: Maybe Word -- BJ limit exhausted
+    , crsPerr   :: Maybe Bool -- other plan error
+    -- fields for 'CRTse' -- install plan solution exists
+    , crsBok    :: Maybe Word -- build ok
+    , crsBfail  :: Maybe Word -- build fails
+    , crsBdfail :: Maybe Word -- dep build fails
+    } deriving (Generic,Show)
+
+instance ToJSON   PkgIdxTsReport where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance FromJSON PkgIdxTsReport where { parseJSON = myParseJSON }
+instance ToSchema PkgIdxTsReport where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   PkgIdxTsReport
+
+instance Hashable PkgIdxTsReport where
+    hashWithSalt s (PkgIdxTsReport pn is gvs pvs) = hashWithSalt s (pn,is,gvs,Map.toList pvs)
+
+instance ToJSON   CellReportType where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON CellReportType where { parseJSON = myParseJSON }
+instance ToSchema CellReportType where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   CellReportType
+instance Hashable CellReportType
+
+instance ToJSON   CellReportSummary where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON CellReportSummary where { parseJSON = myParseJSON }
+instance ToSchema CellReportSummary where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   CellReportSummary
+instance Hashable CellReportSummary

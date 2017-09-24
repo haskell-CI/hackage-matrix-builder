@@ -176,6 +176,7 @@ server = tagListH
     :<|> packagesH
     :<|> packagesTagsH
     :<|> reportsH
+    :<|> reportsIdxStH
     :<|> packagesHistoryH
 
     :<|> tagsH
@@ -226,6 +227,12 @@ server = tagListH
         xs <- h0
         let etag = etagFromHashable (F.toList xs)
         doEtag $ pure (etag, pure xs)
+
+    doEtagHashableGet :: Hashable a => AppHandler a -> AppHandler a
+    doEtagHashableGet h0 = do
+        res <- h0
+        let etag = etagFromHashable res
+        doEtag $ pure (etag, pure res)
 
     ----------------------------------------------------------------------------
     -- tag ---------------------------------------------------------------------
@@ -399,6 +406,10 @@ server = tagListH
         ptimes2 <- PGS.query dbconn "SELECT DISTINCT ptime FROM iplan_job JOIN solution USING (jobid) WHERE pname = ?" (PGS.Only pkgn)
         pure (Set.fromList (map fromOnly ptimes1) <>
               Set.fromList (map fromOnly ptimes2))
+
+    reportsIdxStH :: PkgN -> PkgIdxTs -> AppHandler PkgIdxTsReport
+    reportsIdxStH pkgn idxstate = doEtagHashableGet $
+        withDbcGuard (pkgnExists pkgn) $ \dbconn -> queryPkgReport dbconn pkgn idxstate
 
     pkgnExists :: PkgN -> PGS.Connection -> IO Bool
     pkgnExists pkgn dbconn = do
