@@ -115,6 +115,8 @@ type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 
 type TagName = Text
 
+type GhcVer = Ver
+
 data TagsInfo = TagsInfo     (Set TagName)
               | TagsInfoPkgs (Map TagName (Set PkgN))
               deriving Generic
@@ -278,8 +280,8 @@ instance FromJSON JobReport where { parseJSON = myParseJSONCml }
 instance ToSchema JobReport where { declareNamedSchema = myDeclareNamedSchemaCml }
 
 data JobResult = JobResult
-  { jrGhcVersion     :: Ver
-  , jrGhcFullVersion :: Ver
+  { jrGhcVersion     :: GhcVer
+  , jrGhcFullVersion :: GhcVer
   , jrGhcResult      :: [JobGhcResult]
   } deriving (Eq, Generic, Show)
 
@@ -324,8 +326,8 @@ jobResOpts = J.defaultOptions { J.sumEncoding = J.ObjectWithSingleField
     uncap (c:cs) = toLower c : cs
 
 data CellReport = CellReport
-  { crGhcVersion     :: Ver
-  , crGhcFullVersion :: Ver
+  { crGhcVersion     :: GhcVer
+  , crGhcFullVersion :: GhcVer
   , crLogMsg         :: Text
   } deriving (Eq, Generic, Show)
 
