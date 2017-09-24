@@ -101,6 +101,8 @@ type ControllerApi m =
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
 
+  :<|> "v2" :> "units" :> Capture "unitid" UUID :> Get '[JSON] UnitIdInfo
+
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Set PkgN)
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> PutNoContent '[JSON] NoContent
@@ -416,6 +418,24 @@ instance FromJSON CellReportDetail where { parseJSON = myParseJSON }
 instance ToSchema CellReportDetail where { declareNamedSchema = myDeclareNamedSchema }
 instance NFData   CellReportDetail
 instance Hashable CellReportDetail
+
+data UnitIdInfo = UnitIdInfo
+    { uiiId     :: UUID
+--    , uiiUnitid :: UnitID
+    , uiiHcver  :: CompilerID
+    , uiiPkgname :: PkgN
+    , uiiPkgver  :: Ver
+--    , uuiFlags   :: J.Value
+    , uiiStatus  :: Maybe IPStatus
+    , uiiLogmsg  :: Maybe Text
+--    , uiiDt
+    } deriving (Generic,Show)
+
+instance ToJSON   UnitIdInfo where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON UnitIdInfo where { parseJSON = myParseJSON }
+instance ToSchema UnitIdInfo where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   UnitIdInfo
+instance Hashable UnitIdInfo
 
 
 -- | Build-status for a build-unit

@@ -180,6 +180,8 @@ server = tagListH
     :<|> reportsIdxStCellH
     :<|> packagesHistoryH
 
+    :<|> unitsIdH
+
     :<|> tagsH
     :<|> tagsGetH
     :<|> tagsPutH
@@ -428,6 +430,19 @@ server = tagListH
     pkgIdxTsExists ptime dbconn = do
         [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM idxstate WHERE ptime = ?)" (PGS.Only ptime)
         pure ex
+
+    ----------------------------------------------------------------------------
+    -- units v2 --------------------------------------------------------------
+
+    -- UUID UnitID HcID PIType PkgN Ver J.Value (Maybe IPStatus) (Maybe Text) (Maybe NominalDiffTime)
+    -- iplan_unit(xunitid,unitid,compiler,pkind,pname,pver,flags,bstatus,logmsg,dt)
+
+    unitsIdH :: UUID -> AppHandler UnitIdInfo
+    unitsIdH xunitid = doEtagHashableGet $ do
+        (uiiHcver,uiiPkgname,uiiPkgver,uiiStatus,uiiLogmsg) <- headOr404M $ withDbc $ \dbconn -> do
+            PGS.query dbconn "SELECT compiler,pname,pver,bstatus,logmsg FROM iplan_unit WHERE xunitid = ?" (Only xunitid)
+        let uiiId = xunitid
+        pure UnitIdInfo{..}
 
     ----------------------------------------------------------------------------
     -- tags v2 --------------------------------------------------------------
