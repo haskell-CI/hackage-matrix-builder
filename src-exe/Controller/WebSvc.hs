@@ -177,6 +177,7 @@ server = tagListH
     :<|> packagesTagsH
     :<|> reportsH
     :<|> reportsIdxStH
+    :<|> reportsIdxStCellH
     :<|> packagesHistoryH
 
     :<|> tagsH
@@ -413,6 +414,10 @@ server = tagListH
         when (null (pitrHcversions res) && null (pitrPkgversions res)) $
             throwServantErr' err404
         pure res
+
+    reportsIdxStCellH :: PkgN -> PkgIdxTs -> Ver -> CompilerID -> AppHandler CellReportDetail
+    reportsIdxStCellH pname ptime pver cid = doEtagHashableGet $ withDbcGuard (pkgnExists pname) $ \dbconn ->
+        queryCellReport2 dbconn ptime (PkgId pname pver) cid
 
     pkgnExists :: PkgN -> PGS.Connection -> IO Bool
     pkgnExists pkgn dbconn = do

@@ -348,3 +348,51 @@ queryPkgReport dbconn pname ptime = do
     bokCRS      = naCRS { crsT = Just CRTse, crsBok    = Just 1 }
     bfailCRS    = naCRS { crsT = Just CRTse, crsBfail  = Just 1 }
     bdfailCRS   = naCRS { crsT = Just CRTse, crsBdfail = Just 1 }
+
+
+queryCellReport2 :: PGS.Connection -> PkgIdxTs -> PkgId -> CompilerID -> IO CellReportDetail
+queryCellReport2 dbconn crdIdxstate (PkgId crdPkgname crdPkgversion) crdHcversion = do
+    -- [Only cid] <- PGS.query dbconn "SELECT compiler FROM hscompiler WHERE ui_ver = ?" (Only ghc_ui_ver)
+
+    pferr <- PGS.query dbconn
+             "SELECT solvererr \
+             \FROM solution_fail sf \
+             \WHERE sf.pname = ? AND sf.pver = ? AND sf.compiler = ? AND sf.ptime = ?" -- PK
+             (crdPkgname, crdPkgversion, crdHcversion, crdIdxstate)
+
+    case pferr of
+      (Only err:_) -> do
+          let crdType = CRTpf
+              crdSolverErr = Just err
+              crdUnits     = Nothing
+          pure CellReportDetail{..}
+
+      [] -> do -- no plan-fail (yet)
+          let crdSolverErr = Nothing
+
+          jobs <- PGS.query dbconn
+                  "SELECT DISTINCT jobid,xunitid,bstatus \
+                  \FROM iplan_job j JOIN solution USING (jobid) \
+                  \JOIN iplan_unit ON (xunitid = ANY (units)) \
+                  \WHERE j.pname = ? AND j.pver = ? AND j.compiler = ? AND ptime = ?"
+                  (crdPkgname, crdPkgversion, crdHcversion, crdIdxstate)
+
+          let jobs' = Map.elems $ Map.fromListWith (<>)
+                      [ (jobid,Map.singleton xunitid (ips2txt mbstatus))
+                      | (jobid,xunitid,mbstatus) <- (jobs :: [(UUID, UUID, Maybe IPStatus)]) ]
+
+          if null jobs'
+          then do
+              let crdType = CRTna
+                  crdUnits = Nothing
+              pure CellReportDetail{..}
+          else do
+              let crdType = CRTse
+                  crdUnits = Just jobs'
+              pure CellReportDetail{..}
+  where
+    ips2txt :: Maybe IPStatus -> Text
+    ips2txt Nothing                = ""
+    ips2txt (Just IPOk)            = "ok"
+    ips2txt (Just IPBuildFail)     = "bfail"
+    ips2txt (Just IPBuildDepsFail) = "bdfail"

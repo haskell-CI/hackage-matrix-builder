@@ -17,7 +17,6 @@ import           PkgId
 import qualified PkgIdxTsSet
 
 import           Data.Set (Set)
-import qualified Data.Map as Map
 import qualified Data.Aeson                           as J
 import qualified Data.Aeson.Types                     as J
 import           Data.Char
@@ -99,6 +98,7 @@ type ControllerApi m =
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
@@ -117,6 +117,7 @@ type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 
 type TagName = Text
 
+-- v1, to be removed
 type GhcVer = Ver
 
 data TagsInfo = TagsInfo     (Set TagName)
@@ -281,6 +282,7 @@ instance ToJSON   JobReport where { toJSON = myToJSONCml; toEncoding = myToEncod
 instance FromJSON JobReport where { parseJSON = myParseJSONCml }
 instance ToSchema JobReport where { declareNamedSchema = myDeclareNamedSchemaCml }
 
+-- v1
 data JobResult = JobResult
   { jrGhcVersion     :: GhcVer
   , jrGhcFullVersion :: GhcVer
@@ -327,6 +329,7 @@ jobResOpts = J.defaultOptions { J.sumEncoding = J.ObjectWithSingleField
     uncap []     = []
     uncap (c:cs) = toLower c : cs
 
+-- v1
 data CellReport = CellReport
   { crGhcVersion     :: GhcVer
   , crGhcFullVersion :: GhcVer
@@ -364,7 +367,7 @@ data PkgIdxTsReport = PkgIdxTsReport
     , pitrPkgversions :: Map Ver [CellReportSummary] -- invariant: len(pitrPkgVersions) == len(pitrPkgVersions[v]) forall v
     } deriving (Generic)
 
-data CellReportType = CRTpf | CRTse
+data CellReportType = CRTna | CRTpf | CRTse
                     deriving (Generic,Show,Eq)
 
 data CellReportSummary = CellReportSummary
@@ -376,6 +379,18 @@ data CellReportSummary = CellReportSummary
     , crsBok    :: Maybe Word -- build ok
     , crsBfail  :: Maybe Word -- build fails
     , crsBdfail :: Maybe Word -- dep build fails
+    } deriving (Generic,Show)
+
+data CellReportDetail = CellReportDetail
+    { crdPkgname    :: PkgN
+    , crdPkgversion :: Ver
+    , crdIdxstate   :: PkgIdxTs
+    , crdHcversion  :: CompilerID
+    , crdType       :: CellReportType
+      -- CRTpf
+    , crdSolverErr  :: Maybe Text
+      -- CRTse
+    , crdUnits      :: Maybe [Map UUID Text]
     } deriving (Generic,Show)
 
 instance ToJSON   PkgIdxTsReport where { toJSON = myToJSON; toEncoding = myToEncoding }
@@ -395,3 +410,9 @@ instance FromJSON CellReportSummary where { parseJSON = myParseJSON }
 instance ToSchema CellReportSummary where { declareNamedSchema = myDeclareNamedSchema }
 instance NFData   CellReportSummary
 instance Hashable CellReportSummary
+
+instance ToJSON   CellReportDetail where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON CellReportDetail where { parseJSON = myParseJSON }
+instance ToSchema CellReportDetail where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   CellReportDetail
+instance Hashable CellReportDetail
