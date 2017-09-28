@@ -5,8 +5,6 @@ import Data.Array as Arr
 import Data.Char as Char
 import Data.Set as Set
 import Data.String as Str
-import Data.Traversable as TR
-import Data.Tuple as Tuple
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -15,18 +13,11 @@ import Lib.MatrixApi as Api
 import Lib.MiscFFI as MiscFFI
 import Lib.Types as T
 import Network.RemoteData as RD
-import Network.HTTP.Affjax as Affjax
-import Network.HTTP.Affjax.Response as Affjax
 import Control.Monad.Eff.Class (liftEff)
-import Control.Monad.Aff (Aff)
-import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Reader.Class (asks)
-import Control.Monad.Eff.Exception as E
 import Data.Maybe (Maybe(..), isNothing)
-import Prelude ( type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>), (<*>), show)
-import Data.Argonaut as Arg
+import Prelude ( type (~>), Unit, Void, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
 import Debug.Trace
-import Data.Int as Int
 
 type State =
  {

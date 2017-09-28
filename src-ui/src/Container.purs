@@ -8,8 +8,6 @@ import Components.PagePackage as PagePackage
 import Components.PagePackages as PagePackages
 import Components.PageUser as PageUser
 import Control.Monad.Eff.JQuery as J
-import Control.Monad.Eff.Exception as E
-import DOM as DOM
 import Data.Array as Arr
 import Data.String as Str
 import Data.String.Regex as Rgx
@@ -21,7 +19,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
-import Lib.MatrixApi2 as Api
+import Lib.MatrixApi2 as Api2
 import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Network.RemoteData as RD
@@ -31,22 +29,18 @@ import Control.Monad.Eff.Ref (writeRef)
 import Control.Monad.Reader (asks)
 import DOM.HTML (window) as DOM
 import DOM.HTML.Location (setHref, origin) as DOM
-import DOM.HTML.Window (location) as DOM
+import DOM.HTML.Window (history, location) as DOM
 import DOM.Event.Types (KeyboardEvent) as DOM
-import DOM.Event.KeyboardEvent (key, code) as DOM
+import DOM.Event.KeyboardEvent (key) as DOM
 import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
-import DOM.HTML.Window (history) as DOM
 import Data.Either (fromRight)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 import Data.Tuple as Tuple
-import Data.StrMap as SM
-import Data.Argonaut as Arg
-import Data.Foreign as F
 import Data.Foldable as Fold
 import Partial.Unsafe (unsafePartial)
-import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>), (/=))
+import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>))
 import Routing.Match (Match)
 import Routing.Match.Class (lit, str)
 
@@ -161,7 +155,7 @@ ui =
     eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (Api.Matrix e)
     eval (Initialize next) = do
       pkgList <- H.lift Api.getPackageList
-      pkgList2 <- H.lift (Api.getPackages >>= Api.parseJsonToArrayS)
+      pkgList2 <- H.lift Api2.getPackages
       pkgRef <- asks _.packageList
       pkg2Ref <- asks _.packages
       _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)

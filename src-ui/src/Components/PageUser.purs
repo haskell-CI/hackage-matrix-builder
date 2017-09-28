@@ -1,9 +1,8 @@
 module Components.PageUser where
 
-import Prelude (type (~>), Unit, Void, bind, const, otherwise, pure, ($), (<$>), (<*>), (<>), (==), (&&))
+import Prelude (type (~>), Void, bind, otherwise, pure, ($), (<$>), (<*>), (<>), (==))
 import Data.Maybe (Maybe(Just, Nothing), isNothing)
 import Data.Array as Arr
-import Data.String as Str
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP

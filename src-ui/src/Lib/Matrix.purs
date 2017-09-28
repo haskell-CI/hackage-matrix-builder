@@ -1,42 +1,29 @@
 module Lib.MatrixApi where
 
-import Control.Monad.Eff
+import Control.Monad.Eff (Eff, kind Effect)
 import Control.Monad.Eff.Exception as E
 import Data.Function.Uncurried as U
 import Lib.Types as T
 import Network.RemoteData as RD
-import Run as R
-import Control.Monad.Aff (Aff, attempt, makeAff, launchAff)
+import Control.Monad.Aff (Aff, attempt, makeAff)
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Control.Monad.Eff.Ref (Ref)
 import Control.Monad.Reader (class MonadReader, asks, ReaderT)
-import Control.Monad.Except as Except
 import Data.Maybe (Maybe(..))
 import Data.Nullable (Nullable, toMaybe)
 import Halogen.Aff (HalogenEffects)
 import Lib.MiscFFI as Misc
 import Lib.Undefined (Undefined)
 import Lib.Uri (Uri)
-import Prelude (Unit, pure, bind, const, map, ($), (<<<), (<>), (<$>), show, (/=), (==), (||), otherwise)
+import Prelude (Unit, bind, const, map, pure, ($), (<<<), (<>), (||))
 import Network.HTTP.Affjax as Affjax
-import Network.HTTP.Affjax.Response as Affjax
 import Data.HTTP.Method (Method(..))
 import Data.Either (Either(..))
 import Data.String as Str
-import Data.String.Regex as Regex
-import Data.String.Regex.Flags as RegexF
-import Data.Array as Arr
-import Data.Traversable as TRV
-import Data.Maybe as M
-import Data.StrMap as SM
-import Network.HTTP.StatusCode as SC
-import Data.Argonaut as Arg
-import Data.Argonaut.Core as Arg
-import Data.Argonaut.Decode as Arg
-import DOM
+import Data.Argonaut.Core (Json) as Arg
+import Data.Argonaut.Decode (decodeJson) as Arg
+import DOM (DOM)
 import DOM.HTML.Types as DOM
-import Data.Tuple as Tuple
-import Data.Int as Int
 
 foreign import data MatrixApi :: Type
 
