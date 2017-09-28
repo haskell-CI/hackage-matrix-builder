@@ -1,28 +1,23 @@
 module Lib.MiscFFI where
 
-import Control.Monad.Eff
-import Control.Monad.Eff.Console
-import Control.Monad.Eff.JQuery
-import DOM
-import DOM.HTML.Types
-import Data.Function.Uncurried
-import Data.Maybe (Maybe(..), fromJust)
-import Data.Nullable
-import Prelude
+import Control.Monad.Eff (Eff)
+import Control.Monad.Eff.Console (CONSOLE)
+import Control.Monad.Eff.JQuery (JQuery, JQueryEvent, select)
+import DOM (DOM)
+import DOM.HTML.Types (HTMLElement)
+import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
+import Data.Maybe (Maybe(..))
+import Prelude (Unit, id, show, unit, (/=), (<<<), (<>))
 import Lib.Uri (Uri)
 import Lib.Uri as Uri
-import Lib.Undefined
-import Unsafe.Coerce
+import Lib.Undefined (Undefined)
+import Unsafe.Coerce (unsafeCoerce)
 import Lib.Types as T
 import Data.Argonaut as Arg
 import Data.Traversable as TR
 import Data.Tuple as Tuple
 import Data.String as Str
 import Network.RemoteData as RD
-import Network.HTTP.Affjax as Affjax
-import Network.HTTP.Affjax.Response as Affjax
-import Control.Monad.Aff.Class (class MonadAff, liftAff)
-import Data.Int as Int
 import Data.Array as Arr
 import Control.Monad.Eff.Exception as E
 

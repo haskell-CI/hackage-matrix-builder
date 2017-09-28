@@ -40,7 +40,8 @@
     "purescript-tailrec": "^3.3.0",
     "purescript-argonaut-core": "^3.1.0",
     "purescript-formatters": "^3.0.0",
-    "purescript-datetime": "^3.3.0"
+    "purescript-datetime": "^3.3.0",
+    "purescript-tuples": "^4.1.0"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",

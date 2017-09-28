@@ -10,7 +10,7 @@ import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
-import Lib.MatrixApi2 as Api
+import Lib.MatrixApi2 as Api2
 import Lib.Types as T
 import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
@@ -267,9 +267,8 @@ component = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      Tuple.Tuple _ idx' <-  Api.latestIndex (Tuple.fst st.initPackage)
-      listIndex <- Api.getPackageReports  (Tuple.fst st.initPackage)
-      tags <- Api.getPackageTags (Tuple.fst st.initPackage) >>= Api.parseJsonToArrayS
+      listIndex <- Api2.getPackageReports  (Tuple.fst st.initPackage)
+      tags <- Api2.getPackageTags (Tuple.fst st.initPackage)
       let
         listIndex' =
           case listIndex of
@@ -286,9 +285,8 @@ component = H.lifecycleComponent
         if Str.null (Tuple.snd st.initPackage)
         then Api.getLatestReportByPackageName (Tuple.fst st.initPackage)
         else (Api.getLatestReportByPackageTimestamp (Tuple.fst st.initPackage) (Tuple.snd st.initPackage))
-                >>= Api.parseShallowReport
+                >>= Api2.parseShallowReport
       queueStat <- H.lift $ Api.getQueueByName (Tuple.fst st.initPackage)
-      traceAnyA "This is from Init"
       H.modify _  { package = packageByName
                   , report = reportPackage
                   , highlighted = false
@@ -320,11 +318,11 @@ component = H.lifecycleComponent
       H.put $ st { newtag = value }
       pure next
     eval (AddingNewTag newTag pkgName next) = do
-      _ <- H.lift $ Api.putPackageTag newTag pkgName
+      _ <- H.lift $ Api2.putPackageTag newTag pkgName
       H.raise $ FromPagePackage
       pure next
     eval (RemoveTag tagName pkgName next) = do
-      _ <- H.lift $ Api.deletePackageTag tagName pkgName
+      _ <- H.lift $ Api2.deletePackageTag tagName pkgName
       H.raise $ FromPagePackage
       pure next
     eval (UpdateTag reply) = do
@@ -333,9 +331,8 @@ component = H.lifecycleComponent
       reply <$> (pure packageName)
     eval (Receive pkg next) = do
       st <- H.get
-      Tuple.Tuple _ idx' <- Api.latestIndex (Tuple.fst pkg)
-      listIndex <- Api.getPackageReports (Tuple.fst pkg)
-      tags <- Api.getPackageTags (Tuple.fst pkg) >>= Api.parseJsonToArrayS
+      listIndex <- Api2.getPackageReports (Tuple.fst pkg)
+      tags <- Api2.getPackageTags (Tuple.fst pkg)
       let
         listIndex' =
           case listIndex of
@@ -352,9 +349,8 @@ component = H.lifecycleComponent
         if Str.null (Tuple.snd pkg)
         then  Api.getLatestReportByPackageName (Tuple.fst pkg)
         else  (Api.getLatestReportByPackageTimestamp (Tuple.fst pkg) (Tuple.snd pkg))
-                 >>= Api.parseShallowReport
+                 >>= Api2.parseShallowReport
       queueStat <- H.lift $ Api.getQueueByName (Tuple.fst pkg)
-      traceAnyA "This is from Receive"
       H.modify _ { initPackage = pkg
                  , package = packageByName
                  , report = reportPackage
