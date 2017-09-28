@@ -20,6 +20,7 @@ library matrix-lib
                      , Job
                      , PkgId
                      , PkgIdxTsSet
+                     , PkgIdxRanges
                      , PlanJson
                      , WorkerApi
                      , WorkerApi.Client
