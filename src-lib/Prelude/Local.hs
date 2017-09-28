@@ -26,6 +26,7 @@ module Prelude.Local
 
     , readMaybe
     , isDigit
+    , coerce
 
     , InputStream, OutputStream
 
@@ -43,6 +44,7 @@ module Prelude.Local
     -- * Locally defined helpers
     , toposort
     , firstJustM
+    , whileM_
     , myToJSON, myToEncoding, myParseJSON
     , myToJSONCml, myToEncodingCml, myParseJSONCml
     , myDeclareNamedSchema
@@ -130,6 +132,7 @@ import           System.Exit
 import           System.FilePath
 import           System.IO.Streams        (InputStream, OutputStream)
 import           Text.Read
+import           Data.Coerce              (coerce)
 
 myDeclareNamedSchema, myDeclareNamedSchemaCml :: forall a proxy . (Generic a, Swag.GToSchema (Rep a), Swag.TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted") => proxy a -> Swag.Declare (Swag.Definitions Swag.Schema) Swag.NamedSchema
 myDeclareNamedSchema = Swag.genericDeclareNamedSchema (Swag.defaultSchemaOptions { Swag.fieldLabelModifier = labelMod, Swag.constructorTagModifier = tagMod })
@@ -206,6 +209,15 @@ firstJustM act = go
         case y of
           Just _  -> pure y
           Nothing -> go xs
+
+
+-- | Execute monadic action as long as it returns 'True'
+whileM_ :: (Monad m) => m Bool -> m ()
+whileM_ p = go
+  where
+    go = do
+        x <- p
+        if x then go else pure ()
 
 
 -- FIXME

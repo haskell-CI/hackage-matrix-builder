@@ -27,7 +27,6 @@ module PkgIdxTsSet
 import           Prelude.Local       hiding (drop, null, take)
 import           Prelude             ()
 
-import           Data.Coerce         (coerce)
 import qualified Data.Set            as Set
 import qualified Data.Vector.Unboxed as VU
 import           PkgId

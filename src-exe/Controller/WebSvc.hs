@@ -45,7 +45,6 @@ import qualified Data.Set                         as Set
 import qualified Data.Foldable                    as F
 import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
-import Data.Coerce
 import qualified Database.PostgreSQL.Simple       as PGS
 import           Database.PostgreSQL.Simple.Types (Only (..))
 import           Network.HTTP.Client              (defaultManagerSettings,

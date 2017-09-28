@@ -366,15 +366,6 @@ queryNextQTask dbconn cids q0 = do
     let Just ptime = qIdxState q0
     queryNextJobTask dbconn cids (qPackageName q0) ptime
 
-whileM_ :: (Monad m) => m Bool -> m ()
-whileM_ p = go
-  where
-    go = do
-        x <- p
-        if x
-        then go
-        else pure ()
-
 tshow :: Show a => a -> Text
 tshow = T.pack . show
 
