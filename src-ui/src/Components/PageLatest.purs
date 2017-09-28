@@ -4,27 +4,25 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi as Api
+import Lib.MatrixApi2 as Api
+import Lib.MatrixApi as Api1
 import Lib.Types as T
 import Data.Maybe (Maybe(..))
-import Prelude (type (~>), Unit, Void, bind, const, pure, show, ($), (+), (<$>), (<>))
+import Prelude (type (~>), Unit, Void, bind, const, pure, show, otherwise, ($), (+), (-), (<$>), (<>), (<), (==))
 import Data.Traversable as TR
+import Network.RemoteData as RD
 
-type State =
- {
-   latestlist :: Array T.LatestItem
- , queuelist :: Array T.QueueItem
- }
+type State = { queuelist :: Array T.PackageQueue }
 
 data Query a
   = Initialize a
-  | PriorityUp T.PackageName String a
-  | PriorityDown T.PackageName String a
-  | RemoveQueue T.PackageName a
+  | PriorityUp T.PackageName T.PkgIdxTs Int a
+  | PriorityDown T.PackageName T.PkgIdxTs Int a
+  | RemoveQueue T.PackageName T.PkgIdxTs a
   | RefreshListings a
   | Finalize a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
+component :: forall e. H.Component HH.HTML Query Unit Void (Api1.Matrix e)
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
@@ -36,10 +34,7 @@ component = H.lifecycleComponent
   where
 
     initialState :: State
-    initialState =
-      { latestlist: []
-      , queuelist: []
-      }
+    initialState = { queuelist: [] }
 
     render :: State -> H.ComponentHTML Query
     render state =
@@ -70,7 +65,7 @@ component = H.lifecycleComponent
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text "Latest Builds" ]
                 , HH.ul
-                    [ HP.id_ "build-list" ] $ buildPackages state <$> state.latestlist
+                    [ HP.id_ "build-list" ] $ buildPackages <$> state.queuelist
 
                 ]
             , HH.div
@@ -88,89 +83,99 @@ component = H.lifecycleComponent
         accumResult st = TR.mapAccumL (renderTableQueue st) 1 (state.queuelist)
         getTheResult { value } = value
 
-    eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
+    eval :: Query ~> H.ComponentDSL State Query Void (Api1.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      qList <- H.lift Api.getQueueList
-      lList <- H.lift Api.getListLatestReports
-      initState <- H.put $ st { latestlist = lList.items
-                              , queuelist = qList.items
-                              }
+      queueList <- H.lift Api.getQueues
+      let qlist =
+            case queueList of
+              RD.Success a -> a
+              _            -> []
+      initState <- H.put $ st { queuelist = qlist }
       pure next
-    eval (PriorityUp pkgName priority next) = do
-      _ <- H.lift $ Api.putQueueSaveByName pkgName (case priority of
-                                                     "low" -> T.Medium
-                                                     "medium" -> T.High
-                                                     _   -> T.High )
+    eval (PriorityUp pkgName idx priority next) = do
+      _ <- H.lift $ Api.putPackageQueue pkgName idx (priority + 10)
       st <- H.get
-      qlist <- H.lift Api.getQueueList
-      _ <- H.modify _ { queuelist = qlist.items }
+      queueList <- H.lift Api.getQueues
+      let qlist =
+            case queueList of
+              RD.Success a -> a
+              _            -> []
+
+      _ <- H.modify _ { queuelist = qlist }
       pure next
-    eval (PriorityDown pkgName priority next) = do
-      _ <- H.lift $ Api.putQueueSaveByName pkgName (case priority of
-                                                     "low" -> T.Low
-                                                     "medium" -> T.Low
-                                                     _   -> T.Medium )
+    eval (PriorityDown pkgName idx priority next) = do
+      _ <- H.lift $ Api.putPackageQueue pkgName idx (priority - 10)
       st <- H.get
-      qlist <- H.lift Api.getQueueList
-      _ <- H.modify _ { queuelist = qlist.items }
+      queueList <- H.lift Api.getQueues
+      let qlist =
+            case queueList of
+              RD.Success a -> a
+              _            -> []
+      _ <- H.modify _ { queuelist = qlist }
       pure next
-    eval (RemoveQueue pkgName next) = do
-      _ <- H.lift $ Api.deleteQueueRemove pkgName
-      pure next
+    eval (RemoveQueue pkgName idx next) = do
+      _ <- H.lift $ Api.deletePackageQueue pkgName idx
+      eval (Initialize next)
     eval (RefreshListings next) = eval (Initialize next)
     eval (Finalize next) = do
       pure next
 
-buildPackages :: forall p i. State -> T.LatestItem -> HH.HTML p i
-buildPackages state latestItem =
+buildPackages :: forall p i. T.PackageQueue -> HH.HTML p i
+buildPackages {pkgname, modified} =
   HH.li_ $
     [ HH.a
-        [ HP.href $ "#/package/" <> latestItem.packageName
+        [ HP.href $ "#/package/" <> pkgname
         ]
-        [ HH.text latestItem.packageName ]
-    ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (latestItem.modified) ] ]
+        [ HH.text pkgname ]
+    ] <> [ HH.small_ [ HH.text $ " - index-state: " <> (modified) ] ]
 
 renderTableQueue :: forall p. State
                  -> Int
-                 -> T.QueueItem
+                 -> T.PackageQueue
                  -> TR.Accum Int (HH.HTML p (Query Unit))
-renderTableQueue state num { packageName, priority } =
+renderTableQueue state num { pkgname, priority, idxstate } =
   { accum: num + 1
   , value: HH.tr
-             [ HP.class_ (H.ClassName priority) ] $
+             [ HP.class_ (H.ClassName (showPrio priority)) ] $
              [ HH.td
                  [ HP.class_ (H.ClassName "num") ]
                  [ HH.text $ show num ]
              , HH.td
                  [ HP.class_ (H.ClassName "package-name") ]
                  [ HH.a
-                     [HP.href $ "#/package/" <> packageName
+                     [HP.href $ "#/package/" <> pkgname
                      ]
-                     [HH.text $ packageName]
+                     [HH.text $ pkgname]
                  ]
              , HH.td
-                 [ HP.classes (H.ClassName <$> ["priority", priority ]) ]
-                 [ HH.text $  priority ]
+                 [ HP.classes (H.ClassName <$> ["priority", (showPrio priority) ]) ]
+                 [ HH.text $ (showPrio priority) ]
              , HH.td
-                 [ HE.onClick $ HE.input_ (PriorityUp packageName priority) ]
+                 [ HE.onClick $ HE.input_ (PriorityUp pkgname idxstate priority) ]
                  [ HH.a
                      [ HP.class_ (H.ClassName "up") ]
                      [ HH.text "↑"]
                  ]
              , HH.td
-                 [ HE.onClick $ HE.input_ (PriorityDown packageName priority) ]
+                 [ HE.onClick $ HE.input_ (PriorityDown pkgname idxstate priority) ]
                  [ HH.a
                      [ HP.class_ (H.ClassName "down") ]
                      [ HH.text "↓"]
                  ]
-             , HH.td
-                 [ HE.onClick $ HE.input_ (RemoveQueue packageName) ]
+             , HH.td_
+                 --[ HE.onClick $ HE.input_ (RemoveQueue pkgname idxstate) ]
                  [ HH.a
                      [ HP.class_ (H.ClassName "remove")
-                     , HE.onClick $ HE.input_ (RemoveQueue packageName )
+                     , HE.onClick $ HE.input_ (RemoveQueue pkgname idxstate )
                      ]
                      [ HH.text "╳"]
                  ]
              ]
   }
+
+showPrio :: Int -> String
+showPrio x
+  | x < 0     = "low"
+  | x == 0    = "medium"
+  | otherwise = "high"
