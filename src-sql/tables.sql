@@ -31,13 +31,8 @@ CREATE OPERATOR CLASS _uuid_ops DEFAULT
 -- uuid     -> 128bit
 -- enums    -> 32bit
 
-CREATE OR REPLACE FUNCTION table_event_notify() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  -- PERFORM pg_notify('table_event', json_build_object('table', TG_TABLE_NAME, 'op', TG_OP)::text);
-  PERFORM pg_notify('table_event', TG_TABLE_NAME::text);
-  RETURN NEW;
-END;
-$$;
+-- The "unit type" (useful as PK of single-row tables, corresponds to Haskell's ())
+CREATE TYPE unit AS enum('unit');
 
 -- encodes valid(!) versions both as string & array
 CREATE TABLE version (
@@ -46,23 +41,11 @@ CREATE TABLE version (
     pvera int[] NOT NULL CHECK ((pvera <> '{}') AND (0 <= all(pvera)))
 );
 
-CREATE OR REPLACE FUNCTION version_trigger_proc() RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  NEW.pvera := string_to_array(NEW.pver,'.')::int[];
-RETURN NEW;
-END;
-$$;
-
-CREATE TRIGGER version_trigger
-BEFORE INSERT OR UPDATE ON version
-FOR EACH ROW EXECUTE PROCEDURE version_trigger_proc();
+DROP TRIGGER   version_trigger ON version;
+CREATE TRIGGER version_trigger BEFORE INSERT OR UPDATE ON version
+  FOR EACH ROW EXECUTE PROCEDURE version_trigger_proc();
 
 ----------------------------------------------------------------------------
-
-CREATE FUNCTION unix_now() RETURNS integer
-    LANGUAGE plpgsql
-    AS $$ BEGIN RETURN extract(epoch from now()); END; $$;
-
 
 CREATE TABLE pkgname (
     pname text PRIMARY KEY
@@ -97,11 +80,15 @@ CREATE TABLE idxstate (
     ptime int PRIMARY KEY -- TODO: bigint
 );
 
-CREATE OR REPLACE FUNCTION max_ptime() RETURNS int LANGUAGE SQL AS
-  $$ SELECT max(ptime) FROM idxstate; $$;
+----------------------------------------------------------------------------
 
-CREATE OR REPLACE FUNCTION unix_now() RETURNS int LANGUAGE PLPGSQL AS
-  $$ BEGIN RETURN extract(epoch from now()); END; $$;
+-- global parameters
+CREATE TABLE globals (
+    unit unit PRIMARY KEY default 'unit',
+    ptime_watermark int REFERENCES idxstate(ptime) DEFAULT max_ptime()
+);
+
+INSERT INTO globals(unit) VALUES (default) ON CONFLICT DO NOTHING;
 
 ----------------------------------------------------------------------------
 
@@ -211,6 +198,7 @@ CREATE TABLE iplan_job (
 );
 
 CREATE INDEX ON iplan_job USING GIN (units);
+CREATE INDEX ON iplan_job(pname);
 
 -- represents a unit like in Cabal
 CREATE TABLE iplan_unit (
@@ -234,6 +222,8 @@ CREATE TABLE iplan_unit (
     dt       real,
     ctime    int         NOT NULL DEFAULT unix_now() -- creation time of this row
 );
+
+CREATE index ON iplan_unit(pname,pver);
 
 /* (currently unused!)
 
@@ -278,10 +268,7 @@ CREATE TABLE iplan_comp_dep (
 CREATE INDEX ON iplan_comp_dep (parent);
 CREATE INDEX ON iplan_comp_dep (child);
 
-
-
 ----------------------------------------------------------------------------
-
 
 -- TODO: allow adding constraints to 'solution'/'solution_fail'?
 --       probably better: have constraints be ephemeral property of
@@ -300,9 +287,14 @@ CREATE TABLE solution (
 
     dt    real,
     ctime int NOT NULL DEFAULT unix_now() -- creation time of this row
+    cached bool NOT NULL DEFAULT 'f'
 );
 
--- quite some overlap w/ iplan_pkg; consider subtyping
+CREATE INDEX ON solution(cached);
+
+-- ALTER TABLE solution ADD COLUMN cached boolean NOT NULL DEFAULT 'f';
+
+-- ~~quite some overlap w/ iplan_pkg; consider subtyping~~ there is no iplan_pkg anymore
 CREATE TABLE solution_fail (
     ptime    int         REFERENCES idxstate(ptime),
     compiler text        REFERENCES hscompiler(compiler), -- TODO: os/arch
@@ -318,6 +310,23 @@ CREATE TABLE solution_fail (
     ctime int NOT NULL DEFAULT unix_now() -- creation time of this row
 );
 
+CREATE TABLE solution_span (
+    xunitid   uuid NOT NULL PRIMARY KEY REFERENCES iplan_unit(xunitid) ON DELETE CASCADE,
+    valid     int4range[] NOT NULL CHECK(check_idxranges(valid)), -- ptime ranges for which 'xunitid' is *known* to be a solution
+    vstale    bool NOT NULL, -- 'valid' is stale
+
+    ptime0    int  NOT NULL REFERENCES idxstate(ptime) -- the earliest possible index-state where this *can* be a solution
+               -- IOW, any time-ranges must be strictly right of `[,ptime0)` for this xunitid
+);
+
+-- encodes "there is (at least) one solution for xunitid and a specific prev"
+CREATE TABLE solution_rev (
+    xunitid   uuid NOT NULL REFERENCES iplan_unit(xunitid) ON DELETE CASCADE,
+    prev      int  NOT NULL,
+    PRIMARY KEY(xunitid,prev)
+);
+
+CREATE INDEX ON solution_rev(xunitid);
 
 ----------------------------------------------------------------------------
 -- helper VIEWs
@@ -342,22 +351,22 @@ CREATE VIEW pname_max_ptime AS
 Reset plans
 
                        List of relations
- Schema |     Name      | Type  | Owner |  Size   | Description 
+ Schema |     Name      | Type  | Owner |  Size   | Description
 --------+---------------+-------+-------+---------+-------------
- public | hscompiler    | table | hvr   | 48 kB   | 
- public | idxstate      | table | hvr   | 3000 kB | 
+ public | hscompiler    | table | hvr   | 48 kB   |
+ public | idxstate      | table | hvr   | 3000 kB |
  public | iplan_comp    | table | hvr   | 2128 kB | 6343
  public | iplan_job     | table | hvr   | 34 MB   | 1636
  public | iplan_unit    | table | hvr   | 2656 kB | 5691
- public | pkgindex      | table | hvr   | 5976 kB | 
- public | pkgname       | table | hvr   | 488 kB  | 
- public | pkgver        | table | hvr   | 3656 kB | 
- public | pname_tag     | table | hvr   | 56 kB   | 
- public | queue         | table | hvr   | 48 kB   | 
+ public | pkgindex      | table | hvr   | 5976 kB |
+ public | pkgname       | table | hvr   | 488 kB  |
+ public | pkgver        | table | hvr   | 3656 kB |
+ public | pname_tag     | table | hvr   | 56 kB   |
+ public | queue         | table | hvr   | 48 kB   |
  public | solution      | table | hvr   | 208 kB  | 3361
- public | solution_fail | table | hvr   | 5736 kB | 
- public | unit_dep      | view  | hvr   | 0 bytes | 
- public | version       | table | hvr   | 480 kB  | 
+ public | solution_fail | table | hvr   | 5736 kB |
+ public | unit_dep      | view  | hvr   | 0 bytes |
+ public | version       | table | hvr   | 480 kB  |
 
 
 DELETE FROM solution;
@@ -370,11 +379,3 @@ DELETE FROM iplan_unit;
 
 
 */
-
--- TODO: use custom type
--- todo: verify >= 0, and >= {0}
-CREATE FUNCTION as_ver(text) RETURNS int[]
-    AS $$ SELECT string_to_array($1,'.')::int[]; $$
-    LANGUAGE SQL
-    IMMUTABLE
-    RETURNS NULL ON NULL INPUT;

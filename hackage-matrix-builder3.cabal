@@ -156,6 +156,7 @@ executable matrix-controller
   other-modules:       Controller.Api
                      , Controller.Cli
                      , Controller.Config
+                     , Controller.Compute
                      , Controller.Db
                      , Controller.Scheduler
                      , Controller.WebSvc

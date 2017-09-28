@@ -45,6 +45,7 @@ import           Servant.Client
 import qualified Controller.Cli                   as Cli
 import           Controller.Config
 import qualified Controller.Scheduler             as Sched
+import qualified Controller.Compute               as Comp
 import qualified Controller.WebSvc                as WebSvc
 import           IndexHelper
 import           PkgId
@@ -171,19 +172,24 @@ main = do
           bracket mkConn killConn performIndexUpdate
           exitSuccess
 
+      Cli.Compute -> do
+          bracket mkConn killConn Comp.runCompute
+          exitSuccess
+
       Cli.Scheduler -> do
           Sched.runScheduler ci (ccWorkers cconf)
+          exitSuccess
 
       Cli.WebServer -> do
+          appDbPool <- createPool mkConn killConn 1 10.5 4
+          appPkgLstCache <- newMVar (WebSvc.PkgLstCache (PkgIdxTs 0) mempty)
+          appPkgIdxTsCache <- newMVar PkgIdxTsSet.empty
+          let app = WebSvc.App{..}
 
-        appDbPool <- createPool mkConn killConn 1 10.5 4
-        appPkgLstCache <- newMVar (WebSvc.PkgLstCache (PkgIdxTs 0) mempty)
-        appPkgIdxTsCache <- newMVar PkgIdxTsSet.empty
-        let app = WebSvc.App{..}
+          WebSvc.runController app (ccPort cconf)
 
-        WebSvc.runController app (ccPort cconf)
+          exitSuccess
 
-    pure ()
   where
     -- TODO: read parts of db-info from config
     ci = PGS.ConnectInfo "" 0 "" "" "matrix"

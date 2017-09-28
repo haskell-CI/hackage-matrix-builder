@@ -11,6 +11,7 @@ data Opts
     | Update    -- ^ "Perform package index sync/update"
     | Scheduler -- ^ "Run scheduling server"
     | WebServer -- ^ "Run HTTP server"
+    | Compute   -- ^ "Run computation engine"
     deriving (Show, Generic)
 
 instance ParseRecord Opts
