@@ -174,6 +174,7 @@ server = tagListH
 
     :<|> packagesH
     :<|> packagesTagsH
+    :<|> reportsStarH
     :<|> reportsH
     :<|> reportsIdxStH
     :<|> reportsIdxStCellH
@@ -401,6 +402,11 @@ server = tagListH
             PkgHistoryEntry is _ _ _ = V.last res -- TODO: is res guarnateed to be non-empty?
             etag = etagFromPkgIdxTs (Just is) (V.length res)
         return (etag, pure res)
+
+    reportsStarH :: AppHandler (Map PkgN PkgIdxTs)
+    reportsStarH = doEtagHashableGet $ do -- TODO/FIXME: this is *slow*
+        xs <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT pname,ptime FROM pname_max_ptime"
+        pure (Map.fromList xs)
 
     reportsH :: PkgN -> AppHandler (Set PkgIdxTs)
     reportsH pkgn = doEtagFoldableGet $ withDbcGuard (pkgnExists pkgn) $ \dbconn -> do

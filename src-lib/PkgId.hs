@@ -69,6 +69,12 @@ instance FromJSON PkgN where
 instance ToJSON PkgN where
     toJSON = toJSON . display
 
+instance ToJSONKey PkgN where
+    toJSONKey = toJSONKeyText (T.pack . display)
+
+instance FromJSONKey PkgN where
+    fromJSONKey = FromJSONKeyTextParser (maybe (fail "PkgN") pure . simpleParse . T.unpack)
+
 -- TODO: validation
 instance FromField PkgN where
     fromField f dat = fromString <$> fromField f dat
