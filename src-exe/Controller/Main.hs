@@ -52,15 +52,6 @@ import qualified PkgIdxTsSet
 import           WorkerApi
 import           WorkerApi.Client
 
-{-
-timeOp :: String -> IO a -> IO a
-timeOp l act = do
-    t0 <- getPOSIXTime
-    res <- act
-    t1 <- getPOSIXTime
-    print (l, t1-t0)
-    return res
--}
 
 pkgIdxTupleToDB :: PkgIdxTuple -> (Text,Text,Int,Int,Text)
 pkgIdxTupleToDB PkgIdxTuple{..} = (pn, ver, rev, t, pitOwner)
@@ -165,33 +156,6 @@ performIndexUpdate dbconn = do
 
     pure ()
 
-
-{- hacky code for importing tags.json
-
-    tmp <- BS.readFile "tags.json"
-    let Just foo = J.decodeStrict tmp :: Maybe (ListSlice TagListEntry)
-    let foo2 = nub [ (teName ent, pn) | ent <- lsItems foo, pn <- tePackages ent ]
-    withResource appDbPool $ \dbconn -> do
-        res <- PGS.executeMany dbconn "INSERT INTO pname_tag (tagname,pname) values (?,?)" foo2
-        print res
--}
-
-
-
-{-
-planJson2Dp :: J.Value -> IO ()
-planJson2Dp planJsonRaw = do
-    let J.Success pj@(PlanJson{..}) = J.fromJSON planJsonRaw
-
-    putStrLn (groom $ (pj :: PlanJson))
-
-    putStrLn ""
-    putStrLn "----------------------------------------------------------------------------"
-    putStrLn "----------------------------------------------------------------------------"
-    putStrLn ""
-
-    mapM_ (putStrLn . groom) $ planJson2DbUnitComps mempty pj
--}
 
 main :: IO ()
 main = do
