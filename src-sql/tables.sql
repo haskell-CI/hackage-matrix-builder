@@ -292,6 +292,10 @@ CREATE TABLE solution (
 
 CREATE INDEX ON solution(cached);
 
+DROP TRIGGER solution_insert_trigger ON solution;
+CREATE TRIGGER solution_insert_trigger AFTER INSERT ON solution
+  FOR EACH ROW EXECUTE PROCEDURE solution_insert_trigger();
+
 -- ALTER TABLE solution ADD COLUMN cached boolean NOT NULL DEFAULT 'f';
 
 -- ~~quite some overlap w/ iplan_pkg; consider subtyping~~ there is no iplan_pkg anymore
@@ -309,6 +313,10 @@ CREATE TABLE solution_fail (
     dt    real,
     ctime int NOT NULL DEFAULT unix_now() -- creation time of this row
 );
+
+DROP TRIGGER solution_fail_insert_trigger ON solution_fail;
+CREATE TRIGGER solution_fail_insert_trigger AFTER INSERT ON solution_fail
+  FOR EACH ROW EXECUTE PROCEDURE solution_fail_insert_trigger();
 
 CREATE TABLE solution_span (
     xunitid   uuid NOT NULL PRIMARY KEY REFERENCES iplan_unit(xunitid) ON DELETE CASCADE,
@@ -329,9 +337,20 @@ CREATE TABLE solution_rev (
 CREATE INDEX ON solution_rev(xunitid);
 
 ----------------------------------------------------------------------------
--- helper VIEWs
+-- latest report by package-name cache
+-- (NB: pname_max_ptime was formerly a VIEW)
 
-CREATE VIEW pname_max_ptime AS
+CREATE TABLE pname_max_ptime (
+   pname  text PRIMARY KEY   REFERENCES pkgname(pname),
+   ptime  int  NOT NULL      REFERENCES idxstate(ptime)
+);
+
+
+BEGIN;
+
+DELETE FROM pname_max_ptime;
+
+INSERT INTO pname_max_ptime(pname,ptime)
  SELECT t.pname, max(t.ptime) AS ptime
    FROM ( SELECT iplan_job.pname,
             max(solution.ptime) AS ptime
@@ -345,6 +364,7 @@ CREATE VIEW pname_max_ptime AS
           GROUP BY solution_fail.pname) t
   GROUP BY t.pname;
 
+COMMIT;
 
 /*
 

@@ -36,6 +36,30 @@ RETURN NEW;
 END;
 $$;
 
+----
+
+CREATE OR REPLACE FUNCTION solution_fail_insert_trigger() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO pname_max_ptime(pname,ptime)
+    VALUES(NEW.pname,NEW.ptime)
+    ON CONFLICT(pname)
+    DO UPDATE SET ptime = GREATEST(pname_max_ptime.ptime, EXCLUDED.ptime);
+  RETURN NEW;
+END;
+$$;
+
+----
+
+CREATE OR REPLACE FUNCTION solution_insert_trigger() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  INSERT INTO pname_max_ptime(pname,ptime)
+    VALUES((SELECT pname FROM iplan_job j WHERE j.jobid = NEW.jobid), NEW.ptime)
+    ON CONFLICT(pname)
+    DO UPDATE SET ptime = GREATEST(pname_max_ptime.ptime, EXCLUDED.ptime);
+  RETURN NEW;
+END;
+$$;
+
 ----------------------------------------------------------------------------
 -- Sync uncached "solution" rows to "solution_rev" and mark stale
 -- affected rows of "solution_span"
