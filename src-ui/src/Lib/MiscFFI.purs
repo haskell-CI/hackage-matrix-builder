@@ -139,6 +139,13 @@ formatDate' :: RD.RemoteData E.Error T.ShallowReport -> String
 formatDate' (RD.Success date) = formatDate_ (_.modified date)
 formatDate' _ = ""
 
+
+foreign import posixSecondsToISOStr :: Int -> String
+
+toDateTime :: T.PkgIdxTs -> T.PackageTS
+toDateTime = posixSecondsToISOStr
+
+
 undefine :: forall a . Undefined a -> Maybe a
 undefine u = undefine_ u Nothing (Just unit)
 
@@ -167,17 +174,5 @@ getLastIdx arrInt=
   case Arr.last arrInt of
     Just a -> show a
     Nothing -> ""
-
-toDateTime :: T.PkgIdxTs -> T.PackageTS
-toDateTime idx =
-  case ptimeToDateTime idx of
-    (Just ts) ->
-      case FDT.formatDateTime "YYYY-MM-DDTHH:mm:ssZ" ts of
-        (Right date) -> date
-        Left _      -> ""
-    Nothing   -> ""
-
-ptimeToDateTime :: T.PkgIdxTs -> Maybe DT.DateTime
-ptimeToDateTime idx = DT.toDateTime <$> DT.instant (DT.Milliseconds (1000.0 * (Int.toNumber idx)))
 
 
