@@ -21,7 +21,7 @@ import Network.RemoteData as RD
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Reader.Class (asks)
 import Data.Maybe (Maybe(..), isNothing)
-import Prelude (type (~>), Unit, Void, class Ord, append, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
+import Prelude (type (~>), Unit, Void, class Ord, append, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>), (==), (<=), (&&))
 import Control.Monad.Eff.Exception as E
 
 
@@ -32,14 +32,14 @@ type State =
  , tagsMap :: SM.StrMap (Array T.TagName)
  , clicked :: Boolean
  , selectedTag :: Set.Set T.TagName
- , selectedPrefix :: Set.Set T.Prefixs
+ , selectedPrefix :: Char
  , latestIdxState :: RD.RemoteData E.Error (SM.StrMap T.PkgIdxTs)
  }
 
 data Query a
   = Initialize a
   | SelectedTag T.TagName a
-  | SelectedPrefix T.Prefixs a
+  | SelectedPrefix Char a
   | HandleCheckBox State Boolean a
   | Finalize a
 
@@ -62,7 +62,7 @@ component = H.lifecycleComponent
    , tagsMap: SM.empty
    , clicked: false
    , selectedTag: Set.empty
-   , selectedPrefix: Set.empty
+   , selectedPrefix: 'A'
    , latestIdxState: RD.NotAsked
    }
 
@@ -100,8 +100,7 @@ component = H.lifecycleComponent
           , HH.ol
               [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
           , HH.ol
-              [ HP.class_ (H.ClassName "packages") ] $
-                Arr.take 650 (buildPackages state <$> (packages' state))
+              [ HP.class_ (H.ClassName "packages") ] $ buildPackages state <$> (packages' state)
           ]
       ]
     where
@@ -147,7 +146,7 @@ component = H.lifecycleComponent
     pure next
 
   eval (SelectedPrefix prefix next) = do
-    H.modify \st -> st { selectedPrefix = Set.singleton prefix }
+    H.modify \st -> st { selectedPrefix = prefix }
     pure next
 
   eval (HandleCheckBox st isCheck next)
@@ -159,18 +158,18 @@ component = H.lifecycleComponent
   eval (Finalize next) = do
     pure next
 
-prefixs :: Array T.Prefixs
-prefixs = Str.singleton <$> Char.fromCharCode <$> (Arr.(..) 65 90)
+prefixs :: Array Char
+prefixs = Char.fromCharCode <$> ((Arr.(..) 65 90) <> [48])
 
-buildPrefixs :: forall p. String -> HH.HTML p (Query Unit)
+buildPrefixs :: forall p. Char -> HH.HTML p (Query Unit)
 buildPrefixs prefix =
   HH.li_
     [ HH.a
         [ HP.class_ (H.ClassName "header")
-        , HP.attr (H.AttrName "data-prefix") prefix
+        , HP.attr (H.AttrName "data-prefix") (Str.singleton prefix)
         , HE.onClick $ HE.input_ (SelectedPrefix prefix)
         ]
-        [ HH.text $ prefix ]
+        [ HH.text $ Str.singleton prefix ]
     ]
 
 buildTags :: forall p i. T.TagName -> HH.HTML p i
@@ -219,10 +218,13 @@ tagContained selectedTags tagsMap pkgName
             Nothing -> []
       in not Set.isEmpty (Set.fromFoldable tags `Set.intersection` selectedTags)
 
-prefixContained :: Set.Set T.Prefixs -> T.PackageName -> Boolean
-prefixContained selectedPrefix pkgName
-    | Set.isEmpty selectedPrefix = true
-    | otherwise              = Set.member (Str.toUpper $ Str.take 1 pkgName) selectedPrefix
+prefixContained :: Char -> T.PackageName -> Boolean
+prefixContained '0' pkgName = case Str.charAt 0 pkgName of
+                                Nothing -> false
+                                Just c  -> '0' <= c && c <= '9'
+prefixContained selectedPrefix pkgName = case Str.charAt 0 pkgName of
+                                           Nothing -> false
+                                           Just c  -> selectedPrefix == Char.toUpper c
 
 indexStateContained :: T.PackageMeta -> Boolean
 indexStateContained pkgMeta
