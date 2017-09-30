@@ -22,18 +22,18 @@ import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Reader.Class (asks)
 import Data.Maybe (Maybe(..), isNothing)
 import Prelude (type (~>), Unit, Void, class Ord, append, bind, const, discard, not, otherwise, pure, ($), (<$>), (<<<), (<>))
+import Control.Monad.Eff.Exception as E
 
 
 type State =
  {
-   packages :: Array T.PackageName
- , tags :: Array T.TagName
- , tagsPkg :: T.TagsWithPackages
+   packages :: RD.RemoteData E.Error (Array T.PackageName)
+ , tags :: RD.RemoteData E.Error (Array T.TagName)
  , tagsMap :: SM.StrMap (Array T.TagName)
  , clicked :: Boolean
  , selectedTag :: Set.Set T.TagName
  , selectedPrefix :: Set.Set T.Prefixs
- , latestIdxState :: SM.StrMap T.PkgIdxTs
+ , latestIdxState :: RD.RemoteData E.Error (SM.StrMap T.PkgIdxTs)
  }
 
 data Query a
@@ -57,14 +57,13 @@ component = H.lifecycleComponent
   initialState :: State
   initialState =
    {
-     packages: []
-   , tags: []
-   , tagsPkg: SM.empty
+     packages: RD.NotAsked
+   , tags: RD.NotAsked
    , tagsMap: SM.empty
    , clicked: false
    , selectedTag: Set.empty
    , selectedPrefix: Set.empty
-   , latestIdxState: SM.empty
+   , latestIdxState: RD.NotAsked
    }
 
   render :: State -> H.ComponentHTML Query
@@ -97,17 +96,19 @@ component = H.lifecycleComponent
               ]
           , HH.ol
               [ HP.classes (H.ClassName <$> ["tag-filter","clearfix"])
-              ] $ ( buildTags' state) <$> state.tags
+              ] $ ( buildTags' state) <$> (pkgs state.tags)
           , HH.ol
               [ HP.classes (H.ClassName <$> ["headers","clearfix"]) ] $ buildPrefixs <$> prefixs
           , HH.ol
               [ HP.class_ (H.ClassName "packages") ] $
-                Arr.take 650 $ buildPackages state <$> (packages' state)
+                Arr.take 650 (buildPackages state <$> (packages' state))
           ]
       ]
     where
-      packages' st = ((tagFilter st) <<< (prefixFilter st)) state.packages
-      tagFilter {tagsMap, selectedTag, tagsPkg} = Arr.filter (tagContained selectedTag tagsMap)
+      pkgs (RD.Success a) = a
+      pkgs _              = []
+      packages' st = ((tagFilter st) <<< (prefixFilter st)) (pkgs state.packages)
+      tagFilter {tagsMap, selectedTag} = Arr.filter (tagContained selectedTag tagsMap)
       prefixFilter {selectedPrefix, packages} = Arr.filter (prefixContained selectedPrefix)
 
   eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
@@ -117,37 +118,26 @@ component = H.lifecycleComponent
     listPkg <- liftEff $ Ref.readRef pkgRef
     tagList <- H.lift Api2.getTagsWithoutPackage
     tagPkgList <- H.lift Api2.getTagsWithPackages
+    traceAnyA "after get tags withPkg api calls"
     lastIdx <- H.lift Api2.getPackagesIdxstate
+    traceAnyA "after pkg idx calls"
     let
       pkgTag = case tagPkgList of
         RD.Success a -> a
         _ -> SM.empty
       tagPkgs = pkgTagList pkgTag
-      lastPkgIdx = case lastIdx of
-        RD.Success a -> a
-        _ -> SM.empty
-      pkgArr =
-        case listPkg of
-          RD.Success arr -> arr
-          _ -> []
-    initState <- H.put $ st { packages =
-                                case listPkg of
-                                  RD.Success arr -> arr
-                                  _              -> []
-                            , tags =
-                                case tagList of
-                                  RD.Success arr -> arr
-                                  _              -> []
-                            , tagsPkg =
-                                case tagPkgList of
-                                  RD.Success map -> map
-                                  _              -> SM.empty
-                            , tagsMap = tagPkgs
-                            , clicked = false
-                            , latestIdxState = lastPkgIdx
-                            }
-    traceAnyA tagPkgs
-    traceAnyA tagPkgList
+    traceAnyA "before get lastpkgIdx"
+    traceAnyA "after parse lastpkgidx"
+    traceAnyA "after parse pkgArr"
+    H.modify  _ { packages = listPkg
+                , tags = tagList
+                , tagsMap = tagPkgs
+                , clicked = false
+                , latestIdxState = lastIdx
+                }
+    traceAnyA "update state latestIdxState"
+    traceAnyA "update State"
+    -- traceAnyA tagPkgList
     pure next
 
   eval (SelectedTag tag next) = do
@@ -162,7 +152,7 @@ component = H.lifecycleComponent
 
   eval (HandleCheckBox st isCheck next)
     | isCheck = do
-        H.modify _ { packages = []} -- TODO: get report for Arr.filter indexStateContained
+        H.modify _ { packages = RD.NotAsked} -- TODO: get report for Arr.filter indexStateContained
         pure next
     | otherwise = eval (Initialize next)
 
@@ -209,14 +199,15 @@ buildPackages state pkgName =
         [ HP.href $ "#/package/" <> pkgName]
         [ HH.text pkgName ]
     ] <> (buildTags <$> (getTheTags state pkgName)) <> [ HH.small_
-                                                           [ HH.text $ " - index-state: "  <> (Misc.toDateTime indexPkg)
+                                                           [ HH.text $ " - index-state: " <> (Misc.toDateTime (indexPkg state.latestIdxState))
                                                            ]
                                                        ]
   where
-    indexPkg =
-      case SM.lookup pkgName state.latestIdxState of
+    indexPkg (RD.Success idx) =
+      case SM.lookup pkgName idx of
         Just a -> a
         Nothing -> 0
+    indexPkg _ = 0
 tagContained :: Set.Set T.TagName -> SM.StrMap (Array T.TagName) -> T.PackageName -> Boolean
 tagContained selectedTags tagsMap pkgName
     | Set.isEmpty selectedTags = true

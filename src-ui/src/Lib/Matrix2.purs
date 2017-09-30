@@ -6,7 +6,7 @@ import Network.HTTP.StatusCode as SC
 import Control.Monad.Aff.Class (class MonadAff, liftAff)
 import Data.Traversable as TRV
 import Data.Maybe (Maybe(..))
-import Data.Argonaut.Core (JObject, Json, fromNumber, fromObject, jsonEmptyString, toArray, toNumber, toObject, toString) as Arg
+import Data.Argonaut.Core (JObject, Json, fromNumber, fromObject, jsonEmptyString, toArray, toNumber, toObject, toString, foldJsonObject) as Arg
 import Data.Argonaut.Decode (decodeJson) as Arg
 import Data.Either (Either(..))
 import Data.HTTP.Method (Method(..))
@@ -24,6 +24,8 @@ import Data.String as Str
 import Halogen.Aff (HalogenEffects)
 import DOM (DOM)
 import DOM.HTML.Types as DOM
+import Debug.Trace
+import Unsafe.Coerce
 
 import Lib.Types as T
 import Lib.MatrixApi as Api
@@ -136,11 +138,11 @@ getPackagesIdxstate = do
                         })
   case res.status of
     SC.StatusCode 200 -> do
+      _ <- traceAnyA "before decoded"
       let
-        decodedApi = Arg.decodeJson (res.response)
-      case decodedApi of
-        Right a -> pure $ RD.Success a
-        Left e  -> pure $ RD.Failure (E.error "decoding failed")
+        decodedApi = Arg.foldJsonObject SM.empty unsafeCoerce res.response --Arg.decodeJson (res.response)
+      _ <- traceAnyA "after decoded"
+      if SM.isEmpty decodedApi then pure $ RD.Failure (E.error "decoding failed") else pure $ RD.Success decodedApi
     SC.StatusCode 304 -> do
       let
         decodedApi = Arg.decodeJson (res.response)
