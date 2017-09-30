@@ -7,7 +7,8 @@ import DOM (DOM)
 import DOM.HTML.Types (HTMLElement)
 import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
 import Data.Maybe (Maybe(..))
-import Prelude (Unit, id, show, unit, (/=), (<<<), (<>))
+import Data.Either (Either(..))
+import Prelude (Unit, id, show, unit, (/=), (<<<), (<>), (<$>), (*))
 import Lib.Uri (Uri)
 import Lib.Uri as Uri
 import Lib.Undefined (Undefined)
@@ -20,7 +21,11 @@ import Data.String as Str
 import Network.RemoteData as RD
 import Data.Array as Arr
 import Control.Monad.Eff.Exception as E
-
+import Data.Formatter.DateTime as FDT
+import Data.Time.Duration (Milliseconds(Milliseconds)) as DT
+import Data.DateTime (DateTime) as DT
+import Data.DateTime.Instant (instant, toDateTime) as DT
+import Data.Int as Int
 
 foreign import onPopstate :: forall e
    . (JQueryEvent -> Eff (dom :: DOM | e) Unit)
@@ -162,4 +167,17 @@ getLastIdx arrInt=
   case Arr.last arrInt of
     Just a -> show a
     Nothing -> ""
+
+toDateTime :: T.PkgIdxTs -> T.PackageTS
+toDateTime idx =
+  case ptimeToDateTime idx of
+    (Just ts) ->
+      case FDT.formatDateTime "YYYY-MM-DDTHH:mm:ssZ" ts of
+        (Right date) -> date
+        Left _      -> ""
+    Nothing   -> ""
+
+ptimeToDateTime :: T.PkgIdxTs -> Maybe DT.DateTime
+ptimeToDateTime idx = DT.toDateTime <$> DT.instant (DT.Milliseconds (1000.0 * (Int.toNumber idx)))
+
 

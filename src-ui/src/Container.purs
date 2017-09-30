@@ -18,8 +18,8 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi as Api
-import Lib.MatrixApi2 as Api2
+import Lib.MatrixApi as Api1
+import Lib.MatrixApi2 as Api
 import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Network.RemoteData as RD
@@ -46,7 +46,6 @@ import Routing.Match.Class (lit, str)
 
 type State = {
     route :: T.PageRoute
-  , package :: Array T.PackageMeta
   , packages :: Array T.PackageName
   , searchPkg :: T.PackageName
 }
@@ -69,7 +68,7 @@ type ChildQuery = Coproduct6 PageError.Query
 
 type ChildSlot = Either6 Unit Unit Unit Unit Unit Unit
 
-ui :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
+ui :: forall e. H.Component HH.HTML Query Unit Void (Api1.Matrix e)
 ui =
   H.lifecycleParentComponent
     { initialState: const initialState
@@ -83,12 +82,11 @@ ui =
     initialState :: State
     initialState =
       { route: T.ErrorPage
-      , package: []
       , packages: []
       , searchPkg: ""
       }
 
-    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api.Matrix e)
+    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api1.Matrix e)
     render st =
       HH.div
         [ HP.id_ "container"]
@@ -152,17 +150,13 @@ ui =
                 ]
             ]
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (Api.Matrix e)
+    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (Api1.Matrix e)
     eval (Initialize next) = do
-      pkgList <- H.lift Api.getPackageList
-      pkgList2 <- H.lift Api2.getPackages
-      pkgRef <- asks _.packageList
-      pkg2Ref <- asks _.packages
-      _ <- liftEff $ writeRef pkgRef (RD.Success pkgList)
-      _ <- liftEff $ writeRef pkg2Ref pkgList2
-      _ <- H.modify (_ { package = pkgList.items
-                       , packages =
-                           case pkgList2 of
+      pkgList <- H.lift Api.getPackages
+      pkgRef <- asks _.packages
+      _ <- liftEff $ writeRef pkgRef pkgList
+      _ <- H.modify (_ { packages =
+                           case pkgList of
                              RD.Success arr -> arr
                              _              -> []
                        }
