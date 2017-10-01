@@ -197,16 +197,13 @@ buildPackages state pkgName =
     [ HH.a
         [ HP.href $ "#/package/" <> pkgName]
         [ HH.text pkgName ]
-    ] <> (buildTags <$> (getTheTags state pkgName)) <> [ HH.small_
-                                                           [ HH.text $ " - index-state: " <> (Misc.toDateTime (indexPkg state.latestIdxState))
-                                                           ]
-                                                       ]
+    ] <> (buildTags <$> (getTheTags state pkgName)) <> (case indexPkg state.latestIdxState of
+                                                           Just i -> [ HH.small_ [ HH.text $ " - index-state: " <> i ] ]
+                                                           Nothing -> [])
   where
-    indexPkg (RD.Success idx) =
-      case SM.lookup pkgName idx of
-        Just a -> a
-        Nothing -> 0
-    indexPkg _ = 0
+    indexPkg (RD.Success idx) = Misc.toDateTime <$> SM.lookup pkgName idx
+    indexPkg _                = Nothing
+
 tagContained :: Set.Set T.TagName -> SM.StrMap (Array T.TagName) -> T.PackageName -> Boolean
 tagContained selectedTags tagsMap pkgName
     | Set.isEmpty selectedTags = true
