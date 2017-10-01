@@ -104,6 +104,10 @@ exports.formatDate_ = function (d) {
     return (new Date(d)).toISOString().split('.')[0]+"Z";
 };
 
+exports.posixSecondsToISOStr = function (pt) {
+    return new Date((pt || 0)*1000.0).toISOString().slice(0,-5)+"Z";
+};
+
 exports.undefine_ = function (a) {
   return function (nothing) {
     return function (just) {

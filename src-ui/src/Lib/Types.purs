@@ -24,7 +24,6 @@ type RevisionUrl = String
 type HdiffUrl = String
 type Cell = String
 type Word = Int
-type Prefixs = String
 type PkgIdxTs = Int
 type PackageTS = String
 type HCVer = String
@@ -224,8 +223,6 @@ type User =
   { name     :: Username
   , packages :: Array PackageName
   }
-
--- TODO Remove prefixes
 
 type HackageUserRep =
   { groups   :: Array String

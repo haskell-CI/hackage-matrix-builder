@@ -28,10 +28,8 @@ import Data.StrMap as SM
 import Data.Either (Either(..))
 import Data.Int as Int
 import Data.Map as Map
-import Data.Formatter.DateTime as FDT
-import Data.Time.Duration (Milliseconds(Milliseconds)) as DT
-import Data.DateTime (DateTime) as DT
-import Data.DateTime.Instant (instant, toDateTime) as DT
+
+import Lib.MiscFFI as Misc
 
 type State =
   { initPackage :: Tuple.Tuple T.PackageName T.PackageTS
@@ -466,19 +464,7 @@ createIndexOption st idx' =
   in
      HH.option
        ([ HP.value idx ] <> isIndexSelected st idx )
-       [ HH.text (toDateTime idx') ]
-
-toDateTime :: T.PkgIdxTs -> T.PackageTS
-toDateTime idx =
-  case ptimeToDateTime idx of
-    (Just ts) ->
-      case FDT.formatDateTime "YYYY-MM-DDTHH:mm:ssZ" ts of
-        (Right date) -> date
-        Left _      -> ""
-    Nothing   -> ""
-
-ptimeToDateTime :: T.PkgIdxTs -> Maybe DT.DateTime
-ptimeToDateTime idx = DT.toDateTime <$> DT.instant (DT.Milliseconds (1000.0 * (Int.toNumber idx)))
+       [ HH.text (Misc.toDateTime idx') ]
 
 isIndexSelected :: forall p i. State
                 -> T.PackageTS
