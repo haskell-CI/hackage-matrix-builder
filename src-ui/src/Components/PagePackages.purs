@@ -4,7 +4,6 @@ import Debug.Trace
 import Control.Monad.Eff.Ref as Ref
 import Data.Array as Arr
 import Data.Char as Char
-import Data.Foldable as F
 import Data.Set as Set
 import Data.StrMap as SM
 import Data.String as Str
@@ -26,11 +25,10 @@ import Control.Monad.Eff.Exception as E
 
 
 type State =
- {
-   packages :: RD.RemoteData E.Error (Array T.PackageName)
+ { packages :: RD.RemoteData E.Error (Array T.PackageName)
  , tags :: RD.RemoteData E.Error (Array T.TagName)
  , tagsMap :: SM.StrMap (Array T.TagName)
- , clicked :: Boolean
+ , withReports :: Boolean
  , selectedTag :: Set.Set T.TagName
  , selectedPrefix :: Char
  , latestIdxState :: RD.RemoteData E.Error (SM.StrMap T.PkgIdxTs)
@@ -40,7 +38,7 @@ data Query a
   = Initialize a
   | SelectedTag T.TagName a
   | SelectedPrefix Char a
-  | HandleCheckBox State Boolean a
+  | ToggleWithReports Boolean a
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
@@ -60,7 +58,7 @@ component = H.lifecycleComponent
      packages: RD.NotAsked
    , tags: RD.NotAsked
    , tagsMap: SM.empty
-   , clicked: false
+   , withReports: false
    , selectedTag: Set.empty
    , selectedPrefix: 'A'
    , latestIdxState: RD.NotAsked
@@ -90,7 +88,8 @@ component = H.lifecycleComponent
               [ HH.input
                   [ HP.class_ (H.ClassName "packages-only-reports")
                   , HP.type_ HP.InputCheckbox
-                  , HE.onChecked $ HE.input (HandleCheckBox state)
+                  , HP.checked state.withReports
+                  , HE.onChecked $ HE.input ToggleWithReports
                   ]
               , HH.text " Only show packages with reports"
               ]
@@ -106,9 +105,13 @@ component = H.lifecycleComponent
     where
       pkgs (RD.Success a) = a
       pkgs _              = []
-      packages' st = ((tagFilter st) <<< (prefixFilter st)) (pkgs state.packages)
+      packages' st = ((tagFilter st) <<< (reportFilter st) <<< (prefixFilter st)) (pkgs state.packages)
       tagFilter {tagsMap, selectedTag} = Arr.filter (tagContained selectedTag tagsMap)
       prefixFilter {selectedPrefix, packages} = Arr.filter (prefixContained selectedPrefix)
+
+      reportFilter {withReports,latestIdxState}
+        | withReports = Arr.filter (\pkgname -> RD.maybe false (SM.member pkgname) latestIdxState)
+        | otherwise   = \x->x
 
   eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
   eval (Initialize next) = do
@@ -131,7 +134,6 @@ component = H.lifecycleComponent
     H.modify  _ { packages = listPkg
                 , tags = tagList
                 , tagsMap = tagPkgs
-                , clicked = false
                 , latestIdxState = lastIdx
                 }
     traceAnyA "update state latestIdxState"
@@ -149,11 +151,9 @@ component = H.lifecycleComponent
     H.modify \st -> st { selectedPrefix = prefix }
     pure next
 
-  eval (HandleCheckBox st isCheck next)
-    | isCheck = do
-        H.modify _ { packages = RD.NotAsked} -- TODO: get report for Arr.filter indexStateContained
-        pure next
-    | otherwise = eval (Initialize next)
+  eval (ToggleWithReports b next) = do
+    H.modify \st -> st { withReports = b }
+    pure next
 
   eval (Finalize next) = do
     pure next
@@ -223,11 +223,6 @@ prefixContained selectedPrefix pkgName = case Str.charAt 0 pkgName of
                                            Nothing -> false
                                            Just c  -> selectedPrefix == Char.toUpper c
 
-indexStateContained :: T.PackageMeta -> Boolean
-indexStateContained pkgMeta
-    | isNothing pkgMeta.report = false
-    | otherwise = true
-
 getTheTags :: State -> T.PackageName -> Array T.TagName
 getTheTags { tagsMap } pkg =
   case SM.lookup pkg tagsMap of
@@ -241,4 +236,3 @@ pkgTagList m =
           Tuple.Tuple k vs <- SM.toUnfoldable m
           v <- vs
           pure (Tuple.Tuple v [k])
-
