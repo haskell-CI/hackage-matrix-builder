@@ -159,7 +159,7 @@ component = H.lifecycleComponent
     pure next
 
 prefixs :: Array Char
-prefixs = Char.fromCharCode <$> ((Arr.(..) 65 90) <> [48])
+prefixs = Char.fromCharCode <$> ((Arr.(..) 65 90) <> [48,42])
 
 buildPrefixs :: forall p. Char -> HH.HTML p (Query Unit)
 buildPrefixs prefix =
@@ -216,6 +216,7 @@ tagContained selectedTags tagsMap pkgName
       in not Set.isEmpty (Set.fromFoldable tags `Set.intersection` selectedTags)
 
 prefixContained :: Char -> T.PackageName -> Boolean
+prefixContained '*' _ = true
 prefixContained '0' pkgName = case Str.charAt 0 pkgName of
                                 Nothing -> false
                                 Just c  -> '0' <= c && c <= '9'
