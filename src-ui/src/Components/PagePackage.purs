@@ -23,6 +23,7 @@ import DOM.HTML.Window (history) as DOM
 import Debug.Trace
 import Data.Tuple as Tuple
 import Data.Tuple.Nested as TupleN
+import Data.Foldable as Foldable
 import Data.Argonaut as Arg
 import Data.Foreign as F
 import Data.StrMap as SM
@@ -281,6 +282,8 @@ component = H.lifecycleComponent
           _             -> []
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (Tuple.fst st.initPackage) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (Tuple.fst st.initPackage) selectedIdx
+      traceAnyA listIndex'
+      traceAnyA selectedIdx
       H.modify _  { report = reportPackage
                   , history = hist
                   , highlighted = false
@@ -383,7 +386,7 @@ component = H.lifecycleComponent
       _ <- H.lift $  Api.putPackageQueue pkgName currIdx prio
       pure next
     eval (HandleIndex st idx next) = do
-      -- traceAnyA ("current index is : " <> (show idx))
+      traceAnyA ("current index is : " <> (show idx))
       H.modify _ { currKey = idx }
       let
         selectedIndex' =
@@ -800,7 +803,7 @@ getIdx idx listIdx =
   if Str.null idx
   then Misc.getLastIdx listIdx
   else
-    case (Arr.head <<< (Arr.takeWhile (\x -> idx == show x))) listIdx of
+    case Foldable.find (\x -> idx == show x) listIdx of
       Just a -> a
       Nothing -> 0
 
