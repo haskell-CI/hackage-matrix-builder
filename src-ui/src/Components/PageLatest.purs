@@ -6,6 +6,7 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi2 as Api
 import Lib.MatrixApi as Api1
+import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Data.Maybe (Maybe(..))
 import Prelude (type (~>), Unit, Void, bind, const, pure, show, otherwise, ($), (+), (-), (<$>), (<>), (<), (==))
@@ -137,7 +138,7 @@ renderTableQueue :: forall p. State
 renderTableQueue state num { pkgname, priority, idxstate } =
   { accum: num + 1
   , value: HH.tr
-             [ HP.class_ (H.ClassName (showPrio priority)) ] $
+             [ HP.class_ (H.ClassName (Misc.showPrio priority)) ] $
              [ HH.td
                  [ HP.class_ (H.ClassName "num") ]
                  [ HH.text $ show num ]
@@ -149,8 +150,8 @@ renderTableQueue state num { pkgname, priority, idxstate } =
                      [HH.text $ pkgname]
                  ]
              , HH.td
-                 [ HP.classes (H.ClassName <$> ["priority", (showPrio priority) ]) ]
-                 [ HH.text $ (showPrio priority) ]
+                 [ HP.classes (H.ClassName <$> ["priority", (Misc.showPrio priority) ]) ]
+                 [ HH.text $ (Misc.showPrio priority) ]
              , HH.td
                  [ HE.onClick $ HE.input_ (PriorityUp pkgname idxstate priority) ]
                  [ HH.a
@@ -174,8 +175,3 @@ renderTableQueue state num { pkgname, priority, idxstate } =
              ]
   }
 
-showPrio :: Int -> String
-showPrio x
-  | x < 0     = "low"
-  | x == 0    = "medium"
-  | otherwise = "high"

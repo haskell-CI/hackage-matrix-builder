@@ -8,7 +8,7 @@ import DOM.HTML.Types (HTMLElement)
 import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
 import Data.Maybe (Maybe(..))
 import Data.Either (Either(..))
-import Prelude (Unit, id, show, unit, (/=), (<<<), (<>), (<$>), (*))
+import Prelude (Unit, otherwise, id, show, unit, (/=), (<<<), (<>), (<$>), (*), (==), (<),(>))
 import Lib.Uri (Uri)
 import Lib.Uri as Uri
 import Lib.Undefined (Undefined)
@@ -17,6 +17,7 @@ import Lib.Types as T
 import Data.Argonaut as Arg
 import Data.Traversable as TR
 import Data.Tuple as Tuple
+import Data.Tuple.Nested as TupleN
 import Data.String as Str
 import Network.RemoteData as RD
 import Data.Array as Arr
@@ -26,6 +27,7 @@ import Data.Time.Duration (Milliseconds(Milliseconds)) as DT
 import Data.DateTime (DateTime) as DT
 import Data.DateTime.Instant (instant, toDateTime) as DT
 import Data.Int as Int
+import Data.Ordering
 
 foreign import onPopstate :: forall e
    . (JQueryEvent -> Eff (dom :: DOM | e) Unit)
@@ -169,10 +171,14 @@ fromIndexToNumber Nothing        = []
 makeTuplePkgIdx :: T.PackageName -> Tuple.Tuple T.PackageName String
 makeTuplePkgIdx pkg = Tuple.Tuple (Str.takeWhile ((/=) '@') pkg) (((Str.drop 1) <<< Str.dropWhile ((/=) '@')) pkg)
 
-getLastIdx :: Array Int -> String
+getLastIdx :: Array Int -> Int
 getLastIdx arrInt=
   case Arr.last arrInt of
-    Just a -> show a
-    Nothing -> ""
+    Just a -> a
+    Nothing -> 0
 
-
+showPrio :: Int -> String
+showPrio x
+  | x < 0     = "low"
+  | x == 0    = "medium"
+  | otherwise = "high"

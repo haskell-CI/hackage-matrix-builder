@@ -276,7 +276,6 @@ getTagsWithPackages = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response) -- :: SM.StrMap (Array String))
-      --MP.toTagsWithPackages decodedApi
       case decodedApi of
         Right a -> pure $ RD.Success a
         Left e  -> pure $ RD.Failure (E.error "decoding failed")
@@ -375,7 +374,7 @@ getQueuePackages pkgName = do
 getSpecificQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                => T.PackageName
                -> T.PkgIdxTs
-               -> m (RD.RemoteData E.Error (Array T.PackageQueue))
+               -> m (RD.RemoteData E.Error T.PackageQueue)
 getSpecificQueue pkgName idx = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
                         {
@@ -386,7 +385,7 @@ getSpecificQueue pkgName idx = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.toPackageQueue decodedApi
+      MP.toSpecificPackageQueue decodedApi
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/queue/{pkgname}/{idxstate}
