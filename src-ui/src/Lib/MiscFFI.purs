@@ -4,7 +4,7 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Console (CONSOLE)
 import Control.Monad.Eff.JQuery (JQuery, JQueryEvent, select)
 import DOM (DOM)
-import DOM.HTML.Types (HTMLElement)
+import DOM.HTML.Types (HTMLElement, Window)
 import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
 import Data.Maybe (Maybe(..))
 import Data.Either (Either(..))
@@ -182,3 +182,5 @@ showPrio x
   | x < 0     = "low"
   | x == 0    = "medium"
   | otherwise = "high"
+
+foreign import scrollMaxY :: forall e. Window -> Eff (dom :: DOM | e) Int

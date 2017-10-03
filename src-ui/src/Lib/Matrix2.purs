@@ -41,10 +41,13 @@ type MatrixApi2 eff =
           (Aff
             (HalogenEffects ( ajax :: Affjax.AJAX
                             , dom :: DOM
+                            , window :: DOM.WINDOW
                             , history :: DOM.HISTORY| eff)))
 
+type MatrixE e = (ajax :: Affjax.AJAX, window :: DOM.WINDOW | e)
+
 -- /v2/idxstates with parameter min & max
-getIdxstate :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getIdxstate :: forall e m. MonadAff (MatrixE e) m
             => m (RD.RemoteData E.Error (Array T.PkgIdxTs))
 getIdxstate = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -59,7 +62,7 @@ getIdxstate = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/idxstates/latest
-getLatestIdxstate :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getLatestIdxstate :: forall e m. MonadAff (MatrixE e) m
                   => m (RD.RemoteData E.Error T.PkgIdxTs)
 getLatestIdxstate = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -85,7 +88,8 @@ getPackages :: forall e m. MonadReader (Api.Environment e) m
             => MonadAff
                  (HalogenEffects (api :: Api.API
                                  , ajax :: Affjax.AJAX
-                                 , dom :: DOM, history :: DOM.HISTORY| e)) m
+                                 , dom :: DOM, history :: DOM.HISTORY
+                                 , window :: DOM.WINDOW | e)) m
             => m (RD.RemoteData E.Error (Array T.PackageName))
 getPackages = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest

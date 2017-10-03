@@ -19,7 +19,7 @@ import Lib.MiscFFI as Misc
 import Prelude (type (~>), Unit, bind, negate, const, discard, otherwise, pure, show, (<), (>), ($), (&&), (/=), (<$>), (<>), (==), (||), (>>=), (-), (+), (<<<))
 import DOM.HTML (window) as DOM
 import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
-import DOM.HTML.Window (history) as DOM
+import DOM.HTML.Window (history, scroll, screenY) as DOM
 import Debug.Trace
 import Data.Tuple as Tuple
 import Data.Tuple.Nested as TupleN
@@ -51,11 +51,13 @@ type State =
   , mapIndexState :: Map.Map Int T.PackageTS
   , listTags :: RD.RemoteData E.Error (Array T.TagName)
   , currKey :: Int
+  , unitsCell :: Array (SM.StrMap T.BuildStatus)
   }
 
 data Query a
   = Initialize a
   | FailingPackage a
+  | HighlightSE (Tuple.Tuple String T.BuildStatus) a
   | HighlightCell T.PackageIdxTsReports T.CellReportSummary T.VersionName T.VersionName a
   | HandleTag T.TagName a
   | Receive (Tuple.Tuple T.PackageName T.PackageTS) a
@@ -103,6 +105,7 @@ component = H.lifecycleComponent
       , mapIndexState: Map.empty
       , listTags: RD.NotAsked
       , currKey: 0
+      , unitsCell: []
       }
 
     render :: State -> H.ComponentHTML Query
@@ -122,12 +125,12 @@ component = H.lifecycleComponent
                 , indexing state
                 ]
             , HH.div
-                [ HP.class_ (H.ClassName "leftcol") ]
+                [ HP.class_ (H.ClassName "leftcol") ] $
                 [ HH.h2
                     [ HP.class_ (H.ClassName "main-header") ]
                     [ HH.text $ Tuple.fst state.initPackage ]
                 , HH.div
-                    [ HP.id_ "package-buildreport" ]
+                    [ HP.id_ "package-buildreport" ] $
                     [ HH.h3
                         [ HP.class_ (H.ClassName "package-header") ]
                         [ HH.text "Solver Matrix (constrained by single version) " ]
@@ -139,10 +142,12 @@ component = H.lifecycleComponent
                     , HH.h3
                         [ HP.class_ (H.ClassName "logs-header") ]
                         [ HH.text "Logs" ]
-                    , HH.div
-                        [ HP.id_ "tabs-container" ]
-                        [ (renderLogResult state.logdisplay state.logmessage state.report state.columnversion) ]
                     ]
+                    <> (if Arr.null state.unitsCell then [] else renderUnitsButton state state.unitsCell state.columnversion )
+                    <> [ HH.div
+                           [ HP.id_ "tabs-container" ]
+                           [ (renderLogResult state.logdisplay state.logmessage state.report state.columnversion) ]
+                       ]
                 ]
             ]
         renderBody' state RD.NotAsked =
@@ -282,8 +287,6 @@ component = H.lifecycleComponent
           _             -> []
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (Tuple.fst st.initPackage) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (Tuple.fst st.initPackage) selectedIdx
-      traceAnyA listIndex'
-      traceAnyA selectedIdx
       H.modify _  { report = reportPackage
                   , history = hist
                   , highlighted = false
@@ -298,6 +301,14 @@ component = H.lifecycleComponent
       pure next
     eval (FailingPackage next) = do
       pure next
+    eval (HighlightSE (Tuple.Tuple un status) next) = do
+      unitsLog <- H.lift $ Api.getUnitIdInfo un
+      let
+        unitId = case unitsLog of
+          RD.Success a -> a
+          _            -> T.unitIdInfoEmpty
+      H.modify _ { logmessage = unitId.uiiLogmsg}
+      pure next
     eval (HighlightCell {pkgname, idxstate} summ ghcVer pkgVer next) = do
       singleResult <- H.lift $ Api.getCellReportDetail pkgname idxstate pkgVer ghcVer
       let
@@ -310,12 +321,16 @@ component = H.lifecycleComponent
         arrKeys = Arr.concat (SM.keys <$> sRU)
         logs = case summ.crsT of
           "pf" -> sRS
-          "se" -> ""
+          "se" -> "There is exist at least one build log. Please click the button above"
           _    -> ""
       H.modify _ { logmessage = logs
                  , logdisplay = D.block
                  , columnversion = { ghcVer, pkgVer }
+                 , unitsCell = sRU
                  }
+      heightPage <- H.liftEff $ DOM.window >>= Misc.scrollMaxY
+      _ <- H.liftEff $ DOM.window >>= (DOM.scroll 0 heightPage)
+      traceAnyA sRU
       pure next
     eval (HandleTag value next) = do
       st <- H.get
@@ -386,7 +401,6 @@ component = H.lifecycleComponent
       _ <- H.lift $  Api.putPackageQueue pkgName currIdx prio
       pure next
     eval (HandleIndex st idx next) = do
-      traceAnyA ("current index is : " <> (show idx))
       H.modify _ { currKey = idx }
       let
         selectedIndex' =
@@ -401,7 +415,6 @@ component = H.lifecycleComponent
         pageUrl = DOM.URL $ "#/package/" <> package <> indexURL
       hist <- H.liftEff $ DOM.window >>= DOM.history
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
-      traceAnyA selectedIndex'
       eval (Receive (Tuple.Tuple package selectedIndex') next)
     eval (Finalize next) = do
       pure next
@@ -776,6 +789,15 @@ checkShallow summ =
       | summ.crsBdfail == 1 = "FAIL (deps)" 
       | otherwise = ""
 
+buildText :: String -> String
+buildText str =
+  case str of
+    "bok"    -> "OK"
+    "bjle"   -> "FAIL (BJ)"
+    "bfail"  -> "FAIL (PKG)"
+    "bdfail" -> "FAIL (DEPS)"
+    _        -> "FAIL Unknown"
+
 hdiffUrl :: T.PackageName -> T.HCVer -> T.HCVer -> T.HdiffUrl
 hdiffUrl pkgName prevVer currVer
   | prevVer == "0"             = "http://hdiff.luite.com/cgit/" <> pkgName <> "/commit?id=" <> currVer
@@ -806,6 +828,32 @@ getIdx idx listIdx =
     case Foldable.find (\x -> idx == show x) listIdx of
       Just a -> a
       Nothing -> 0
+
+renderUnitsButton :: forall p. State -> Array (SM.StrMap T.BuildStatus) -> T.ColumnVersion -> Array (HH.HTML p (Query Unit))
+renderUnitsButton st arrUnit {ghcVer, pkgVer} =
+  let
+    buttonRef :: Array (Tuple.Tuple String T.BuildStatus)
+    buttonRef = Arr.concat (SM.toUnfoldable <$> arrUnit)
+  in
+    [
+      HH.div
+        [HP.id_ "menuIdx"
+        , HP.class_ (H.ClassName "idxOuter")
+        ] $
+        [ HH.h4
+            [ HP.class_ (H.ClassName "logs-header") ]
+            [ HH.text $ "There is at least one install-plan for " <> pkgVer <> " with " <> ghcVer <> " : "]
+        ] <> ((renderButton ghcVer pkgVer) <$> buttonRef)
+    ]
+
+renderButton :: forall p. T.HCVer -> T.VersionName -> (Tuple.Tuple String T.BuildStatus) -> HH.HTML p (Query Unit)
+renderButton ghcVer pkgVer (Tuple.Tuple units status) =
+  HH.button
+      [ HP.class_ (H.ClassName "idxBtn")
+      , HP.title ("Button for unit : " <> units)
+      , HE.onClick $ HE.input_ (HighlightSE (Tuple.Tuple units status))
+      ]
+      [ HH.text (buildText status) ]
 
 renderNavBtn :: forall p. State -> Array (HH.HTML p (Query Unit))
 renderNavBtn st =
@@ -933,7 +981,7 @@ legend =
 sortVer :: Tuple.Tuple T.VersionName T.Revision -> Tuple.Tuple T.VersionName T.Revision -> Ordering
 sortVer (Tuple.Tuple ver1 _) (Tuple.Tuple ver2 _) =
   let
-    v1 = ((fromMaybe 9) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver1
+    v1 = ((fromMaybe 0) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver1
     v2 = ((fromMaybe 0) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver2
   in
    compare v1 v2

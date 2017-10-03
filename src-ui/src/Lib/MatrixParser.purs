@@ -212,10 +212,7 @@ toCellReportDetail (Right a) =
           case SM.lookup "units" obj of
             Just unitsH ->
               case Arg.toArray unitsH of
-                Just units ->
-                  case TRV.traverse Arg.toObject units of
-                    Just uh ->  ((<$>) <<< (<$>)) show uh
-                    Nothing -> []
+                Just units -> toArrayMap <$> units
                 Nothing -> []
             Nothing -> []
       in pure $ RD.Success
@@ -367,6 +364,12 @@ toArrayString json =
   case Arg.toArray json of
     Just arr -> toString <$> arr
     Nothing -> []
+
+toArrayMap :: Arg.Json -> SM.StrMap String
+toArrayMap json =
+  case Arg.toObject json of
+    Just obj -> toString <$> obj
+    Nothing  -> SM.empty
 
 toPackageQueue  :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                 => Either String Arg.Json
