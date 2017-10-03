@@ -39,6 +39,7 @@ import qualified Data.Aeson                       as J
 import qualified Data.ByteString.Char8            as BS
 import qualified Data.ByteString.Lazy             as LBS
 import qualified Data.ByteString.Builder          as BB
+import           Data.Function                    (on)
 import qualified Data.Map.Strict                  as Map
 import           Data.Pool
 import qualified Data.Set                         as Set
@@ -181,6 +182,7 @@ server = tagListH
     :<|> packagesHistoryH
 
     :<|> unitsIdH
+    :<|> unitsIdDepsH
 
     :<|> tagsH
     :<|> tagsGetH
@@ -459,6 +461,40 @@ server = tagListH
 
         let uiiId = xunitid
         pure UnitIdInfo{..}
+
+    unitsIdDepsH :: UUID -> AppHandler (Map UUID UnitIdTree)
+    unitsIdDepsH xunitid = doEtagHashableGet $ do
+        rows <- withDbc $ \dbconn -> do
+            PGS.query dbconn
+                "WITH RECURSIVE t(xunitid) AS ( \
+                    \VALUES (?::uuid) \
+                    \UNION \
+                    \SELECT d.child FROM iplan_comp_dep d, t WHERE d.parent = t.xunitid) \
+                  \SELECT t.xunitid,u.pname,u.pver,u.bstatus,d.isexedep,d.cname,d.child \
+                    \FROM t JOIN iplan_unit u USING (xunitid) JOIN iplan_comp_dep d ON (xunitid = parent) \
+                    \ORDER BY t.xunitid" (Only xunitid)
+
+        when (null rows) $
+            throwServantErr' err404
+
+        let grows = map regrp $ groupBy ((==) `on` view _1)
+                    (rows :: [(UUID, PkgN, Ver, Maybe IPStatus, Bool, Text, UUID)])
+
+        pure $ Map.fromListWith (error "unitsIdDepsH") grows
+      where
+        regrp :: [(UUID, PkgN, Ver, Maybe IPStatus, Bool, Text, UUID)] -> (UUID,UnitIdTree)
+        regrp [] = error "impossible"
+        regrp rows@((xid, pname, pver, bstatus, _, _, _):_)
+          = (xid, UnitIdTree { uitPkgname = pname
+                             , uitPkgver  = pver
+                             , uitStatus  = bstatus
+                             , uitLibDeps = ldeps'
+                             , uitExeDeps = if null edeps' then Nothing else Just edeps'
+                             })
+          where
+            (edeps, ldeps) = partition (view _5) rows
+            ldeps' = Map.fromListWith mappend [ (r ^. _6, Set.singleton (r ^. _7)) | r <- ldeps ]
+            edeps' = Map.fromListWith mappend [ (r ^. _6, Set.singleton (r ^. _7)) | r <- edeps ]
 
     ----------------------------------------------------------------------------
     -- tags v2 --------------------------------------------------------------

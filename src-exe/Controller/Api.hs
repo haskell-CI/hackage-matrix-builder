@@ -103,6 +103,7 @@ type ControllerApi m =
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
 
   :<|> "v2" :> "units" :> Capture "unitid" UUID :> Get '[JSON] UnitIdInfo
+  :<|> "v2" :> "units" :> Capture "unitid" UUID :> "deps" :> Get '[JSON] (Map UUID UnitIdTree)
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Set PkgN)
@@ -441,6 +442,21 @@ instance ToSchema UnitIdInfo where { declareNamedSchema = myDeclareNamedSchema }
 instance NFData   UnitIdInfo
 instance Hashable UnitIdInfo
 
+-- | This is a bit of a subset of 'UnitIdInfo', and intended to be used
+-- as @Map UUID UnitIdTree@ to provide a dependency DAG.
+data UnitIdTree = UnitIdTree
+    { uitPkgname :: PkgN
+    , uitPkgver  :: Ver
+    , uitStatus  :: Maybe IPStatus
+    , uitLibDeps ::        Map Text (Set UUID)
+    , uitExeDeps :: Maybe (Map Text (Set UUID))
+    } deriving (Generic,Show)
+
+instance ToJSON   UnitIdTree where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON UnitIdTree where { parseJSON = myParseJSON }
+instance ToSchema UnitIdTree where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   UnitIdTree
+instance Hashable UnitIdTree
 
 -- | Build-status for a build-unit
 data IPStatus = IPOk
