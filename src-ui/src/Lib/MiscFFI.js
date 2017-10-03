@@ -126,3 +126,9 @@ exports.tabs = function (t) {
     t.tabs();
   };
 };
+
+exports.scrollMaxY = function (window) {
+    return function () {
+        return window.scrollMaxY;
+    };
+};

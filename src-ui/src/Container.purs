@@ -192,7 +192,7 @@ ui =
       pure next
 
     eval (HandleKeyboard key next) = do
-      _ <- traceAnyA (DOM.key key)
+      -- _ <- traceAnyA (DOM.key key)
       let
         str = DOM.key key
       case str of

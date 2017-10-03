@@ -15,10 +15,10 @@ import Data.Tuple.Nested as TupleN
 type Username = String
 type PackageName = String
 type VersionName = String
-type Revision = Word
+type Revision = Int
 type TagName = String
 type TagsWithPackages = SM.StrMap (Array PackageName)
-type PkgVerPfx = Array Word
+type PkgVerPfx = Array Int
 type HackageUrl = String
 type RevisionUrl = String
 type HdiffUrl = String
@@ -27,7 +27,7 @@ type Word = Int
 type PkgIdxTs = Int
 type PackageTS = String
 type HCVer = String
-type PackageHistory = TupleN.Tuple4 PkgIdxTs VersionName Revision Username
+
 type CellReportType = String
 type BuildStatus = String
 type BuildLog = String
@@ -56,6 +56,15 @@ type PackageIdxTsReports =
   , pkgversions :: SM.StrMap (Array CellReportSummary)
   }
 
+pkgIdxTsReportsEmpty :: PackageIdxTsReports
+pkgIdxTsReportsEmpty =
+  {
+    pkgname: ""
+  , idxstate: 0
+  , hcversions: []
+  , pkgversions: SM.empty
+  }
+
 type CellReportSummary =
   {
     crsT :: CellReportType
@@ -81,6 +90,7 @@ type CellReportDetail =
   }
 
 -- /v2/packages/{pkgname}/history
+type PackageHistory = TupleN.Tuple4 PkgIdxTs VersionName Revision Username
 type PackageHistories = Array PackageHistory
 
 -- /v2/units/{unitid}
@@ -95,10 +105,24 @@ type UnitIdInfo =
   , uiiLibDeps :: SM.StrMap (Array UUID)
   , uiiExeDeps :: SM.StrMap (Array UUID)
   }
+
+unitIdInfoEmpty :: UnitIdInfo
+unitIdInfoEmpty =
+  {
+    uiiId: ""
+  , uiiHcVer: ""
+  , uiiPkgname: ""
+  , uiiPkgver: ""
+  , uiiStatus: ""
+  , uiiLogmsg: ""
+  , uiiLibDeps: SM.empty
+  , uiiExeDeps: SM.empty
+  }
+
 -- /v2/queue || /v2/queue/{pkgname} || /v2/queue/{pkgname}/{idxstate}
 type PackageQueue =
   {
-    priority :: Word
+    priority :: Int
   , modified :: PackageTS
   , pkgname :: PackageName
   , idxstate :: PkgIdxTs

@@ -13,32 +13,9 @@ import Data.Int as Int
 import Data.Array
 import Data.Tuple.Nested as TupleN
 import Data.StrMap as SM
+import Lib.MiscFFI
 
 import Lib.Types as T
-
-parseJsonToArrayS :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                   => Either String Arg.Json
-                   -> m (RD.RemoteData E.Error (Array String))
-parseJsonToArrayS (Right a) =
-  case Arg.toArray a of
-    (Just a') ->
-      case TRV.traverse Arg.toString a' of
-        (Just jStr) -> pure (RD.Success jStr)
-        Nothing     -> pure (RD.Failure (E.error "Json is not String"))
-    Nothing   -> pure (RD.Failure (E.error "Json is not Array"))
-parseJsonToArrayS (Left e) = pure $ RD.Failure (E.error e)
-
-parseJsonToArrayTS :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                   => Either String Arg.Json
-                   -> m (RD.RemoteData E.Error (Array T.PkgIdxTs))
-parseJsonToArrayTS (Right a) =
-  case Arg.toArray a of
-    (Just a') ->
-      case TRV.traverse Arg.toNumber a' of
-        (Just jNum) -> pure (RD.Success (Int.round <$> jNum))
-        Nothing     -> pure (RD.Failure (E.error "Json is not String"))
-    Nothing   -> pure (RD.Failure (E.error "Json is not Array"))
-parseJsonToArrayTS (Left e) = pure $ RD.Failure (E.error e)
 
 toPackageIdxTsReports :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                       => Either String Arg.Json
@@ -65,7 +42,7 @@ toPackageIdxTsReports (Right a) =
            case SM.lookup "hcversions" obj of
             Just arr ->
               case Arg.toArray arr of
-                Just arrHc -> show <$> arrHc
+                Just arrHc -> toString <$> arrHc
                 Nothing -> []
             Nothing -> []
         pkgVersions =
@@ -211,10 +188,7 @@ toCellReportDetail (Right a) =
           case SM.lookup "units" obj of
             Just unitsH ->
               case Arg.toArray unitsH of
-                Just units ->
-                  case TRV.traverse Arg.toObject units of
-                    Just uh ->  ((<$>) <<< (<$>)) show uh
-                    Nothing -> []
+                Just units -> toArrayMap <$> units
                 Nothing -> []
             Nothing -> []
       in pure $ RD.Success
@@ -254,7 +228,10 @@ toTuple4 json =
             Nothing -> 0
         verName =
           case index arr 1 of
-            Just vname -> show vname
+            Just vname ->
+              case Arg.toString vname of
+                Just a -> a
+                Nothing -> "na"
             Nothing -> "na"
         revision =
            case index arr 2 of
@@ -265,7 +242,10 @@ toTuple4 json =
             Nothing -> 0
         userName =
           case index arr 3 of
-            Just uname -> show uname
+            Just uname ->
+              case Arg.toString uname of
+                Just a -> a
+                Nothing -> "na"
             Nothing -> "na"
       in
        TupleN.tuple4 pkgIdx verName revision userName
@@ -349,20 +329,23 @@ toUnitIdInfo (Right a) =
     Nothing -> pure (RD.Failure (E.error "Json is not object"))
 toUnitIdInfo (Left e) = pure (RD.Failure (E.error e))
 
+toString :: Arg.Json -> String
+toString json =
+  case Arg.toString json of
+    Just arr -> arr
+    Nothing -> "na"
+
 toArrayString :: Arg.Json -> Array String
 toArrayString json =
   case Arg.toArray json of
-    Just arr -> show <$> arr
+    Just arr -> toString <$> arr
     Nothing -> []
 
-toTagsWithPackages :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                   => Either String Arg.Json
-                   -> m (RD.RemoteData E.Error T.TagsWithPackages)
-toTagsWithPackages (Right a) =
-  case Arg.toObject a of
-    Just obj -> pure (RD.Success (toArrayString <$> obj))
-    Nothing -> pure (RD.Failure (E.error "Json is not an Object"))
-toTagsWithPackages (Left e) = pure (RD.Failure (E.error e))
+toArrayMap :: Arg.Json -> SM.StrMap String
+toArrayMap json =
+  case Arg.toObject json of
+    Just obj -> toString <$> obj
+    Nothing  -> SM.empty
 
 toPackageQueue  :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                 => Either String Arg.Json
@@ -372,6 +355,12 @@ toPackageQueue (Right a) =
     Just arr -> pure (RD.Success (toObjectQueue <$> arr))
     Nothing -> pure (RD.Failure (E.error "Json is not Array"))
 toPackageQueue (Left e) = pure (RD.Failure (E.error e))
+
+toSpecificPackageQueue  :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                => Either String Arg.Json
+                -> m (RD.RemoteData E.Error T.PackageQueue)
+toSpecificPackageQueue (Right a) = pure (RD.Success (toObjectQueue a))
+toSpecificPackageQueue (Left e) = pure (RD.Failure (E.error e))
 
 toObjectQueue :: Arg.Json -> T.PackageQueue
 toObjectQueue json =

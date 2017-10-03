@@ -41,10 +41,13 @@ type MatrixApi2 eff =
           (Aff
             (HalogenEffects ( ajax :: Affjax.AJAX
                             , dom :: DOM
+                            , window :: DOM.WINDOW
                             , history :: DOM.HISTORY| eff)))
 
+type MatrixE e = (ajax :: Affjax.AJAX, window :: DOM.WINDOW | e)
+
 -- /v2/idxstates with parameter min & max
-getIdxstate :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getIdxstate :: forall e m. MonadAff (MatrixE e) m
             => m (RD.RemoteData E.Error (Array T.PkgIdxTs))
 getIdxstate = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -54,12 +57,14 @@ getIdxstate = do
   case res.status of
     SC.StatusCode 200 -> do
       let
-        decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayTS decodedApi
+        decodedApi = Arg.decodeJson res.response
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/idxstates/latest
-getLatestIdxstate :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getLatestIdxstate :: forall e m. MonadAff (MatrixE e) m
                   => m (RD.RemoteData E.Error T.PkgIdxTs)
 getLatestIdxstate = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -85,7 +90,8 @@ getPackages :: forall e m. MonadReader (Api.Environment e) m
             => MonadAff
                  (HalogenEffects (api :: Api.API
                                  , ajax :: Affjax.AJAX
-                                 , dom :: DOM, history :: DOM.HISTORY| e)) m
+                                 , dom :: DOM, history :: DOM.HISTORY
+                                 , window :: DOM.WINDOW | e)) m
             => m (RD.RemoteData E.Error (Array T.PackageName))
 getPackages = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
@@ -124,7 +130,9 @@ getPackageTags pkgName = do
         (SC.StatusCode 200)  -> do
           let
             decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-          MP.parseJsonToArrayS decodedApi
+          case decodedApi of
+            Right a -> pure (RD.Success a)
+            Left e  -> pure (RD.Failure (E.error "decoded failed"))
         SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/*/reports/latest
@@ -138,10 +146,8 @@ getPackagesIdxstate = do
                         })
   case res.status of
     SC.StatusCode 200 -> do
-      _ <- traceAnyA "before decoded"
       let
         decodedApi = Arg.foldJsonObject SM.empty unsafeCoerce res.response --Arg.decodeJson (res.response)
-      _ <- traceAnyA "after decoded"
       if SM.isEmpty decodedApi then pure $ RD.Failure (E.error "decoding failed") else pure $ RD.Success decodedApi
     SC.StatusCode 304 -> do
       let
@@ -167,7 +173,9 @@ getPackageReports pkgName =
          SC.StatusCode 200 -> do
            let
              decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-           MP.parseJsonToArrayTS decodedApi
+           case decodedApi of
+             Right a -> pure (RD.Success a)
+             Left e  -> pure (RD.Failure (E.error "decoded failed"))
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/reports/{idxstate}
@@ -276,7 +284,6 @@ getTagsWithPackages = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response) -- :: SM.StrMap (Array String))
-      --MP.toTagsWithPackages decodedApi
       case decodedApi of
         Right a -> pure $ RD.Success a
         Left e  -> pure $ RD.Failure (E.error "decoding failed")
@@ -294,11 +301,15 @@ getTagsWithoutPackage = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayS decodedApi
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode 304 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayS decodedApi
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags/{tagname}
@@ -315,7 +326,9 @@ getTagPackages tagName = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayS decodedApi
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags/{tagname}/{pkgname}
@@ -375,7 +388,7 @@ getQueuePackages pkgName = do
 getSpecificQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                => T.PackageName
                -> T.PkgIdxTs
-               -> m (RD.RemoteData E.Error (Array T.PackageQueue))
+               -> m (RD.RemoteData E.Error T.PackageQueue)
 getSpecificQueue pkgName idx = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
                         {
@@ -386,7 +399,7 @@ getSpecificQueue pkgName idx = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.toPackageQueue decodedApi
+      MP.toSpecificPackageQueue decodedApi
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/queue/{pkgname}/{idxstate}

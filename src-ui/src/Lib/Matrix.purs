@@ -37,11 +37,11 @@ type Environment e =
   }
 
 
-type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API, ajax :: Affjax.AJAX  , dom :: DOM, history :: DOM.HISTORY| eff)))
+type MatrixApi' eff = ReaderT (Environment eff) (Aff (HalogenEffects (api :: API, ajax :: Affjax.AJAX  , dom :: DOM, history :: DOM.HISTORY, window :: DOM.WINDOW| eff)))
 
 type Matrix eff = MatrixApi' eff
 
-type MatrixEffects = HalogenEffects (api :: API, ajax :: Affjax.AJAX, dom :: DOM, history :: DOM.HISTORY)
+type MatrixEffects = HalogenEffects (api :: API, ajax :: Affjax.AJAX, dom :: DOM, history :: DOM.HISTORY, window :: DOM.WINDOW)
 
 foreign import newApi :: forall eff
    . String
