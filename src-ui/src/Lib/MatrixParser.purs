@@ -17,30 +17,6 @@ import Lib.MiscFFI
 
 import Lib.Types as T
 
-parseJsonToArrayS :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                   => Either String Arg.Json
-                   -> m (RD.RemoteData E.Error (Array String))
-parseJsonToArrayS (Right a) =
-  case Arg.toArray a of
-    (Just a') ->
-      case TRV.traverse Arg.toString a' of
-        (Just jStr) -> pure (RD.Success jStr)
-        Nothing     -> pure (RD.Failure (E.error "Json is not String"))
-    Nothing   -> pure (RD.Failure (E.error "Json is not Array"))
-parseJsonToArrayS (Left e) = pure $ RD.Failure (E.error e)
-
-parseJsonToArrayTS :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                   => Either String Arg.Json
-                   -> m (RD.RemoteData E.Error (Array T.PkgIdxTs))
-parseJsonToArrayTS (Right a) =
-  case Arg.toArray a of
-    (Just a') ->
-      case TRV.traverse Arg.toNumber a' of
-        (Just jNum) -> pure (RD.Success (Int.round <$> jNum))
-        Nothing     -> pure (RD.Failure (E.error "Json is not String"))
-    Nothing   -> pure (RD.Failure (E.error "Json is not Array"))
-parseJsonToArrayTS (Left e) = pure $ RD.Failure (E.error e)
-
 toPackageIdxTsReports :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
                       => Either String Arg.Json
                       -> m (RD.RemoteData E.Error T.PackageIdxTsReports)

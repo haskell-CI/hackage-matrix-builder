@@ -370,7 +370,8 @@ component = H.lifecycleComponent
           _             -> []
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (Tuple.fst pkg) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (Tuple.fst st.initPackage) selectedIdx
-      H.modify _  { report = reportPackage
+      H.modify _  { initPackage = pkg
+                  , report = reportPackage
                   , history = hist
                   , highlighted = false
                   , queueStatus = queueStat
@@ -832,8 +833,10 @@ getIdx idx listIdx =
 renderUnitsButton :: forall p. State -> Array (SM.StrMap T.BuildStatus) -> T.ColumnVersion -> Array (HH.HTML p (Query Unit))
 renderUnitsButton st arrUnit {ghcVer, pkgVer} =
   let
+    keys = Arr.concat (SM.keys <$> arrUnit)
+    values = Arr.concat (SM.values <$> arrUnit)
     buttonRef :: Array (Tuple.Tuple String T.BuildStatus)
-    buttonRef = Arr.concat (SM.toUnfoldable <$> arrUnit)
+    buttonRef = Arr.zip keys values
   in
     [
       HH.div
@@ -854,6 +857,8 @@ renderButton ghcVer pkgVer (Tuple.Tuple units status) =
       , HE.onClick $ HE.input_ (HighlightSE (Tuple.Tuple units status))
       ]
       [ HH.text (buildText status) ]
+
+
 
 renderNavBtn :: forall p. State -> Array (HH.HTML p (Query Unit))
 renderNavBtn st =

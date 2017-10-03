@@ -120,25 +120,17 @@ component = H.lifecycleComponent
     listPkg <- liftEff $ Ref.readRef pkgRef
     tagList <- H.lift Api2.getTagsWithoutPackage
     tagPkgList <- H.lift Api2.getTagsWithPackages
-    traceAnyA "after get tags withPkg api calls"
     lastIdx <- H.lift Api2.getPackagesIdxstate
-    traceAnyA "after pkg idx calls"
     let
       pkgTag = case tagPkgList of
         RD.Success a -> a
         _ -> SM.empty
       tagPkgs = pkgTagList pkgTag
-    traceAnyA "before get lastpkgIdx"
-    traceAnyA "after parse lastpkgidx"
-    traceAnyA "after parse pkgArr"
     H.modify  _ { packages = listPkg
                 , tags = tagList
                 , tagsMap = tagPkgs
                 , latestIdxState = lastIdx
                 }
-    traceAnyA "update state latestIdxState"
-    traceAnyA "update State"
-    -- traceAnyA tagPkgList
     pure next
 
   eval (SelectedTag tag next) = do

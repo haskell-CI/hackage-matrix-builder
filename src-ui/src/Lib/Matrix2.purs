@@ -57,8 +57,10 @@ getIdxstate = do
   case res.status of
     SC.StatusCode 200 -> do
       let
-        decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayTS decodedApi
+        decodedApi = Arg.decodeJson res.response
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/idxstates/latest
@@ -128,7 +130,9 @@ getPackageTags pkgName = do
         (SC.StatusCode 200)  -> do
           let
             decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-          MP.parseJsonToArrayS decodedApi
+          case decodedApi of
+            Right a -> pure (RD.Success a)
+            Left e  -> pure (RD.Failure (E.error "decoded failed"))
         SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/*/reports/latest
@@ -142,10 +146,8 @@ getPackagesIdxstate = do
                         })
   case res.status of
     SC.StatusCode 200 -> do
-      _ <- traceAnyA "before decoded"
       let
         decodedApi = Arg.foldJsonObject SM.empty unsafeCoerce res.response --Arg.decodeJson (res.response)
-      _ <- traceAnyA "after decoded"
       if SM.isEmpty decodedApi then pure $ RD.Failure (E.error "decoding failed") else pure $ RD.Success decodedApi
     SC.StatusCode 304 -> do
       let
@@ -171,7 +173,9 @@ getPackageReports pkgName =
          SC.StatusCode 200 -> do
            let
              decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-           MP.parseJsonToArrayTS decodedApi
+           case decodedApi of
+             Right a -> pure (RD.Success a)
+             Left e  -> pure (RD.Failure (E.error "decoded failed"))
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/reports/{idxstate}
@@ -297,11 +301,15 @@ getTagsWithoutPackage = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayS decodedApi
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode 304 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayS decodedApi
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags/{tagname}
@@ -318,7 +326,9 @@ getTagPackages tagName = do
     SC.StatusCode 200 -> do
       let
         decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.parseJsonToArrayS decodedApi
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags/{tagname}/{pkgname}
