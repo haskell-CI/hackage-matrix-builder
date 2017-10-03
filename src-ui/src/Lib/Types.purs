@@ -12,6 +12,7 @@ import Data.Tuple as Tuple
 import Data.Tuple.Nested as TupleN
 
 
+type InitialPackage = TupleN.Tuple4 PackageName PackageTS (Maybe VersionName) (Maybe HCVer)
 type Username = String
 type PackageName = String
 type VersionName = String
@@ -37,7 +38,6 @@ data PageRoute = HomePage
                | LatestPage
                | PackagesPage
                | PackagePage PackageName
-               | LogRoute PackageName VersionName
                | UserPage Username
                | ErrorPage
 
@@ -75,6 +75,17 @@ type CellReportSummary =
   , crsBok :: Int
   , crsBfail :: Int
   , crsBdfail :: Int
+  }
+
+cellReportSummaryDefault :: CellReportSummary
+cellReportSummaryDefault =
+  {
+    crsT: ""
+  , crsBjle: 0
+  , crsPerr: false
+  , crsBok: 0
+  , crsBfail: 0
+  , crsBdfail: 0
   }
 
 -- /v2/packages/{pkgname}/reports/{idxstate}/{pkgver}/{hcver}
@@ -128,6 +139,11 @@ type PackageQueue =
   , idxstate :: PkgIdxTs
   }
 
+type ColumnVersion =
+  { ghcVer :: Maybe VersionName
+  , pkgVer :: Maybe VersionName
+  }
+
 -- API v1 type
 type PackageState =
   { name :: PackageName
@@ -141,10 +157,6 @@ type Tag =
   , packages :: Array PackageName
   }
 
-type ColumnVersion =
-  { ghcVer :: VersionName
-  , pkgVer :: VersionName
-  }
 
 type PackageMeta =
   { name   :: PackageName

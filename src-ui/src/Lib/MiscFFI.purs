@@ -6,9 +6,9 @@ import Control.Monad.Eff.JQuery (JQuery, JQueryEvent, select)
 import DOM (DOM)
 import DOM.HTML.Types (HTMLElement, Window)
 import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
-import Prelude (Unit, otherwise, id, show, unit, (/=), (<<<), (<>), (<$>), (*), (==), (<),(>))
+import Prelude (Unit, otherwise, id, show, pure, unit, (/=), (<<<), (<>), (<$>), (*), (==), (<),(>))
 import Lib.Uri (Uri)
 import Lib.Uri as Uri
 import Lib.Undefined (Undefined)
@@ -168,8 +168,28 @@ fromIndexToNumber (Just arrJson) =
     Nothing      -> []
 fromIndexToNumber Nothing        = []
 
-makeTuplePkgIdx :: T.PackageName -> Tuple.Tuple T.PackageName String
-makeTuplePkgIdx pkg = Tuple.Tuple (Str.takeWhile ((/=) '@') pkg) (((Str.drop 1) <<< Str.dropWhile ((/=) '@')) pkg)
+makeTuplePkgIdx :: T.PackageName
+                -> T.InitialPackage
+makeTuplePkgIdx pkg =
+  let
+    arrPkg = Str.split (Str.Pattern "/") (Str.takeWhile ((/=) '@') pkg)
+    pkgname = Str.takeWhile ((/=) '@') pkg
+    pkgname' =
+      case Arr.head arrPkg of
+        Just a -> a
+        Nothing -> ""
+    ghc =
+      case Arr.last arrPkg of
+        Just a -> Just a
+        Nothing -> Nothing
+    ver =
+      case Arr.index arrPkg 1 of
+        Just a -> Just a
+        Nothing -> Nothing
+    pkgts  = (((Str.drop 1) <<< Str.dropWhile ((/=) '@'))) pkg
+  in if (Arr.length arrPkg) < 2
+    then TupleN.tuple4 pkgname pkgts Nothing Nothing
+    else TupleN.tuple4 pkgname' pkgts ver ghc
 
 getLastIdx :: Array Int -> Int
 getLastIdx arrInt=

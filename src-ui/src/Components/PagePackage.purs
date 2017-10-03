@@ -13,10 +13,10 @@ import Lib.MatrixApi as Api1
 import Lib.MatrixApi2 as Api
 import Lib.Types as T
 import Network.RemoteData as RD
-import Data.Maybe (Maybe(Just, Nothing), fromMaybe)
+import Data.Maybe (Maybe(Just, Nothing), fromMaybe, isJust, isNothing)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI as Misc
-import Prelude (type (~>), Unit, bind, negate, const, discard, otherwise, pure, show, (<), (>), ($), (&&), (/=), (<$>), (<>), (==), (||), (>>=), (-), (+), (<<<))
+import Prelude (type (~>), Unit, unit, bind, negate, const, discard, otherwise, pure, show, (<), (>), ($), (&&), (/=), (<$>), (<>), (==), (||), (>>=), (-), (+), (<<<))
 import DOM.HTML (window) as DOM
 import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
 import DOM.HTML.Window (history, scroll, screenY) as DOM
@@ -34,7 +34,7 @@ import Data.Ord (compare)
 
 
 type State =
-  { initPackage :: Tuple.Tuple T.PackageName T.PackageTS
+  { initPackage :: T.InitialPackage
   , logdisplay  :: D.Display
   , report      :: RD.RemoteData E.Error T.PackageIdxTsReports
   , history     :: Array (Tuple.Tuple T.VersionName T.Revision)
@@ -52,15 +52,16 @@ type State =
   , listTags :: RD.RemoteData E.Error (Array T.TagName)
   , currKey :: Int
   , unitsCell :: Array (SM.StrMap T.BuildStatus)
+  , currCellSum :: Tuple.Tuple T.HCVer T.CellReportSummary
   }
 
 data Query a
   = Initialize a
   | FailingPackage a
   | HighlightSE (Tuple.Tuple String T.BuildStatus) a
-  | HighlightCell T.PackageIdxTsReports T.CellReportSummary T.VersionName T.VersionName a
+  | HighlightCell T.PackageIdxTsReports T.CellReportSummary (Maybe T.HCVer) (Maybe T.VersionName) a
   | HandleTag T.TagName a
-  | Receive (Tuple.Tuple T.PackageName T.PackageTS) a
+  | Receive T.InitialPackage a
   | AddingNewTag T.PackageName T.TagName a
   | RemoveTag T.PackageName T.TagName a
   | UpdateTag (T.PackageName -> a)
@@ -72,7 +73,7 @@ data Query a
 data Message = FromPagePackage
 
 component :: forall e.
-             H.Component HH.HTML Query (Tuple.Tuple T.PackageName T.PackageTS) Message (Api1.Matrix e)
+             H.Component HH.HTML Query T.InitialPackage Message (Api1.Matrix e)
 component = H.lifecycleComponent
   { initialState: initialState
   , render
@@ -83,7 +84,7 @@ component = H.lifecycleComponent
   }
   where
 
-    initialState :: Tuple.Tuple T.PackageName T.PackageTS -> State
+    initialState :: T.InitialPackage -> State
     initialState i =
       {
         initPackage: i
@@ -92,8 +93,8 @@ component = H.lifecycleComponent
       , history: []
       , highlighted: false
       , logmessage: ""
-      , columnversion: { ghcVer: ""
-                       , pkgVer: ""
+      , columnversion: { ghcVer: Nothing
+                       , pkgVer: Nothing
                        }
       , newtag: ""
       , newPrio: 0
@@ -106,6 +107,7 @@ component = H.lifecycleComponent
       , listTags: RD.NotAsked
       , currKey: 0
       , unitsCell: []
+      , currCellSum: Tuple.Tuple "" T.cellReportSummaryDefault
       }
 
     render :: State -> H.ComponentHTML Query
@@ -128,7 +130,7 @@ component = H.lifecycleComponent
                 [ HP.class_ (H.ClassName "leftcol") ] $
                 [ HH.h2
                     [ HP.class_ (H.ClassName "main-header") ]
-                    [ HH.text $ Tuple.fst state.initPackage ]
+                    [ HH.text $ TupleN.get1 state.initPackage ]
                 , HH.div
                     [ HP.id_ "package-buildreport" ] $
                     [ HH.h3
@@ -220,7 +222,7 @@ component = H.lifecycleComponent
                 [ HP.id_ "tagging" ]
                 [ HH.ul
                     [ HP.class_ (H.ClassName "tags") ] $
-                    renderPackageTag (Tuple.fst st.initPackage) st.listTags st.newtag
+                    renderPackageTag (TupleN.get1 st.initPackage) st.listTags st.newtag
                 , HH.div
                     [ HP.class_ (H.ClassName "form") ]
                     [ HH.label_
@@ -235,7 +237,7 @@ component = H.lifecycleComponent
                     , HH.button
                         [ HP.class_ (H.ClassName "action")
                         , HE.onClick $ HE.input_ (AddingNewTag st.newtag
-                                                               (Tuple.fst st.initPackage))
+                                                               (TupleN.get1 st.initPackage))
                         ]
                         [ HH.text "Add Tag" ]
                      ]
@@ -267,16 +269,16 @@ component = H.lifecycleComponent
     eval :: Query ~> H.ComponentDSL State Query Message (Api1.Matrix e)
     eval (Initialize next) = do
       st <- H.get
-      listIndex <- Api.getPackageReports  (Tuple.fst st.initPackage)
-      tags <- Api.getPackageTags (Tuple.fst st.initPackage)
-      historyPackage <- H.lift $ Api.getPackageHistories (Tuple.fst st.initPackage)
+      listIndex <- Api.getPackageReports  (TupleN.get1 st.initPackage)
+      tags <- Api.getPackageTags (TupleN.get1 st.initPackage)
+      historyPackage <- H.lift $ Api.getPackageHistories (TupleN.get1 st.initPackage)
       let
         listIndex' =
           case listIndex of
             RD.Success idx' -> idx'
             _               -> []
         latestIdx = Misc.getLastIdx listIndex'
-        selectedIdx = getIdx (Tuple.snd st.initPackage) listIndex'
+        selectedIdx = getIdx (TupleN.get2 st.initPackage) listIndex'
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
         maxKey =
           case Map.findMax mapIdxSt of
@@ -285,8 +287,8 @@ component = H.lifecycleComponent
         hist = case historyPackage of
           RD.Success hs -> Arr.sortBy sortVer (Arr.zip (TupleN.get2 <$> hs) (TupleN.get3 <$> hs))
           _             -> []
-      reportPackage <- H.lift $ Api.getPackageIdxTsReports (Tuple.fst st.initPackage) selectedIdx
-      queueStat <- H.lift $ Api.getSpecificQueue (Tuple.fst st.initPackage) selectedIdx
+      reportPackage <- H.lift $ Api.getPackageIdxTsReports (TupleN.get1 st.initPackage) selectedIdx
+      queueStat <- H.lift $ Api.getSpecificQueue (TupleN.get1 st.initPackage) selectedIdx
       H.modify _  { report = reportPackage
                   , history = hist
                   , highlighted = false
@@ -299,6 +301,11 @@ component = H.lifecycleComponent
                   , currKey = maxKey
                   }
       pure next
+      where
+        initpkgname st = TupleN.get1 st.initPackage
+        initpkgidx st = TupleN.get2 st.initPackage
+        initpkgver st = TupleN.get3 st.initPackage
+        inithcver st = TupleN.get4 st.initPackage
     eval (FailingPackage next) = do
       pure next
     eval (HighlightSE (Tuple.Tuple un status) next) = do
@@ -309,8 +316,8 @@ component = H.lifecycleComponent
           _            -> T.unitIdInfoEmpty
       H.modify _ { logmessage = unitId.uiiLogmsg}
       pure next
-    eval (HighlightCell {pkgname, idxstate} summ ghcVer pkgVer next) = do
-      singleResult <- H.lift $ Api.getCellReportDetail pkgname idxstate pkgVer ghcVer
+    eval (HighlightCell {pkgname, idxstate} summ ghcV pkgV next) = do
+      singleResult <- H.lift $ Api.getCellReportDetail pkgname idxstate pkgVer' ghcVer'
       let
         sRU = case singleResult of
                RD.Success a -> a.units
@@ -323,15 +330,31 @@ component = H.lifecycleComponent
           "pf" -> sRS
           "se" -> "There is exist at least one build log. Please click the button above"
           _    -> ""
+        sObj = SM.singleton "name" (Arg.encodeJson pkgname)
+        jObj = F.toForeign (SM.insert "index" (Arg.encodeJson idxstate) sObj)
+        indexURL = if Str.null idxstate' then "" else "@" <> idxstate'
+        ghcURL = if isNothing ghcV then "" else "/" <> fromMaybe "" ghcV
+        pkgverURL = if isNothing pkgV then "" else "/" <> fromMaybe "" pkgV
+        pageName = DOM.DocumentTitle $ pkgname <> " - " <> idxstate'
+        pageUrl = DOM.URL $ "#/package/" <> pkgname <> pkgverURL <> ghcURL <> indexURL
+
       H.modify _ { logmessage = logs
                  , logdisplay = D.block
-                 , columnversion = { ghcVer, pkgVer }
+                 , columnversion = { ghcVer: ghcV, pkgVer: pkgV }
                  , unitsCell = sRU
+                 , currCellSum = Tuple.Tuple ghcVer' summ
                  }
       heightPage <- H.liftEff $ DOM.window >>= Misc.scrollMaxY
       _ <- H.liftEff $ DOM.window >>= (DOM.scroll 0 heightPage)
       traceAnyA sRU
+      hist <- H.liftEff $ DOM.window >>= DOM.history
+      pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
+
       pure next
+      where
+        idxstate' = show idxstate
+        ghcVer' = fromMaybe "" ghcV
+        pkgVer' = fromMaybe "" pkgV
     eval (HandleTag value next) = do
       st <- H.get
       H.put $ st { newtag = value }
@@ -350,16 +373,16 @@ component = H.lifecycleComponent
       reply <$> (pure packageName)
     eval (Receive pkg next) = do
       st <- H.get
-      listIndex <- Api.getPackageReports (Tuple.fst pkg)
-      tags <- Api.getPackageTags (Tuple.fst pkg)
-      historyPackage <- H.lift $ Api.getPackageHistories (Tuple.fst pkg)
+      listIndex <- Api.getPackageReports (initpkgname pkg)
+      tags <- Api.getPackageTags (initpkgname pkg)
+      historyPackage <- H.lift $ Api.getPackageHistories (initpkgname pkg)
       let
         listIndex' =
           case listIndex of
             RD.Success idx' -> idx'
             _              -> []
         latestIdx = Misc.getLastIdx listIndex'
-        selectedIdx = getIdx (Tuple.snd pkg) listIndex'
+        selectedIdx = getIdx (initpkgidx pkg) listIndex'
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
         maxKey =
           case Map.findMax mapIdxSt of
@@ -368,8 +391,8 @@ component = H.lifecycleComponent
         hist = case historyPackage of
           RD.Success hs -> Arr.sortBy sortVer $ Arr.zip (TupleN.get2 <$> hs) (TupleN.get3 <$> hs)
           _             -> []
-      reportPackage <- H.lift $ Api.getPackageIdxTsReports (Tuple.fst pkg) selectedIdx
-      queueStat <- H.lift $ Api.getSpecificQueue (Tuple.fst st.initPackage) selectedIdx
+      reportPackage <- H.lift $ Api.getPackageIdxTsReports (initpkgname pkg) selectedIdx
+      queueStat <- H.lift $ Api.getSpecificQueue (initpkgname pkg) selectedIdx
       H.modify _  { initPackage = pkg
                   , report = reportPackage
                   , history = hist
@@ -381,11 +404,17 @@ component = H.lifecycleComponent
                   , mapIndexState = mapIdxSt
                   , listTags = tags
                   , currKey =
-                      case Arr.elemIndex (Tuple.snd pkg) (show <$> listIndex') of
+                      case Arr.elemIndex (initpkgidx pkg) (show <$> listIndex') of
                         Just a  -> a
                         Nothing -> maxKey
                   }
       pure next
+      where
+        initpkgname st = TupleN.get1 st
+        initpkgidx st = TupleN.get2 st
+        initpkgver st = TupleN.get3 st
+        inithcver st = TupleN.get4 st
+
     eval (HandleQueue idx next) = do
       st <- H.get
       _ <- case idx of
@@ -401,22 +430,40 @@ component = H.lifecycleComponent
       H.modify _ { queueClicked = true }
       _ <- H.lift $  Api.putPackageQueue pkgName currIdx prio
       pure next
-    eval (HandleIndex st idx next) = do
-      H.modify _ { currKey = idx }
+    eval (HandleIndex {initPackage, mapIndexState, columnversion, currCellSum} idx next) = do
+      if emptybuild
+       then H.modify _ { logmessage = ""
+                      , logdisplay =  D.displayNone
+                      , columnversion = { ghcVer: Nothing, pkgVer: Nothing }
+                      , currKey = idx
+                      }
+       else H.modify _ { currKey = idx }
       let
         selectedIndex' =
-          case Map.lookup idx st.mapIndexState of
+          case Map.lookup idx mapIndexState of
             Just a -> a
             Nothing -> ""
-        package = Tuple.fst st.initPackage
+        package = TupleN.get1 initPackage
         sObj = SM.singleton "name" (Arg.encodeJson package)
         jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
         indexURL = if Str.null selectedIndex' then "" else "@" <> selectedIndex'
+        ghcURL = if isNothing ghcver then "" else "/" <> fromMaybe "" ghcver
+        pkgverURL = if isNothing pkgver then "" else "/" <> fromMaybe "" pkgver
         pageName = DOM.DocumentTitle $ package <> " - " <> selectedIndex'
-        pageUrl = DOM.URL $ "#/package/" <> package <> indexURL
+        pageUrl = DOM.URL $ "#/package/" <> package <> pkgverURL <> ghcURL <> indexURL
+      heightPage <- H.liftEff $ DOM.window >>= Misc.scrollMaxY
+      _ <- H.liftEff $ DOM.window >>= (DOM.scroll 0 (if emptyghcpkg then 0 else heightPage))
       hist <- H.liftEff $ DOM.window >>= DOM.history
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
-      eval (Receive (Tuple.Tuple package selectedIndex') next)
+      eval (Receive (TupleN.tuple4 package selectedIndex' pkgver ghcver) next)
+      where
+        ghcver = columnversion.ghcVer
+        pkgver = columnversion.pkgVer
+        emptyghcpkg =  isNothing ghcver || isNothing pkgver
+        emptybuild = case _.crsT (Tuple.snd currCellSum) of
+          "na" -> true
+          ""   -> true
+          _    -> false
     eval (Finalize next) = do
       pure next
 
@@ -711,7 +758,7 @@ generateTableColumn :: forall p. T.PackageIdxTsReports
                     -> Array T.CellReportSummary
                     -> Tuple.Tuple T.HCVer T.CellReportSummary
                     -> HH.HTML p (Query Unit)
-generateTableColumn package verName ghcRes (Tuple.Tuple ghcVer summ) =
+generateTableColumn package verN ghcRes (Tuple.Tuple ghcV summ) =
   if Arr.null ghcRes then renderNotContained
   else
     case summ.crsT of
@@ -723,17 +770,19 @@ generateTableColumn package verName ghcRes (Tuple.Tuple ghcVer summ) =
           [ HP.classes $ H.ClassName <$>
                           (["stcell"] <>
                            (checkPassOrFail summ))
-          , HP.attr (H.AttrName "data-ghc-version") ghcVer
-          , HP.attr (H.AttrName "data-package-version") verName
+          , HP.attr (H.AttrName "data-ghc-version") ghcV
+          , HP.attr (H.AttrName "data-package-version") verN
           , HE.onClick $ HE.input_ (HighlightCell package summ ghcVer verName)
           ] $ [ HH.text (checkShallow summ) ]
     renderNotContained =
         HH.td
           [ HP.classes (H.ClassName <$> (["stcell", "fail-unknown"]))
-          , HP.attr (H.AttrName "data-ghc-version") ghcVer
-          , HP.attr (H.AttrName "data-package-version") verName
+          , HP.attr (H.AttrName "data-ghc-version") ghcV
+          , HP.attr (H.AttrName "data-package-version") verN
           , HE.onClick $ HE.input_ (HighlightCell package summ ghcVer verName)
           ] $ [ HH.text ""]
+    ghcVer = if Str.null ghcV then Nothing else pure ghcV
+    verName = if Str.null verN then Nothing else pure verN
 
 containedRevision :: forall p i. T.PackageName
                   -> T.VersionName
@@ -817,9 +866,10 @@ revisionsUrl pkgName versionName =
   "https://hackage.haskell.org/package/"  <> pkgName <>  "-" <> versionName <> "/revisions"
 
 
-cellHash :: T.VersionName -> T.PackageName -> T.VersionName -> T.Cell
-cellHash ghcVer pkgName pkgVer =
+cellHash :: Maybe T.HCVer -> T.PackageName -> Maybe T.VersionName -> T.Cell
+cellHash (Just ghcVer) pkgName (Just pkgVer) =
   Str.toUpper ghcVer <> "/" <> pkgName <> "-" <> pkgVer
+cellHash  _ pkgName  _ = "- /" <> pkgName <> "/ -"
 
 getIdx :: T.PackageTS -> Array T.PkgIdxTs -> T.PkgIdxTs
 getIdx idx listIdx =
@@ -831,7 +881,7 @@ getIdx idx listIdx =
       Nothing -> 0
 
 renderUnitsButton :: forall p. State -> Array (SM.StrMap T.BuildStatus) -> T.ColumnVersion -> Array (HH.HTML p (Query Unit))
-renderUnitsButton st arrUnit {ghcVer, pkgVer} =
+renderUnitsButton st arrUnit {ghcVer: (Just ghc), pkgVer: (Just pkg)} =
   let
     keys = Arr.concat (SM.keys <$> arrUnit)
     values = Arr.concat (SM.values <$> arrUnit)
@@ -845,9 +895,10 @@ renderUnitsButton st arrUnit {ghcVer, pkgVer} =
         ] $
         [ HH.h4
             [ HP.class_ (H.ClassName "logs-header") ]
-            [ HH.text $ "There is at least one install-plan for " <> pkgVer <> " with " <> ghcVer <> " : "]
-        ] <> ((renderButton ghcVer pkgVer) <$> buttonRef)
+            [ HH.text $ "There is at least one install-plan for " <> pkg <> " with " <> ghc <> " : "]
+        ] <> ((renderButton ghc pkg) <$> buttonRef)
     ]
+renderUnitsButton _ _ _ = []
 
 renderButton :: forall p. T.HCVer -> T.VersionName -> (Tuple.Tuple String T.BuildStatus) -> HH.HTML p (Query Unit)
 renderButton ghcVer pkgVer (Tuple.Tuple units status) =
@@ -879,7 +930,7 @@ renderNavBtn st =
       , HH.button
           [ HP.class_ (H.ClassName "idxBtn")
           , HP.title "Previous Index-State"
-          , HE.onClick $ HE.input_ (HandleIndex st (st.currKey - 1))
+          , HE.onClick $ HE.input_ (HandleIndex st (if st.currKey == 0 then st.currKey else st.currKey - 1))
           ]
           [ HH.text "< Previous" ]
       ] <> (if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st) <> [ HH.button
