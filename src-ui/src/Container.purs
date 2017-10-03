@@ -38,6 +38,7 @@ import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
 import Data.Tuple as Tuple
+import Data.Tuple.Nested as TupleN
 import Data.Foldable as Fold
 import Partial.Unsafe (unsafePartial)
 import Prelude (type (~>), Unit, Void, absurd, bind, const, pure, unit, ($), (<$>), (<$), (*>), (<*>), (==), (>>=), (<>))
@@ -207,7 +208,6 @@ routing =  latest
        <|> package
        <|> user
        <|> error
-       <|> logroute
        <|> home
   where
     slash = lit ""
@@ -215,17 +215,16 @@ routing =  latest
     latest = T.LatestPage <$ (slash *> lit "latest")
     packages = T.PackagesPage <$ (slash *> lit "packages")
     package = T.PackagePage <$> (slash *> lit "package" *> str)
-    logroute = T.LogRoute <$> (lit "package" *> str) <*> ((pure "#") *> str)
     user = T.UserPage <$> (slash *> lit "user" *> str)
     error = T.ErrorPage <$ lit "error"
 
-getPackageMeta :: Tuple.Tuple T.PackageName T.PackageTS -> Array T.PackageName  -> Tuple.Tuple T.PackageName T.PackageTS
-getPackageMeta (Tuple.Tuple pkgName idx) pkgMetaArr =
-  case Arr.uncons (filteredPkgMetaArr pkgName pkgMetaArr) of
-    Just { head: x, tail: xs } -> Tuple.Tuple x idx
-    Nothing                    -> Tuple.Tuple "" ""
+getPackageMeta :: T.InitialPackage -> Array T.PackageName  -> T.InitialPackage
+getPackageMeta initPkg pkgMetaArr =
+  case Arr.uncons (filteredPkgMetaArr (TupleN.get1 initPkg) pkgMetaArr) of
+    Just { head: x, tail: xs } -> TupleN.tuple4 x (TupleN.get2 initPkg) (TupleN.get3 initPkg) (TupleN.get4 initPkg)
+    Nothing                    -> TupleN.tuple4 "" "" Nothing Nothing
   where
-    filteredPkgMetaArr pkg metaArr= Arr.filter (\x -> x == pkg) metaArr
+    filteredPkgMetaArr pkg metaArr = Arr.filter (\x -> x == pkg) metaArr
 
 packageContained :: String -> T.PackageName -> Boolean
 packageContained str pkgName = Str.contains (Str.Pattern str) pkgName
