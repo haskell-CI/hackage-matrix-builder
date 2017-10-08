@@ -321,6 +321,8 @@ scheduler App{..} = do
 
                   withResource appDbPool $ \dbconn -> do
                       let rows1 = map fst dbunits
+                      -- TODO: use COALESCE() in ON CONFLICT clause?
+
                       (dt1,foo1) <- timeIt $ PGS.executeMany dbconn (db_iplan_unit_insert `mappend`
                                                       " ON CONFLICT (xunitid) \
                                                       \ DO UPDATE SET bstatus = EXCLUDED.bstatus, logmsg = EXCLUDED.logmsg, dt = EXCLUDED.dt \
@@ -345,6 +347,7 @@ scheduler App{..} = do
                       -- forward-propagate fail_deps
                       whileM_ $ do
                           -- TODO: this is costly
+                          -- instead use 'row1' or a RETURNING clause as seed for traversing
                           (dt5,foo5) <- timeIt $ PGS.execute_ dbconn
                                                       "UPDATE iplan_unit SET bstatus = 'fail_deps' \
                                                       \WHERE xunitid IN (SELECT DISTINCT a.xunitid FROM iplan_unit a \
@@ -389,6 +392,7 @@ planJsonIdGrap :: PlanJson -> Map UnitID (Set UnitID)
 planJsonIdGrap PlanJson{..} = Map.map planItemAllDeps pjItems
 
 -- NB: emits DB rows in topological order, i.e. not violating FK-constraints
+-- TODO: compute/propagate fail-deps?
 planJson2DbUnitComps :: Map UnitID (IPStatus,Text,Maybe NominalDiffTime) -> PlanJson -> [(DB_iplan_unit,[DB_iplan_comp_dep])]
 planJson2DbUnitComps smap PlanJson{..} = go mempty topoUnits
     -- let rootunits = [ piId | PlanItem{..} <- Map.elems pjItems, piType == PILocal ]
