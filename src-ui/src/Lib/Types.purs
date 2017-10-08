@@ -38,6 +38,7 @@ data PageRoute = HomePage
                | LatestPage
                | PackagesPage
                | PackagePage PackageName
+               | PackagePageVersion PackageName VersionName HCVer
                | UserPage Username
                | ErrorPage
 

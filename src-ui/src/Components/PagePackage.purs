@@ -272,6 +272,8 @@ component = H.lifecycleComponent
       listIndex <- Api.getPackageReports  (TupleN.get1 st.initPackage)
       tags <- Api.getPackageTags (TupleN.get1 st.initPackage)
       historyPackage <- H.lift $ Api.getPackageHistories (TupleN.get1 st.initPackage)
+      traceAnyA (TupleN.get1 st.initPackage)
+      traceAnyA (TupleN.get2 st.initPackage)
       let
         listIndex' =
           case listIndex of
@@ -372,6 +374,8 @@ component = H.lifecycleComponent
       let packageName = Tuple.fst st.initPackage
       reply <$> (pure packageName)
     eval (Receive pkg next) = do
+      traceAnyA (TupleN.get1 pkg)
+      traceAnyA (TupleN.get2 pkg)
       st <- H.get
       listIndex <- Api.getPackageReports (initpkgname pkg)
       tags <- Api.getPackageTags (initpkgname pkg)
@@ -393,6 +397,8 @@ component = H.lifecycleComponent
           _             -> []
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (initpkgname pkg) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (initpkgname pkg) selectedIdx
+      traceAnyA "from receive"
+
       H.modify _  { initPackage = pkg
                   , report = reportPackage
                   , history = hist

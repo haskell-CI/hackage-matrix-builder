@@ -95,6 +95,9 @@ ui =
         , case st.route of
             T.LatestPage ->
               HH.slot' CP.cp3 unit PageLatest.component unit absurd
+            (T.PackagePageVersion pkgName verName hcVer) ->
+              HH.slot' CP.cp4 unit PagePackage.component
+                  (getPackageMeta (Misc.makeTuplePkgVer pkgName verName hcVer) st.packages) (HE.input HandlePagePackage)
             (T.PackagePage pkgName) ->
               HH.slot' CP.cp4 unit PagePackage.component
                   (getPackageMeta (Misc.makeTuplePkgIdx pkgName) st.packages) (HE.input HandlePagePackage)
@@ -205,6 +208,7 @@ ui =
 routing :: Match T.PageRoute
 routing =  latest
        <|> packages
+       <|> packageVersion
        <|> package
        <|> user
        <|> error
@@ -214,17 +218,18 @@ routing =  latest
     home = T.HomePage <$ slash
     latest = T.LatestPage <$ (slash *> lit "latest")
     packages = T.PackagesPage <$ (slash *> lit "packages")
+    packageVersion = T.PackagePageVersion  <$> (slash *> lit "package" *> str) <*> str <*> str
     package = T.PackagePage <$> (slash *> lit "package" *> str)
     user = T.UserPage <$> (slash *> lit "user" *> str)
     error = T.ErrorPage <$ lit "error"
 
 getPackageMeta :: T.InitialPackage -> Array T.PackageName  -> T.InitialPackage
-getPackageMeta initPkg pkgMetaArr =
-  case Arr.uncons (filteredPkgMetaArr (TupleN.get1 initPkg) pkgMetaArr) of
+getPackageMeta initPkg pkgArr =
+  case Arr.uncons (filteredPkgArr (TupleN.get1 initPkg) pkgArr) of
     Just { head: x, tail: xs } -> TupleN.tuple4 x (TupleN.get2 initPkg) (TupleN.get3 initPkg) (TupleN.get4 initPkg)
     Nothing                    -> TupleN.tuple4 "" "" Nothing Nothing
   where
-    filteredPkgMetaArr pkg metaArr = Arr.filter (\x -> x == pkg) metaArr
+    filteredPkgArr pkg arr = Arr.filter (\x -> x == pkg) arr
 
 packageContained :: String -> T.PackageName -> Boolean
 packageContained str pkgName = Str.contains (Str.Pattern str) pkgName

@@ -19,6 +19,7 @@ import Data.Either (Either(..))
 --import Debug.Trace (traceAnyA)
 import Halogen.VDom.Driver (runUI)
 import Prelude (type (~>), Unit, bind, unit, (<<<))
+import Debug.Trace
 
 main :: Eff (Api.MatrixEffects) Unit
 main = HA.runHalogenAff do
@@ -36,5 +37,6 @@ main = HA.runHalogenAff do
                    -> CR.Consumer T.PageRoute (Aff Api.MatrixEffects) Unit
     matrixConsumer query = do
       new <- CR.await
+      _ <- traceAnyA new
       _ <- H.lift (query (H.action (Container.RouteChange new)))
       matrixConsumer query
