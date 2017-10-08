@@ -168,28 +168,26 @@ fromIndexToNumber (Just arrJson) =
     Nothing      -> []
 fromIndexToNumber Nothing        = []
 
+makeTuplePkgVer :: T.PackageName
+                -> T.VersionName
+                -> T.HCVer
+                -> T.InitialPackage
+makeTuplePkgVer pkg ver hcver=
+  let
+    ghcV = (Str.takeWhile ((/=) '@') hcver)
+    ghc = if Str.null hcver then Nothing else pure ghcV
+    ver' = if Str.null ver then Nothing else pure ver
+    pkgts  = ((Str.drop 1) <<< Str.dropWhile ((/=) '@')) hcver
+  in TupleN.tuple4 pkg pkgts ver' ghc
+
 makeTuplePkgIdx :: T.PackageName
                 -> T.InitialPackage
-makeTuplePkgIdx pkg =
+makeTuplePkgIdx pkgName =
   let
-    arrPkg = Str.split (Str.Pattern "/") (Str.takeWhile ((/=) '@') pkg)
-    pkgname = Str.takeWhile ((/=) '@') pkg
-    pkgname' =
-      case Arr.head arrPkg of
-        Just a -> a
-        Nothing -> ""
-    ghc =
-      case Arr.last arrPkg of
-        Just a -> Just a
-        Nothing -> Nothing
-    ver =
-      case Arr.index arrPkg 1 of
-        Just a -> Just a
-        Nothing -> Nothing
-    pkgts  = (((Str.drop 1) <<< Str.dropWhile ((/=) '@'))) pkg
-  in if (Arr.length arrPkg) < 2
-    then TupleN.tuple4 pkgname pkgts Nothing Nothing
-    else TupleN.tuple4 pkgname' pkgts ver ghc
+    pkg = (Str.takeWhile ((/=) '@') pkgName)
+    pkgts  = ((Str.drop 1) <<< Str.dropWhile ((/=) '@')) pkgName
+  in TupleN.tuple4 pkg pkgts Nothing Nothing
+
 
 getLastIdx :: Array Int -> Int
 getLastIdx arrInt=
