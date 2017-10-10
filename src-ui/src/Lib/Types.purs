@@ -131,6 +131,26 @@ unitIdInfoEmpty =
   , uiiExeDeps: SM.empty
   }
 
+-- /v2/units/{unitid}/deps
+type UnitIdInfoDeps = SM.StrMap UnitIdInfoDep
+type UnitIdInfoDep =
+  {
+    pkgname :: PackageName
+  , pkgver :: VersionName
+  , status :: BuildStatus
+  , lib_deps :: SM.StrMap (Array UUID)
+  , exe_deps :: SM.StrMap (Array UUID)
+  }
+
+unitIdInfoDepEmpty :: UnitIdInfoDep
+unitIdInfoDepEmpty =
+  {
+    pkgname: ""
+  , pkgver: ""
+  , status: ""
+  , lib_deps: SM.empty
+  , exe_deps: SM.empty
+  }
 -- /v2/queue || /v2/queue/{pkgname} || /v2/queue/{pkgname}/{idxstate}
 type PackageQueue =
   {

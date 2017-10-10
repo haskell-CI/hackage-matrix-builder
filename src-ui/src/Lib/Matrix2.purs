@@ -259,7 +259,7 @@ getUnitIdInfo :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
               -> m (RD.RemoteData E.Error T.UnitIdInfo)
 getUnitIdInfo uuid =
  if Str.null uuid
-  then pure (RD.Failure (E.error "Package is Empty"))
+  then pure (RD.Failure (E.error "Unit id is Empty"))
   else do
     res <- liftAff (Affjax.affjax Affjax.defaultRequest {
                                    url = "/api/v2/units/" <> uuid
@@ -270,6 +270,25 @@ getUnitIdInfo uuid =
            let
              decodedApi = Arg.decodeJson (res.response :: Arg.Json)
            MP.toUnitIdInfo decodedApi
+         SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
+
+-- /v2/units/{unitid}/deps
+getUnitIdInfoDeps :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+              => T.UUID
+              -> m (RD.RemoteData E.Error T.UnitIdInfoDeps)
+getUnitIdInfoDeps uuid =
+ if Str.null uuid
+  then pure (RD.Failure (E.error "Unit id is Empty"))
+  else do
+    res <- liftAff (Affjax.affjax Affjax.defaultRequest {
+                                   url = "/api/v2/units/" <> uuid <> "/deps"
+                                 , method = Left GET
+                                 })
+    case res.status of
+         SC.StatusCode 200 -> do
+           let
+             decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+           MP.toUnitIdInfoDeps decodedApi
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags with pkgnames=true
