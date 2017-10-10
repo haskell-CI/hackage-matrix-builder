@@ -329,6 +329,64 @@ toUnitIdInfo (Right a) =
     Nothing -> pure (RD.Failure (E.error "Json is not object"))
 toUnitIdInfo (Left e) = pure (RD.Failure (E.error e))
 
+toUnitIdInfoDeps :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+                 => Either String Arg.Json
+                 -> m (RD.RemoteData E.Error T.UnitIdInfoDeps)
+toUnitIdInfoDeps (Right a) =
+  case Arg.toObject a of
+    Just obj -> pure (RD.Success (toUnitIdInfoDep <$> obj))
+    Nothing  -> pure (RD.Failure (E.error "Json is not object"))
+toUnitIdInfoDeps (Left e) = pure (RD.Failure (E.error e))
+
+toUnitIdInfoDep :: Arg.Json -> T.UnitIdInfoDep
+toUnitIdInfoDep a =
+  case Arg.toObject a of
+    Just obj ->
+      let
+        pkgName =
+          case SM.lookup "pkgname" obj of
+            Just pkgN ->
+              case Arg.toString pkgN of
+                Just pn -> pn
+                Nothing -> "package is not String"
+            Nothing -> "package name does not exist"
+        pkgVersion =
+           case SM.lookup "pkgver" obj of
+            Just pkgVer ->
+              case Arg.toString pkgVer of
+                Just pv -> pv
+                Nothing -> "package is not String"
+            Nothing -> "package name does not exist"
+        status =
+           case SM.lookup "status" obj of
+            Just stat ->
+              case Arg.toString stat of
+                Just st -> st
+                Nothing -> "status is not String"
+            Nothing -> "status name does not exist"
+        libDeps =
+          case SM.lookup "lib_deps" obj of
+            Just libD ->
+              case Arg.toObject libD of
+                Just ld -> toArrayString <$> ld
+                Nothing -> SM.empty
+            Nothing -> SM.empty
+        exeDeps =
+          case SM.lookup "exe_deps" obj of
+            Just exeD ->
+              case Arg.toObject exeD of
+                Just ed -> toArrayString <$> ed
+                Nothing -> SM.empty
+            Nothing -> SM.empty
+      in
+        { pkgname : pkgName
+        , pkgver : pkgVersion
+        , status : status
+        , lib_deps : libDeps
+        , exe_deps : exeDeps
+        }
+    Nothing -> T.unitIdInfoDepEmpty
+
 toString :: Arg.Json -> String
 toString json =
   case Arg.toString json of

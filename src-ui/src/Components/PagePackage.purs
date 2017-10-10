@@ -310,14 +310,18 @@ component = H.lifecycleComponent
         inithcver st = TupleN.get4 st.initPackage
     eval (FailingPackage next) = do
       pure next
-    eval (HighlightSE (Tuple.Tuple un status) next) = do
-      unitsLog <- H.lift $ Api.getUnitIdInfo un
-      let
-        unitId = case unitsLog of
-          RD.Success a -> a
-          _            -> T.unitIdInfoEmpty
-      H.modify _ { logmessage = unitId.uiiLogmsg}
-      pure next
+    eval (HighlightSE (Tuple.Tuple un status) next) =
+      if status == "bok" || status == "bfail"
+      then do
+        unitsLog <- H.lift $ Api.getUnitIdInfo un
+        let
+          unitId = case unitsLog of
+            RD.Success a -> a
+            _            -> T.unitIdInfoEmpty
+        H.modify _ { logmessage = unitId.uiiLogmsg}
+        pure next
+      else
+        pure next
     eval (HighlightCell {pkgname, idxstate} summ ghcV pkgV next) = do
       singleResult <- H.lift $ Api.getCellReportDetail pkgname idxstate pkgVer' ghcVer'
       let
@@ -341,7 +345,7 @@ component = H.lifecycleComponent
         pageUrl = DOM.URL $ "#/package/" <> pkgname <> pkgverURL <> ghcURL <> indexURL
 
       H.modify _ { logmessage = logs
-                 , logdisplay = D.block
+                 , logdisplay = if Str.null logs then D.displayNone else D.block
                  , columnversion = { ghcVer: ghcV, pkgVer: pkgV }
                  , unitsCell = sRU
                  , currCellSum = Tuple.Tuple ghcVer' summ
@@ -374,8 +378,6 @@ component = H.lifecycleComponent
       let packageName = Tuple.fst st.initPackage
       reply <$> (pure packageName)
     eval (Receive pkg next) = do
-      traceAnyA (TupleN.get1 pkg)
-      traceAnyA (TupleN.get2 pkg)
       st <- H.get
       listIndex <- Api.getPackageReports (initpkgname pkg)
       tags <- Api.getPackageTags (initpkgname pkg)
@@ -388,6 +390,8 @@ component = H.lifecycleComponent
         latestIdx = Misc.getLastIdx listIndex'
         selectedIdx = getIdx (initpkgidx pkg) listIndex'
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
+        urlPkgVer = TupleN.get3 pkg
+        urlGhcVer = TupleN.get4 pkg
         maxKey =
           case Map.findMax mapIdxSt of
             Just { key } -> (key :: Int)
@@ -414,7 +418,30 @@ component = H.lifecycleComponent
                         Just a  -> a
                         Nothing -> maxKey
                   }
-      pure next
+      if isNothing urlPkgVer || isNothing urlGhcVer
+        then
+          pure next
+        else do
+          let
+            currPkgVer = fromMaybe "" urlPkgVer
+            currGhcVer = fromMaybe "" urlGhcVer
+            currReport =
+              case reportPackage of
+                RD.Success a -> a
+                _            -> T.pkgIdxTsReportsEmpty
+            currPkgVersion =
+              case SM.lookup currPkgVer currReport.pkgversions of
+                Just arr -> arr
+                Nothing  -> []
+            ghcIndex =
+              case Arr.elemIndex currGhcVer currReport.hcversions of
+                Just idx -> idx
+                Nothing -> 0
+            ghcSumm =
+              case Arr.index currPkgVersion ghcIndex of
+                Just summ -> summ
+                Nothing   -> T.cellReportSummaryDefault
+          eval (HighlightCell currReport ghcSumm urlGhcVer urlPkgVer next)
       where
         initpkgname st = TupleN.get1 st
         initpkgidx st = TupleN.get2 st
@@ -450,17 +477,6 @@ component = H.lifecycleComponent
             Just a -> a
             Nothing -> ""
         package = TupleN.get1 initPackage
-        sObj = SM.singleton "name" (Arg.encodeJson package)
-        jObj = F.toForeign (SM.insert "index" (Arg.encodeJson selectedIndex') sObj)
-        indexURL = if Str.null selectedIndex' then "" else "@" <> selectedIndex'
-        ghcURL = if isNothing ghcver then "" else "/" <> fromMaybe "" ghcver
-        pkgverURL = if isNothing pkgver then "" else "/" <> fromMaybe "" pkgver
-        pageName = DOM.DocumentTitle $ package <> " - " <> selectedIndex'
-        pageUrl = DOM.URL $ "#/package/" <> package <> pkgverURL <> ghcURL <> indexURL
-      heightPage <- H.liftEff $ DOM.window >>= Misc.scrollMaxY
-      _ <- H.liftEff $ DOM.window >>= (DOM.scroll 0 (if emptyghcpkg then 0 else heightPage))
-      hist <- H.liftEff $ DOM.window >>= DOM.history
-      pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
       eval (Receive (TupleN.tuple4 package selectedIndex' pkgver ghcver) next)
       where
         ghcver = columnversion.ghcVer
