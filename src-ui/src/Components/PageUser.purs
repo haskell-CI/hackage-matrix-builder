@@ -1,6 +1,6 @@
 module Components.PageUser where
 
-import Prelude (type (~>), Void, bind, otherwise, pure, ($), (<$>), (<*>), (<>), (==))
+import Prelude (type (~>), Void, bind, otherwise, pure, ($), (<$>), (<*>), (<>), (==), (>))
 import Data.Maybe (Maybe(Just, Nothing), isNothing)
 import Data.Array as Arr
 import Halogen as H
@@ -8,24 +8,28 @@ import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Events as HE
 import Lib.MatrixApi as Api
-import Lib.MiscFFI as M
+import Lib.MiscFFI as Misc
 import Lib.Types as T
+import Data.Tuple as Tuple
 import Control.Monad.Eff.Class (liftEff)
 import Control.Monad.Reader.Class (asks)
 import Control.Monad.Eff.Ref as Ref
 import Network.RemoteData as RD
 import Control.Monad.Eff.Exception as E
+import Data.StrMap as SM
+import Debug.Trace
 
 type State =
  { initUser :: T.Username
  , user :: RD.RemoteData E.Error T.User
- , packages :: Array T.PackageMeta
+ , packages :: Array (Tuple.Tuple T.PackageName T.PkgIdxTs)
+ , withReports :: Boolean
  }
 
 data Query a
   = Initialize a
-  | HandleCheckBox State Boolean a
   | Receive T.Username a
+  | ToggleWithReports Boolean a
   | Finalize a
 
 component :: forall e. H.Component HH.HTML Query T.Username Void (Api.Matrix e)
@@ -44,6 +48,7 @@ component = H.lifecycleComponent
     { initUser: usr
     , user: RD.NotAsked
     , packages: []
+    , withReports: false
     }
 
   render :: State -> H.ComponentHTML Query
@@ -64,7 +69,7 @@ component = H.lifecycleComponent
               [ HP.class_ (H.ClassName "leftcol") ] $
               [ HH.h2
                   [ HP.class_ (H.ClassName "main-header") ]
-                  [ HH.text $ state.initUser ]
+                  [ HH.text $ st.initUser ]
               , HH.div
                   [ HP.class_ (H.ClassName "main-header-subtext") ]
                   [ HH.text "Displaying packages maintained by this user."]
@@ -74,7 +79,8 @@ component = H.lifecycleComponent
                       [ HH.input
                           [ HP.class_ (H.ClassName "user-only-reports")
                           , HP.type_ HP.InputCheckbox
-                          , HE.onChecked $ HE.input (HandleCheckBox st)
+                          , HP.checked state.withReports
+                          , HE.onChecked $ HE.input ToggleWithReports
                           ]
                       , HH.text "Only show packages with reports"
                       ]
@@ -83,6 +89,41 @@ component = H.lifecycleComponent
                   ]
               ]
           ]
+
+      renderBody' st (RD.NotAsked) =
+        HH.div
+          [ HP.id_ "page-user"
+          ,  HP.class_ (H.ClassName "page")
+          ]
+          [ HH.div
+              [ HP.class_ (H.ClassName "rightcol") ]
+              [ HH.div
+                  [ HP.class_ (H.ClassName "sub") ]
+                  [ HH.text "Times are shown in your timezone" ]
+              ]
+          , HH.div
+              [ HP.class_ (H.ClassName "leftcol") ] $
+              [ HH.h2
+                  [ HP.class_ (H.ClassName "main-header") ]
+                  [ HH.text $ st.initUser ]
+              , HH.div
+                  [ HP.class_ (H.ClassName "main-header-subtext") ]
+                  [ HH.text "Displaying packages maintained by this user."]
+              , HH.div
+                  [ HP.class_ (H.ClassName "content") ]
+                  [ HH.label_
+                      [ HH.input
+                          [ HP.class_ (H.ClassName "user-only-reports")
+                          , HP.type_ HP.InputCheckbox
+                          , HP.checked state.withReports
+                          , HE.onChecked $ HE.input ToggleWithReports
+                          ]
+                      , HH.text "Only show packages with reports"
+                      ]
+                  ]
+              ]
+          ]
+
       renderBody' st _ =
         HH.div
           [ HP.id_ "page-user"
@@ -109,70 +150,60 @@ component = H.lifecycleComponent
   eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
   eval (Initialize next) = do
     st <- H.get
-    pkgRef <- asks _.packageList
-    packageList <- liftEff (Ref.readRef pkgRef)
-    let pkglist = RD.withDefault {offset: 0, count: 0, items: []} packageList
-    selectedUser <- H.lift $ Api.getUserByName st.initUser
+    lastIdx <-  H.lift Api.getPackagesIdxstate
+    selectedUser <- H.lift $ Api.getUser st.initUser
+
+    let idxMap =
+          case lastIdx of
+            RD.Success a -> a
+            _            -> SM.empty
+        pkgMeta = userPackageMeta selectedUser (SM.toUnfoldable idxMap)
     initState <- H.put $ st { user = selectedUser
-                            , packages = userPackageMeta selectedUser pkglist
+                            , packages = pkgMeta
                             }
     pure next
 
-  eval (HandleCheckBox st isCheck next)
-      | isCheck = do
-          _ <- H.modify _ { packages = Arr.filter indexStateContained st.packages}
-          pure next
-      | otherwise = eval (Initialize next)
+  eval (ToggleWithReports b next) = do
+    _ <- H.modify \st -> st { withReports = b }
+    pure next
 
   eval (Receive userName next) = do
     st <- H.get
-    pkgRef <- asks _.packageList
-    packageList <- liftEff (Ref.readRef pkgRef)
-    let pkglist = RD.withDefault {offset: 0, count: 0, items: []} packageList
-    selectedUser <- H.lift $ Api.getUserByName userName
+    lastIdx <-  H.lift Api.getPackagesIdxstate
+    selectedUser <- H.lift $ Api.getUser st.initUser
+
+    let idxMap =
+          case lastIdx of
+            RD.Success a -> a
+            _            -> SM.empty
+        pkgMeta = userPackageMeta selectedUser (SM.toUnfoldable idxMap)
+
     _ <- H.modify _ { initUser = userName
                     , user = selectedUser
-                    , packages = userPackageMeta selectedUser pkglist
+                    , packages = pkgMeta
                     }
     pure next
 
   eval (Finalize next) = do
     pure next
 
-buildPackages :: forall p i. T.PackageMeta -> HH.HTML p i
-buildPackages pkgMeta =
+buildPackages :: forall p i. Tuple.Tuple T.PackageName T.PkgIdxTs -> HH.HTML p i
+buildPackages (Tuple.Tuple name report) =
   HH.li_ $
     [ HH.a
-        [ HP.href $ "/#/package/" <> (pkgMeta.name) ]
-        [ HH.text (pkgMeta.name) ]
-    ] <> [ HH.small_ [ HH.text $ if reportExist
-                                 then " - index-state: "
-                                 else " - index-state: " <> (M.formatDate pkgMeta.report)
-                     ]
+        [ HP.href $ "/#/package/" <> (name) ]
+        [ HH.text (name) ]
+    ] <> [ HH.small_ [ HH.text (" - index-state: " <> (Misc.toDateTime report)) ]
          ]
-  where
-    reportExist = pkgMeta.report == Nothing
-
-
-filterUserPackage :: T.PackageName -> T.PackageMeta -> Array T.PackageMeta
-filterUserPackage pkgName pkgMeta
-  | pkgName == pkgMeta.name = [ pkgMeta ]
-  | otherwise               = []
-
-isEmptyMeta :: Maybe T.PackageMeta -> Boolean
-isEmptyMeta pkgMeta =
-  case pkgMeta of
-    Just a -> true
-    Nothing      -> false
-
-indexStateContained :: T.PackageMeta -> Boolean
-indexStateContained pkgMeta
-    | isNothing pkgMeta.report = false
-    | otherwise = true
 
 userPackageMeta :: RD.RemoteData E.Error T.User
-                -> T.ApiList T.PackageMeta
-                -> Array T.PackageMeta
-userPackageMeta (RD.Success usr) pkglist =
-  Arr.concat (filterUserPackage <$> usr.packages <*> pkglist.items)
-userPackageMeta _ pkgList = []
+                -> Array (Tuple.Tuple String T.PkgIdxTs)
+                -> Array (Tuple.Tuple String T.PkgIdxTs)
+userPackageMeta (RD.Success usr) pkgIdxArr =
+  Arr.filter (userPackageIndex usr) pkgIdxArr
+userPackageMeta _ _ = []
+
+userPackageIndex :: T.User -> Tuple.Tuple String T.PkgIdxTs -> Boolean
+userPackageIndex { packages } (Tuple.Tuple pkgName _) = Arr.elem pkgName packages
+
+

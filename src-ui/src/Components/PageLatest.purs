@@ -4,8 +4,7 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi2 as Api
-import Lib.MatrixApi as Api1
+import Lib.MatrixApi as Api
 import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Data.Maybe (Maybe(..))
@@ -23,7 +22,7 @@ data Query a
   | RefreshListings a
   | Finalize a
 
-component :: forall e. H.Component HH.HTML Query Unit Void (Api1.Matrix e)
+component :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: const initialState
   , render
@@ -84,7 +83,7 @@ component = H.lifecycleComponent
         accumResult st = TR.mapAccumL (renderTableQueue st) 1 (state.queuelist)
         getTheResult { value } = value
 
-    eval :: Query ~> H.ComponentDSL State Query Void (Api1.Matrix e)
+    eval :: Query ~> H.ComponentDSL State Query Void (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
       queueList <- H.lift Api.getQueues

@@ -1,6 +1,5 @@
 module Container where
 
-import Debug.Trace
 import Components.PageError as PageError
 import Components.PageHome as PageHome
 import Components.PageLatest as PageLatest
@@ -18,8 +17,7 @@ import Halogen.Component.ChildPath as CP
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi as Api1
-import Lib.MatrixApi2 as Api
+import Lib.MatrixApi as Api
 import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Network.RemoteData as RD
@@ -29,15 +27,13 @@ import Control.Monad.Eff.Ref (writeRef)
 import Control.Monad.Reader (asks)
 import DOM.HTML (window) as DOM
 import DOM.HTML.Location (setHref, origin) as DOM
-import DOM.HTML.Window (history, location) as DOM
+import DOM.HTML.Window (location) as DOM
 import DOM.Event.Types (KeyboardEvent) as DOM
 import DOM.Event.KeyboardEvent (key) as DOM
-import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
 import Data.Either (fromRight)
 import Data.Either.Nested (Either6)
 import Data.Functor.Coproduct.Nested (Coproduct6)
 import Data.Maybe (Maybe(..))
-import Data.Tuple as Tuple
 import Data.Tuple.Nested as TupleN
 import Data.Foldable as Fold
 import Partial.Unsafe (unsafePartial)
@@ -69,7 +65,7 @@ type ChildQuery = Coproduct6 PageError.Query
 
 type ChildSlot = Either6 Unit Unit Unit Unit Unit Unit
 
-ui :: forall e. H.Component HH.HTML Query Unit Void (Api1.Matrix e)
+ui :: forall e. H.Component HH.HTML Query Unit Void (Api.Matrix e)
 ui =
   H.lifecycleParentComponent
     { initialState: const initialState
@@ -87,7 +83,7 @@ ui =
       , searchPkg: ""
       }
 
-    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api1.Matrix e)
+    render :: State -> H.ParentHTML Query ChildQuery ChildSlot (Api.Matrix e)
     render st =
       HH.div
         [ HP.id_ "container"]
@@ -154,7 +150,7 @@ ui =
                 ]
             ]
 
-    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (Api1.Matrix e)
+    eval :: Query ~> H.ParentDSL State Query ChildQuery ChildSlot Void (Api.Matrix e)
     eval (Initialize next) = do
       pkgList <- H.lift Api.getPackages
       pkgRef <- asks _.packages

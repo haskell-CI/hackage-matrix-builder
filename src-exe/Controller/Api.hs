@@ -116,6 +116,7 @@ type ControllerApi m =
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> Get '[JSON]  QEntryRow
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> DeleteNoContent '[JSON] NoContent
+  :<|> "v2" :> "users" :> "name"                 :> Capture "username" UserName :> Get '[JSON] UserPkgs
 
 type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 

@@ -194,7 +194,7 @@ server = tagListH
     :<|> queueGetPkgIdxStH
     :<|> queuePutPkgIdxStH
     :<|> queueDelPkgIdxStH
-
+    :<|> usersListH
   where
 
     needAuth :: AppHandler a -> AppHandler a
@@ -598,6 +598,13 @@ server = tagListH
 
     usrListH :: UserName -> Handler App App UserPkgs
     usrListH uname = do
+        mpkgs <- liftIO $ getUserInfoIO uname
+        case mpkgs of
+          Just pkgs -> pure (UserPkgs uname (uiPackages pkgs))
+          Nothing   -> throwServantErr' err404
+
+    usersListH :: UserName -> Handler App App UserPkgs
+    usersListH uname = do
         mpkgs <- liftIO $ getUserInfoIO uname
         case mpkgs of
           Just pkgs -> pure (UserPkgs uname (uiPackages pkgs))

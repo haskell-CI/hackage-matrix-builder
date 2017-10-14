@@ -9,8 +9,7 @@ import Halogen.HTML as HH
 import Halogen.HTML.CSS as CSS
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Lib.MatrixApi as Api1
-import Lib.MatrixApi2 as Api
+import Lib.MatrixApi as Api
 import Lib.Types as T
 import Network.RemoteData as RD
 import Data.Maybe (Maybe(Just, Nothing), fromMaybe, isJust, isNothing)
@@ -73,7 +72,7 @@ data Query a
 data Message = FromPagePackage
 
 component :: forall e.
-             H.Component HH.HTML Query T.InitialPackage Message (Api1.Matrix e)
+             H.Component HH.HTML Query T.InitialPackage Message (Api.Matrix e)
 component = H.lifecycleComponent
   { initialState: initialState
   , render
@@ -266,7 +265,7 @@ component = H.lifecycleComponent
                 if Arr.null st.listTimeStamp then timeStampIsEmpty else generateIndexStateButton st
             ]
 
-    eval :: Query ~> H.ComponentDSL State Query Message (Api1.Matrix e)
+    eval :: Query ~> H.ComponentDSL State Query Message (Api.Matrix e)
     eval (Initialize next) = do
       st <- H.get
       listIndex <- Api.getPackageReports  (TupleN.get1 st.initPackage)
@@ -820,17 +819,6 @@ containedRevision pkgName verName revision =
           ]
           [ HH.text $ "-r" <> (show revision) ]
       ]
-
-isContainedGHC ::  T.VersionName -> Array T.ShallowGhcResult -> Boolean
-isContainedGHC ghcVer shallowGhcArr  = Arr.elem ghcVer (_.ghcVersion <$> shallowGhcArr)
-
-isContainedVersion :: T.VersionName -> T.VersionName -> Array T.ShallowGhcResult -> Boolean
-isContainedVersion ghcVer verName shallowGhcArr =
-  let currGhcVer = Arr.head $ Arr.filter (\x -> ghcVer == x.ghcVersion) shallowGhcArr
-  in
-   case currGhcVer of
-    (Just { ghcResult }) -> Arr.elem verName (_.packageVersion <$> ghcResult)
-    Nothing              -> false
 
 checkPassOrFail :: T.CellReportSummary -> Array String
 checkPassOrFail summ =

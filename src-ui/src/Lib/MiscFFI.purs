@@ -9,9 +9,6 @@ import Data.Function.Uncurried (Fn2, Fn3, Fn4, runFn2, runFn3, runFn4)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
 import Prelude (Unit, otherwise, id, show, pure, unit, (/=), (<<<), (<>), (<$>), (*), (==), (<),(>))
-import Lib.Uri (Uri)
-import Lib.Uri as Uri
-import Lib.Undefined (Undefined)
 import Unsafe.Coerce (unsafeCoerce)
 import Lib.Types as T
 import Data.Argonaut as Arg
@@ -95,22 +92,6 @@ foreign import val :: forall e . JQuery -> Eff (dom :: DOM | e) String
 
 foreign import is :: forall e . String -> JQuery -> Eff (dom :: DOM | e) Boolean
 
-historyPushState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
-historyPushState t u = runFn2 historyPushState_ t (Uri.toString u)
-
-foreign import historyPushState_ :: forall e .
-  Fn2 String
-      String
-      (Eff (dom :: DOM | e) Unit)
-
-historyReplaceState :: forall e . String -> Uri -> Eff (dom :: DOM | e) Unit
-historyReplaceState t u = runFn2 historyReplaceState_ t (Uri.toString u)
-
-foreign import historyReplaceState_ :: forall e .
-  Fn2 String
-      String
-      (Eff (dom :: DOM | e) Unit)
-
 foreign import setDocumentTitle :: forall e . String -> Eff (dom :: DOM | e) Unit
 
 autocomplete :: forall e
@@ -137,23 +118,12 @@ formatDate date =
     Just dt -> formatDate_ dt
     Nothing -> ""
 
-formatDate' :: RD.RemoteData E.Error T.ShallowReport -> String
-formatDate' (RD.Success date) = formatDate_ (_.modified date)
-formatDate' _ = ""
-
-
 foreign import posixSecondsToISOStr :: Int -> String
 
 toDateTime :: T.PkgIdxTs -> T.PackageTS
 toDateTime = posixSecondsToISOStr
 
 
-undefine :: forall a . Undefined a -> Maybe a
-undefine u = undefine_ u Nothing (Just unit)
-
-foreign import undefine_ :: forall a b . Undefined a -> Maybe b -> Maybe b -> Maybe a
-
-foreign import tabs :: forall e . JQuery -> Eff (dom :: DOM | e) Unit
 
 lookupIndex :: T.PackageName -> Array (Tuple.Tuple T.PackageName String) -> String
 lookupIndex pkgName pkgIdxTuple =

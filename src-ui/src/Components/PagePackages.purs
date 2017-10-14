@@ -13,7 +13,6 @@ import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
-import Lib.MatrixApi2 as Api2
 import Lib.MiscFFI as Misc
 import Lib.Types as T
 import Network.RemoteData as RD
@@ -117,10 +116,10 @@ component = H.lifecycleComponent
   eval (Initialize next) = do
     st <- H.get
     pkgRef <- asks _.packages
-    listPkg <- liftEff $ Ref.readRef pkgRef
-    tagList <- H.lift Api2.getTagsWithoutPackage
-    tagPkgList <- H.lift Api2.getTagsWithPackages
-    lastIdx <- H.lift Api2.getPackagesIdxstate
+    listPkg <- liftEff (Ref.readRef pkgRef)
+    tagList <- H.lift Api.getTagsWithoutPackage
+    tagPkgList <- H.lift Api.getTagsWithPackages
+    lastIdx <- H.lift Api.getPackagesIdxstate
     let
       pkgTag = case tagPkgList of
         RD.Success a -> a
