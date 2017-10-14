@@ -42,7 +42,8 @@
     "purescript-formatters": "^3.0.0",
     "purescript-datetime": "^3.3.0",
     "purescript-tuples": "^4.1.0",
-    "purescript-unsafe-coerce": "^3.0.0"
+    "purescript-unsafe-coerce": "^3.0.0",
+    "purescript-avar": "^2.0.1"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",

@@ -1,4 +1,4 @@
-module Lib.MatrixApi2 where
+module Lib.MatrixApi where
 
 import Prelude (Unit, pure, bind, otherwise, (<>), ($), (<<<), (<$>), show, (==))
 import Network.HTTP.Affjax as Affjax
@@ -15,6 +15,7 @@ import Network.RemoteData as RD
 import Control.Monad.Reader (class MonadReader, ReaderT)
 import Control.Monad.Eff.Ref (Ref)
 import Control.Monad.Eff.Exception as E
+import Control.Monad.Eff.AVar (AVAR)
 import Control.Monad.Aff (Aff)
 import Control.Apply (lift2)
 import Data.Int as Int
@@ -26,26 +27,21 @@ import DOM (DOM)
 import DOM.HTML.Types as DOM
 import Debug.Trace
 import Unsafe.Coerce
+import Halogen.Aff (HalogenEffects)
 
 import Lib.Types as T
-import Lib.MatrixApi as Api
 import Lib.MatrixParser as MP
 
-type Environment2 =
+type Environment =
   {
     packages :: Ref (RD.RemoteData E.Error (Array T.PackageName))
   }
 
-type MatrixApi2 eff =
-  ReaderT Environment2
-          (Aff
-            (HalogenEffects ( ajax :: Affjax.AJAX
-                            , dom :: DOM
-                            , window :: DOM.WINDOW
-                            , history :: DOM.HISTORY| eff)))
+type MatrixE e =
+  HalogenEffects (ajax :: Affjax.AJAX, window :: DOM.WINDOW, dom :: DOM, history :: DOM.HISTORY, avar :: AVAR | e)
 
-type MatrixE e = (ajax :: Affjax.AJAX, window :: DOM.WINDOW | e)
-
+type Matrix e = ReaderT Environment (Aff (MatrixE e))
+type MatrixEffects = HalogenEffects (ajax :: Affjax.AJAX, window :: DOM.WINDOW, dom :: DOM, history :: DOM.HISTORY, avar :: AVAR)
 -- /v2/idxstates with parameter min & max
 getIdxstate :: forall e m. MonadAff (MatrixE e) m
             => m (RD.RemoteData E.Error (Array T.PkgIdxTs))
@@ -86,12 +82,8 @@ getLatestIdxstate = do
 
 -- TODO: This function signature MUST be changed after API v2 fully implemented
 -- /v2/packages
-getPackages :: forall e m. MonadReader (Api.Environment e) m
-            => MonadAff
-                 (HalogenEffects (api :: Api.API
-                                 , ajax :: Affjax.AJAX
-                                 , dom :: DOM, history :: DOM.HISTORY
-                                 , window :: DOM.WINDOW | e)) m
+getPackages :: forall e m. MonadReader Environment m
+            => MonadAff (MatrixE e) m
             => m (RD.RemoteData E.Error (Array T.PackageName))
 getPackages = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
@@ -115,7 +107,7 @@ getPackages = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/tags
-getPackageTags :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getPackageTags :: forall e m. MonadAff (MatrixE e) m
                => T.PackageName
                -> m (RD.RemoteData E.Error (Array T.TagName))
 getPackageTags pkgName = do
@@ -136,7 +128,7 @@ getPackageTags pkgName = do
         SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/*/reports/latest
-getPackagesIdxstate ::  forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getPackagesIdxstate ::  forall e m. MonadAff (MatrixE e) m
                     => m (RD.RemoteData E.Error (SM.StrMap T.PkgIdxTs))
 getPackagesIdxstate = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
@@ -158,7 +150,7 @@ getPackagesIdxstate = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/reports
-getPackageReports :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getPackageReports :: forall e m. MonadAff (MatrixE e) m
                   => T.PackageName
                   -> m (RD.RemoteData E.Error (Array T.PkgIdxTs))
 getPackageReports pkgName =
@@ -179,7 +171,7 @@ getPackageReports pkgName =
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/reports/{idxstate}
-getPackageIdxTsReports :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getPackageIdxTsReports :: forall e m. MonadAff (MatrixE e) m
                        => T.PackageName
                        -> T.PkgIdxTs
                        -> m (RD.RemoteData E.Error T.PackageIdxTsReports)
@@ -199,7 +191,7 @@ getPackageIdxTsReports pkgName idx =
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/reports/{idxstate}/{pkgver}/{hcver}
-getCellReportDetail :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getCellReportDetail :: forall e m. MonadAff (MatrixE e) m
                     => T.PackageName
                     -> T.PkgIdxTs
                     -> T.VersionName
@@ -221,7 +213,7 @@ getCellReportDetail pkgName idx verName ghcVer =
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/packages/{pkgname}/history
-getPackageHistories :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getPackageHistories :: forall e m. MonadAff (MatrixE e) m
              => T.PackageName
              -> m (RD.RemoteData E.Error T.PackageHistories)
 getPackageHistories pkgName =
@@ -239,7 +231,7 @@ getPackageHistories pkgName =
            MP.toPackageHistories decodedApi
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
-getTagsInfo :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getTagsInfo :: forall e m. MonadAff (MatrixE e) m
              => T.PackageName
              -> m (RD.RemoteData E.Error Arg.Json)
 getTagsInfo pkgName = do
@@ -254,7 +246,7 @@ getTagsInfo pkgName = do
     (Left e)  -> pure (RD.Failure (E.error e))
 
 -- /v2/units/{unitid}
-getUnitIdInfo :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getUnitIdInfo :: forall e m. MonadAff (MatrixE e) m
               => T.UUID
               -> m (RD.RemoteData E.Error T.UnitIdInfo)
 getUnitIdInfo uuid =
@@ -273,7 +265,7 @@ getUnitIdInfo uuid =
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/units/{unitid}/deps
-getUnitIdInfoDeps :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getUnitIdInfoDeps :: forall e m. MonadAff (MatrixE e) m
               => T.UUID
               -> m (RD.RemoteData E.Error T.UnitIdInfoDeps)
 getUnitIdInfoDeps uuid =
@@ -292,7 +284,7 @@ getUnitIdInfoDeps uuid =
          SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags with pkgnames=true
-getTagsWithPackages :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getTagsWithPackages :: forall e m. MonadAff (MatrixE e) m
                     => m (RD.RemoteData E.Error T.TagsWithPackages)
 getTagsWithPackages = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -309,7 +301,7 @@ getTagsWithPackages = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags with pkgnames=false
-getTagsWithoutPackage :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getTagsWithoutPackage :: forall e m. MonadAff (MatrixE e) m
                       => m (RD.RemoteData E.Error (Array T.TagName))
 getTagsWithoutPackage = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -332,7 +324,7 @@ getTagsWithoutPackage = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags/{tagname}
-getTagPackages :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getTagPackages :: forall e m. MonadAff (MatrixE e) m
                => T.TagName
                -> m (RD.RemoteData E.Error (Array T.TagName))
 getTagPackages tagName = do
@@ -351,7 +343,7 @@ getTagPackages tagName = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/tags/{tagname}/{pkgname}
-putPackageTag :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+putPackageTag :: forall e m. MonadAff (MatrixE e) m
                  => T.TagName
                  -> T.PackageName
                  -> m (Affjax.AffjaxResponse Unit)
@@ -362,7 +354,7 @@ putPackageTag tagName pkgName = do
   liftAff ( Affjax.put_ url dt )
 
 -- /v2/tags/{tagname}/{pkgname}
-deletePackageTag :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+deletePackageTag :: forall e m. MonadAff (MatrixE e) m
                  => T.TagName
                  -> T.PackageName
                  -> m (Affjax.AffjaxResponse Unit)
@@ -372,7 +364,7 @@ deletePackageTag tagName pkgName = do
   liftAff ( Affjax.delete_ url)
 
 -- /v2/queue
-getQueues :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getQueues :: forall e m. MonadAff (MatrixE e) m
         => m (RD.RemoteData E.Error (Array T.PackageQueue))
 getQueues = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest {
@@ -387,7 +379,7 @@ getQueues = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/queue/{pkgname}
-getQueuePackages :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getQueuePackages :: forall e m. MonadAff (MatrixE e) m
                => T.PackageName
                -> m (RD.RemoteData E.Error (Array T.PackageQueue))
 getQueuePackages pkgName = do
@@ -404,7 +396,7 @@ getQueuePackages pkgName = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/queue/{pkgname}/{idxstate}
-getSpecificQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+getSpecificQueue :: forall e m. MonadAff (MatrixE e) m
                => T.PackageName
                -> T.PkgIdxTs
                -> m (RD.RemoteData E.Error T.PackageQueue)
@@ -422,7 +414,7 @@ getSpecificQueue pkgName idx = do
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 -- /v2/queue/{pkgname}/{idxstate}
-putPackageQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+putPackageQueue :: forall e m. MonadAff (MatrixE e) m
                  => T.PackageName
                  -> T.PkgIdxTs
                  -> Int
@@ -435,7 +427,7 @@ putPackageQueue pkgName idx prio = do
   liftAff ( Affjax.put_ url dt )
 
 -- /v2/queue/{pkgname}/{idxstate}
-deletePackageQueue :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+deletePackageQueue :: forall e m. MonadAff (MatrixE e) m
                  => T.PackageName
                  -> T.PkgIdxTs
                  -> m (Affjax.AffjaxResponse Unit)
@@ -444,154 +436,25 @@ deletePackageQueue pkgName idx = do
     url = "/api/v2/queue/" <> pkgName <> "/" <> (show idx)
   liftAff ( Affjax.delete_ url)
 
-
-parseShallowReport :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
-                   => RD.RemoteData E.Error Arg.Json
-                   -> m (RD.RemoteData E.Error T.ShallowReport)
-parseShallowReport (RD.Success a) =
-  case Arg.toObject a of
-    Just a' ->
+-- /v2/users/name/{username}
+getUser ::  forall e m. MonadAff (MatrixE e) m
+        => T.Username
+        -> m (RD.RemoteData E.Error T.User)
+getUser usr = do
+  res <- liftAff (Affjax.affjax Affjax.defaultRequest
+                        {
+                          url = "/api/v2/users/name/" <> usr <> "/"
+                          , method = Left GET
+                        })
+  case res.status of
+    SC.StatusCode 200 -> do
       let
-        packageName' =
-          case SM.lookup "packageName" a' of
-            Just pkgName ->
-              case Arg.toString pkgName of
-                Just pkgName' -> pkgName'
-                Nothing -> "package is not String"
-            Nothing -> "package name does not exist"
-        modified' =
-          case SM.lookup "modified" a' of
-            Just mod ->
-              case Arg.toString mod of
-                Just mod' -> mod'
-                Nothing -> "modified is not string"
-            Nothing -> "modified does not exist"
-        results' =
-          case SM.lookup "results" a' of
-            Just res ->
-              case Arg.toArray res of
-                Just res' -> parseShallowGhcResult (TRV.traverse Arg.toObject res')
-                Nothing -> []
-            Nothing -> []
-      in pure $ RD.Success
-                  { packageName : packageName'
-                  , modified : modified'
-                  , results : results'
-                  }
-    Nothing -> pure $ RD.Failure (E.error "This is not an Object")
-parseShallowReport (RD.Failure e) = pure $ RD.Failure e
-parseShallowReport RD.Loading = pure RD.Loading
-parseShallowReport RD.NotAsked = pure RD.NotAsked
-
-shallowReportDefault :: T.ShallowReport
-shallowReportDefault =
-  { packageName: ""
-  , modified: ""
-  , results: []
-  }
-
-parseShallowGhcResult :: Maybe (Array Arg.JObject) -> Array T.ShallowGhcResult
-parseShallowGhcResult (Just a) = singleShallowGhcResult <$> a
-parseShallowGhcResult Nothing = []
-
-singleShallowGhcResult :: Arg.JObject -> T.ShallowGhcResult
-singleShallowGhcResult jObj =
-  let
-    ghcVer' =
-      case SM.lookup "ghcVersion" jObj of
-        Just ver ->
-          case Arg.toString ver of
-            Just ver' -> ver'
-            Nothing -> "version is not String"
-        Nothing -> "version does not exist"
-    ghcFullVer' =
-      case SM.lookup "ghcFullVersion" jObj of
-        Just fullVer ->
-          case Arg.toString fullVer of
-            Just fullVer' -> fullVer'
-            Nothing -> "full version is not String"
-        Nothing -> "full version does not exist"
-    ghcResult' =
-      case SM.lookup "ghcResult" jObj of
-        Just result ->
-          case Arg.toArray result of
-            Just result' -> parseShallowVersionResult (TRV.traverse Arg.toObject result')
-            Nothing -> []
-        Nothing -> []
-  in
-   { ghcVersion : ghcVer'
-   , ghcFullVersion : ghcFullVer'
-   , ghcResult : ghcResult'
-   }
-
-shallowGhcResultDefault :: T.ShallowGhcResult
-shallowGhcResultDefault =
-  { ghcVersion     : ""
-  , ghcFullVersion : ""
-  , ghcResult      : []
-  }
-
-parseShallowVersionResult :: Maybe (Array Arg.JObject) -> Array T.ShallowVersionResult
-parseShallowVersionResult (Just a) = singleShallowVersionResult <$> a
-parseShallowVersionResult Nothing = []
-
-singleShallowVersionResult :: Arg.JObject -> T.ShallowVersionResult
-singleShallowVersionResult jObj =
-  let
-    pkgVer' =
-      case SM.lookup "packageVersion" jObj of
-        Just ver ->
-          case Arg.toString ver of
-            Just ver' -> ver'
-            Nothing -> "version is not String"
-        Nothing -> "version does not exist"
-    pkgRev' =
-      case SM.lookup "packageRevision" jObj of
-        Just rev ->
-          case Arg.toNumber rev of
-            Just rev' -> Int.round rev'
-            Nothing -> 0
-        Nothing -> 0
-    result' =
-      case SM.lookup "result" jObj of
-        Just result ->
-          case Arg.toObject result of
-            Just theResult' -> parseShallowResult theResult'
-            Nothing -> T.Unknown
-        Nothing -> T.Unknown
-  in
-   { packageVersion : pkgVer'
-   , packageRevision : pkgRev'
-   , result : result'
-   }
-
-parseShallowResult :: Arg.JObject -> T.ShallowResult
-parseShallowResult jObj =
-  case Arr.head (SM.keys jObj) of
-    Just a -> toShallowResult a
-    Nothing -> T.Unknown
-
-toShallowResult :: String -> T.ShallowResult
-toShallowResult  str
-  | str == "ok" = T.ShallowOk
-  | str == "nop" = T.ShallowNop
-  | str == "noIp" = T.ShallowNoIp
-  | str == "noIpBjLimit" = T.ShallowNoIpBjLimit 0
-  | str == "noIpFail" = T.ShallowNoIpFail
-  | str == "fail" = T.ShallowFail
-  | str == "failDeps" = T.ShallowFailDeps 0
-  | otherwise = T.Unknown
+        decodedApi = Arg.decodeJson (res.response :: Arg.Json)
+      MP.toUser decodedApi
+    SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 
-
-shallowVersionResultDefault :: T.ShallowVersionResult
-shallowVersionResultDefault =
- { packageVersion  : ""
- , packageRevision : 0
- , result          : T.Unknown
- }
-
-latestIndex :: forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+latestIndex :: forall e m. MonadAff (MatrixE e) m
             => T.PackageName
             -> m (Tuple.Tuple T.PackageName String)
 latestIndex pkgName = do

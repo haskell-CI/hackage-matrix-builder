@@ -387,6 +387,31 @@ toUnitIdInfoDep a =
         }
     Nothing -> T.unitIdInfoDepEmpty
 
+toUser ::  forall e m. MonadAff (ajax :: Affjax.AJAX | e) m
+       => Either String Arg.Json
+       -> m (RD.RemoteData E.Error T.User)
+toUser (Right json) =
+  case Arg.toObject json of
+    Just obj ->
+      let
+        usrName =
+          case SM.lookup "name" obj of
+            Just pkgN ->
+              case Arg.toString pkgN of
+                Just pn -> pn
+                Nothing -> "user is not String"
+            Nothing -> "user name does not exist"
+        usrPackages =
+           case SM.lookup "packages" obj of
+            Just pkgVer ->
+              case Arg.toArray pkgVer of
+                Just pv -> toString <$> pv
+                Nothing -> []
+            Nothing -> []
+      in pure $ RD.Success { name : usrName, packages : usrPackages}
+    Nothing -> pure $ RD.Failure (E.error "failed to parse User")
+toUser (Left e) = pure $ RD.Failure (E.error "failed to parse User")
+
 toString :: Arg.Json -> String
 toString json =
   case Arg.toString json of
