@@ -976,7 +976,7 @@ legend =
                     [ HH.text "OK" ]
                 , HH.td
                     [ HP.class_ (H.ClassName "text") ]
-                    [ HH.text "package build succesful" ]
+                    [ HH.text "package build successful" ]
                 ]
             , HH.tr_
                 [ HH.td
