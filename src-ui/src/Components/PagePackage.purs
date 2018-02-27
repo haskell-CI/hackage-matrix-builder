@@ -288,6 +288,13 @@ component = H.lifecycleComponent
         hist = case historyPackage of
           RD.Success hs -> Arr.sortBy sortVer (Arr.zip (TupleN.get2 <$> hs) (TupleN.get3 <$> hs))
           _             -> []
+        idxstate' = show latestIdx
+        pkgname = TupleN.get1 st.initPackage
+        sObj = SM.singleton "name" (Arg.encodeJson pkgname)
+        jObj = F.toForeign (SM.insert "index" (Arg.encodeJson latestIdx) sObj)
+        indexURL = if Str.null idxstate' then "" else "@" <> idxstate'
+        pageName = DOM.DocumentTitle $ pkgname <> " - " <> idxstate'
+        pageUrl = DOM.URL $ "#/package/" <> pkgname <> indexURL
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (TupleN.get1 st.initPackage) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (TupleN.get1 st.initPackage) selectedIdx
       H.modify _  { report = reportPackage
@@ -301,12 +308,15 @@ component = H.lifecycleComponent
                   , listTags = tags
                   , currKey = maxKey
                   }
+      hist' <- H.liftEff $ DOM.window >>= DOM.history
+      pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist'
       pure next
       where
         initpkgname st = TupleN.get1 st.initPackage
         initpkgidx st = TupleN.get2 st.initPackage
         initpkgver st = TupleN.get3 st.initPackage
         inithcver st = TupleN.get4 st.initPackage
+
     eval (FailingPackage next) = do
       pure next
     eval (HighlightSE (Tuple.Tuple un status) next) =
@@ -351,7 +361,6 @@ component = H.lifecycleComponent
                  }
       heightPage <- H.liftEff $ DOM.window >>= Misc.scrollMaxY
       _ <- H.liftEff $ DOM.window >>= (DOM.scroll 0 heightPage)
-      traceAnyA sRU
       hist <- H.liftEff $ DOM.window >>= DOM.history
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
 

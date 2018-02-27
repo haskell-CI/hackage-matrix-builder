@@ -439,7 +439,7 @@ deletePackageQueue pkgName idx = do
 -- /v2/users/name/{username}
 getUser ::  forall e m. MonadAff (MatrixE e) m
         => T.Username
-        -> m (RD.RemoteData E.Error T.User)
+        -> m (RD.RemoteData E.Error (Array T.PackageName))
 getUser usr = do
   res <- liftAff (Affjax.affjax Affjax.defaultRequest
                         {
@@ -449,8 +449,10 @@ getUser usr = do
   case res.status of
     SC.StatusCode 200 -> do
       let
-        decodedApi = Arg.decodeJson (res.response :: Arg.Json)
-      MP.toUser decodedApi
+        decodedApi = Arg.decodeJson res.response 
+      case decodedApi of
+        Right a -> pure (RD.Success a)
+        Left e  -> pure (RD.Failure (E.error "decoded failed"))
     SC.StatusCode _ -> pure (RD.Failure (E.error "Report Not Found"))
 
 

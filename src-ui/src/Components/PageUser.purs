@@ -21,7 +21,7 @@ import Debug.Trace
 
 type State =
  { initUser :: T.Username
- , user :: RD.RemoteData E.Error T.User
+ , user :: RD.RemoteData E.Error (Array T.PackageName)
  , packages :: Array (Tuple.Tuple T.PackageName T.PkgIdxTs)
  , withReports :: Boolean
  }
@@ -151,14 +151,14 @@ component = H.lifecycleComponent
   eval (Initialize next) = do
     st <- H.get
     lastIdx <-  H.lift Api.getPackagesIdxstate
-    selectedUser <- H.lift $ Api.getUser st.initUser
+    pkgUser <- H.lift $ Api.getUser st.initUser
 
     let idxMap =
           case lastIdx of
             RD.Success a -> a
             _            -> SM.empty
-        pkgMeta = userPackageMeta selectedUser (SM.toUnfoldable idxMap)
-    initState <- H.put $ st { user = selectedUser
+        pkgMeta = userPackageMeta pkgUser (SM.toUnfoldable idxMap)
+    initState <- H.put $ st { userPkg = pkgUser
                             , packages = pkgMeta
                             }
     pure next
@@ -170,16 +170,16 @@ component = H.lifecycleComponent
   eval (Receive userName next) = do
     st <- H.get
     lastIdx <-  H.lift Api.getPackagesIdxstate
-    selectedUser <- H.lift $ Api.getUser st.initUser
+    pkgUser <- H.lift $ Api.getUser st.initUser
 
     let idxMap =
           case lastIdx of
             RD.Success a -> a
             _            -> SM.empty
-        pkgMeta = userPackageMeta selectedUser (SM.toUnfoldable idxMap)
+        pkgMeta = userPackageMeta pkgUser (SM.toUnfoldable idxMap)
 
     _ <- H.modify _ { initUser = userName
-                    , user = selectedUser
+                    , user = pkgUser
                     , packages = pkgMeta
                     }
     pure next
@@ -196,14 +196,14 @@ buildPackages (Tuple.Tuple name report) =
     ] <> [ HH.small_ [ HH.text (" - index-state: " <> (Misc.toDateTime report)) ]
          ]
 
-userPackageMeta :: RD.RemoteData E.Error T.User
+userPackageMeta :: RD.RemoteData E.Error (Array T.PackageName)
                 -> Array (Tuple.Tuple String T.PkgIdxTs)
                 -> Array (Tuple.Tuple String T.PkgIdxTs)
 userPackageMeta (RD.Success usr) pkgIdxArr =
   Arr.filter (userPackageIndex usr) pkgIdxArr
 userPackageMeta _ _ = []
 
-userPackageIndex :: T.User -> Tuple.Tuple String T.PkgIdxTs -> Boolean
-userPackageIndex { packages } (Tuple.Tuple pkgName _) = Arr.elem pkgName packages
+userPackageIndex :: (Array T.PackageName) -> Tuple.Tuple String T.PkgIdxTs -> Boolean
+userPackageIndex packages (Tuple.Tuple pkgName _) = Arr.elem pkgName packages
 
 
