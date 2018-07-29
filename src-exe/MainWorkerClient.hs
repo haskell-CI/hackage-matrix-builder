@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE DeriveGeneric   #-}
+{-# LANGUAGE LambdaCase      #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators   #-}
 
@@ -49,26 +50,30 @@ queries idxts (ghcvers,pkgids) manager baseurl = do
 
 main :: IO ()
 main = do
-    (idxtss:ghcverstr:args) <- getArgs
+    getArgs >>= \case
+      idxtss:ghcverstr:args -> go idxtss ghcverstr args
+      _ -> do
+        putStrLn "usage: matrix-worker-client <idxstate> <ghcversion(s>) <pkgid1> [<pkgid2> [ ... ] ]"
+        exitFailure
 
-    let Just ghcver = mapM simpleParse (words ghcverstr)
-        Just pkgs   = mapM simpleParse args
-        idxts = PkgIdxTs (read idxtss)
-
-
-    manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-    res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "matrix-wrk6" 8001 "/api"))
-    case res of
-      Left (FailureResponse {..}) -> do
-          putStrLn $ "Error:\n"
-          print responseStatus
-          print responseContentType
-          putStrLn "----"
-          BL.putStr responseBody
-          putStrLn "\n----"
-      Left err -> do
-          putStrLn $ "Error:\n" ++ show err
-      Right () -> putStrLn "DONE"
+  where
+    go idxtss ghcverstr args = do
+      let Just ghcver = mapM simpleParse (words ghcverstr)
+          Just pkgs   = mapM simpleParse args
+          idxts = PkgIdxTs (read idxtss)
+      manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
+      res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "127.0.0.1" 8002 "/api"))
+      case res of
+        Left (FailureResponse {..}) -> do
+            putStrLn $ "Error:\n"
+            print responseStatus
+            print responseContentType
+            putStrLn "----"
+            BL.putStr responseBody
+            putStrLn "\n----"
+        Left err -> do
+            putStrLn $ "Error:\n" ++ show err
+        Right () -> putStrLn "DONE"
 
 
 

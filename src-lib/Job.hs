@@ -21,6 +21,7 @@ import           System.IO
 import qualified System.IO.Streams         as Streams
 -- import qualified System.IO.Streams.List as Streams
 import           Control.Concurrent.Async
+import qualified Data.Map.Strict           as Map
 import           System.IO.Streams.Process
 import           System.Process
 
@@ -59,12 +60,22 @@ runProc exe args = do
 
     nullHandle <- openFile "/dev/null" ReadMode -- TODO: are filedescriptors properly closed on process termination?
 
+    env' <- case args of
+             ("fetch":_:_) -> do
+               -- FIXME/TODO: temporary hack until there's `cabal new-fetch`
+               env0 <- Map.fromList <$> getEnvironment
+               let path_val = "/home/matrixbot/bin:/home/matrixbot/.local/bin:/opt/ghc/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"
+               pure $ Just (Map.toList (Map.insert "PATH" path_val env0))
+
+             _ -> pure Nothing
+
     let cp = (proc exe args)
                { std_in    = UseHandle nullHandle
                , std_err   = UseHandle wend
                , std_out   = UseHandle wend
                , close_fds = True
                , create_group = True
+               , env       = env'
                }
 
     (Nothing, Nothing, Nothing, ph) <- createProcess cp

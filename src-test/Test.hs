@@ -1,6 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving         #-}
 
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module Main where
 
 import           Test.Tasty
@@ -9,8 +11,8 @@ import           Test.Tasty.QuickCheck as QC
 -- import Test.Tasty.HUnit
 
 import           PkgId
-import qualified PkgIdxTsSet           as PIS
 import qualified PkgIdxRanges          as IR
+import qualified PkgIdxTsSet           as PIS
 
 import qualified Data.Set              as Set
 import           Data.Word
@@ -24,7 +26,7 @@ tests = testGroup "Tests" [properties]
 properties :: TestTree
 properties = testGroup "Properties" [qcProps2,qcProps1]
 
-
+qcProps1 :: TestTree
 qcProps1 = testGroup "PkgIdxTsSet"
   [ QC.testProperty "Eq" $
       \x -> (x :: Int) == x
@@ -91,6 +93,7 @@ wrapIntoRange (l,u) x = l + ((x-l) `mod` (u-l))
 
 ----------------------------------------------------------------------------
 
+qcProps2 :: TestTree
 qcProps2 = testGroup "PkgIdxRanges"
   [ QC.testProperty "eq1" $
       \rs -> IR.fromList rs == IR.fromList (reverse rs)

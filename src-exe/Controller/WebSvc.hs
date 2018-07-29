@@ -36,14 +36,14 @@ import           Control.Monad.Except
 import           Control.Monad.State
 import qualified Crypto.Hash.SHA256               as SHA256
 import qualified Data.Aeson                       as J
+import qualified Data.ByteString.Builder          as BB
 import qualified Data.ByteString.Char8            as BS
 import qualified Data.ByteString.Lazy             as LBS
-import qualified Data.ByteString.Builder          as BB
+import qualified Data.Foldable                    as F
 import           Data.Function                    (on)
 import qualified Data.Map.Strict                  as Map
 import           Data.Pool
 import qualified Data.Set                         as Set
-import qualified Data.Foldable                    as F
 import qualified Data.Text                        as T
 import qualified Data.Vector                      as V
 import qualified Database.PostgreSQL.Simple       as PGS
@@ -57,11 +57,11 @@ import qualified Network.HTTP.Types.Status        as HTTP
 import           Servant
 import           Servant.Client                   (ServantError (..))
 import           Snap.Core
+import qualified Snap.CORS                        as Snap
 import           Snap.Http.Server                 (defaultConfig)
 import qualified Snap.Http.Server.Config          as Snap
 import           Snap.Snaplet
 import qualified Snap.Util.FileServe              as Snap
-import qualified Snap.CORS                        as Snap
 import qualified System.IO.Streams                as Streams
 
 -- local modules
@@ -70,15 +70,15 @@ import           Controller.Db
 import           HackageApi
 import           HackageApi.Client
 import           PkgId
+import           PkgIdxTsSet                      (PkgIdxTsSet)
 import qualified PkgIdxTsSet
-import           PkgIdxTsSet (PkgIdxTsSet)
 
 -- | See 'fetchPkgLstCache'
 data PkgLstCache = PkgLstCache !PkgIdxTs !(Vector PkgN)
 
 data App = App
-  { appDbPool   :: Pool PGS.Connection
-  , appPkgLstCache :: MVar PkgLstCache   -- ^ see 'fetchPkgLstCache'
+  { appDbPool        :: Pool PGS.Connection
+  , appPkgLstCache   :: MVar PkgLstCache   -- ^ see 'fetchPkgLstCache'
   , appPkgIdxTsCache :: MVar PkgIdxTsSet -- ^ see 'fetchPkgIdxTsCache'
   }
 
@@ -672,7 +672,7 @@ headOr404M :: AppHandler [e] -> AppHandler e
 headOr404M act = headOr404 =<< act
   where
     headOr404 :: [e] -> AppHandler e
-    headOr404 [] = throwServantErr' err404
+    headOr404 []    = throwServantErr' err404
     headOr404 (e:_) = pure e
 
 foldableToMaybe :: Foldable t => t a -> Maybe a

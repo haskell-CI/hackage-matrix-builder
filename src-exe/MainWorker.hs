@@ -400,6 +400,11 @@ data Job = Job
     , jobStepBuild     :: MVar (Task JobStep)
     }
 
+jobIdxTsText :: Job -> Text
+jobIdxTsText j = "@" <> T.pack (show ts)
+  where
+    PkgIdxTs ts = jobIdxTs j
+
 data Step = StepFetch
           | StepSolve
           | StepFetchDeps
@@ -446,7 +451,7 @@ destroyJob (Job{..}) = do
 
 -- returns 'Nothing' if not run because preq failed
 getStep :: Step -> Job -> IO (Maybe JobStep)
-getStep step (Job{..}) = do
+getStep step (j@Job{..}) = do
     -- make sure previous step was performed succesfully
     prevOk <- if step == minBound
         then pure True
@@ -479,7 +484,7 @@ getStep step (Job{..}) = do
         withCurrentDirectory wdir $ do
             runStep cabalExe [ "get"
                              , "--verbose=normal+nowrap+timestamp"
-                             , "--index-state=@" <> T.pack (show jobIdxTs)
+                             , "--index-state=" <> jobIdxTsText j
                              , pkgIdTxt
                              ]
 
@@ -492,7 +497,7 @@ getStep step (Job{..}) = do
                 , "benchmarks: false"
                 , "jobs: 1"
                 , "build-log: logs/$libname.log"
-                , "index-state: @" <> T.pack (show jobIdxTs)
+                , "index-state: " <> jobIdxTsText j
                 , "constraints: template-haskell installed" -- temporary hack for 7.8.4
                 ]
 
@@ -656,10 +661,10 @@ parseActionLog t0 = mapMaybe go (linesTS t0)
   where
     go :: TsMsg -> Maybe (POSIXTime,UnitID,EvType)
     go (Just pt, line :| []) = case T.words line of
-                                 "Configuring":uid:_:_ -> Just (pt, UnitID uid, EvConfig)
+                                 "Starting"   :uid:_:_ -> Just (pt, UnitID uid, EvConfig)
                                  "Building"   :uid:_:_ -> Just (pt, UnitID uid, EvBuild)
                                  "Installing" :uid:_:_ -> Just (pt, UnitID uid, EvInstall)
-                                 "Finished"   :uid:_:_ -> Just (pt, UnitID uid, EvDone)
+                                 "Completed"  :uid:_:_ -> Just (pt, UnitID uid, EvDone)
                                  _ -> Nothing
     go _ = Nothing
 
@@ -755,6 +760,7 @@ parseCompName2 ckind qcname'' = do
 -- decodes action-plan
 decodeTodoPlan :: T.Text -> Maybe [(PkgId,UnitID,Bool)] -- True if needs download
 decodeTodoPlan s0
+--  | traceShow (s0,s0') False = undefined
 --  | traceShow (map (map decodeTodoLine) todos) False = undefined
   | ["Up to date" :| []] == take 1 s0' = Just mempty
   | [todolst] <- todos = mapM decodeTodoLine todolst
@@ -763,14 +769,17 @@ decodeTodoPlan s0
   --   ("Resolving dependencies...":"In order, the following would be built (use -v for more details):":ls) <- pure s0'
   --   pkgs <- mapM (decLine . T.unpack) ls
   --   pure (Set.fromList pkgs)
+
   where
-    s0' = drop 1 $ dropWhile (/= (marker1:|[])) $ map snd $ linesTS s0
+    s0' = drop 1 $ dropWhile (not . isMarker1) $ map snd $ linesTS s0
 
-    marker1 = "Resolving dependencies..."
-    marker2 = "In order, the following would be built (use -v for more details):"
+    isMarker1 ("Resolving dependencies..." :| []) = True
+    isMarker1 _                                   = False
 
-    todos = map NonEmpty.tail $ filter ((marker2 ==) . NonEmpty.head) s0'
+    isMarker2 (_ :| "In order, the following would be built (use -v for more details):" : _) = True
+    isMarker2 _ = False
 
+    todos = map (NonEmpty.drop 2) $ filter isMarker2 s0'
 
 decodeTodoLine :: Text -> Maybe (PkgId,UnitID,Bool)
 decodeTodoLine t0 = do
