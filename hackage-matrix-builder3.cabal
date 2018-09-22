@@ -1,200 +1,144 @@
+cabal-version:       2.4
 name:                hackage-matrix-builder3
 version:             0.3
+
 synopsis:            Hackage Matrix
-license:             AGPL-3
+license:             GPL-3.0-or-later
 license-file:        LICENSE
 author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
 category:            Network
 build-type:          Simple
 extra-source-files:  ChangeLog.md
-tested-with:         GHC == 8.2.1, GHC == 8.0.2
-cabal-version:       >=2.0
+tested-with:         GHC == 8.2.2
+
+common defaults
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+
+  build-depends:
+    , Cabal                ^>= 2.4.0.1
+    , aeson                ^>= 1.1
+    , async                ^>= 2.1.0
+    , base                 ^>= 4.9 || ^>= 4.10
+    , bytestring           ^>= 0.10.2
+    , containers           ^>= 0.5.7.1
+    , cryptohash-sha256    ^>= 0.11.100.1
+    , deepseq              ^>= 1.4
+    , directory            ^>= 1.3.0
+    , filepath             ^>= 1.4.1.0
+    , hashable             ^>= 1.2.4
+    , http-client          ^>= 0.5.3
+    , http-types           ^>= 0.9.1
+    , io-streams           ^>= 1.3.6
+    , lens                 ^>= 4.15
+    , mtl                  ^>= 2.2.1
+    , paths                ^>= 0.1
+    , postgresql-simple    ^>= 0.5.2
+    , process              ^>= 1.4 || ^>= 1.6.1
+    , servant              ^>= 0.11
+    , servant-client       ^>= 0.11
+    , stm                  ^>= 2.4.4
+    , swagger2             ^>= 2.1.5
+    , tar                  ^>= 0.5
+    , text                 ^>= 1.2
+    , time                 ^>= 1.6 || ^>= 1.8
+    , uuid-types           ^>= 1.0.3
+    , vector               ^>= 0.12
 
 library matrix-lib
-  default-language:    Haskell2010
+  import: defaults
 
   hs-source-dirs:      src-lib
-  exposed-modules:     Prelude.Local
-                     , IndexHelper
-                     , Job
-                     , PkgId
-                     , PkgIdxTsSet
-                     , PkgIdxRanges
-                     , PlanJson
-                     , WorkerApi
-                     , WorkerApi.Client
-                     , HackageApi
-                     , HackageApi.Client
-
-  reexported-modules:  Servant.Client
-                     , System.Path.IO
-                     , Network.HTTP.Client
-                     , Data.UUID.Types
-                     , Control.Concurrent.STM
-                     , Crypto.Hash.SHA256
-                     , Data.Vector
+  exposed-modules:
+      Prelude.Local
+      IndexHelper
+      Job
+      PkgId
+      PkgIdxTsSet
+      PkgIdxRanges
+      PlanJson
+      WorkerApi
+      WorkerApi.Client
+      HackageApi
+      HackageApi.Client
 
   -- non-locals
-  build-depends:       base                 ^>= 4.9 || ^>= 4.10
-                     , Cabal                ^>= 2.0
-                     , aeson                ^>= 1.1
-                     , async                ^>= 2.1.0
-                     , bytestring           ^>= 0.10.2
-                     , containers           ^>= 0.5.7.1
-                     , cryptohash-sha256    ^>= 0.11.100.1
-                     , deepseq              ^>= 1.4
-                     , directory            ^>= 1.3.0
-                     , filepath             ^>= 1.4.1.0
-                     , hashable             ^>= 1.2.4
-                     , http-client          ^>= 0.5.3
-                     , http-types           ^>= 0.9.1
-                     , io-streams           ^>= 1.3.6
-                     , lens                 ^>= 4.15
-                     , mtl                  ^>= 2.2.1
-                     , paths                ^>= 0.1
-                     , postgresql-simple    ^>= 0.5.2
-                     , process              ^>= 1.4 || ^>= 1.6.1
-                     , servant              ^>= 0.11
-                     , servant-client       ^>= 0.11
-                     , stm                  ^>= 2.4.4
-                     , swagger2             ^>= 2.1.5
-                     , tar                  ^>= 0.5
-                     , text                 ^>= 1.2
-                     , time                 ^>= 1.6 || ^>= 1.8
-                     , uuid-types           ^>= 1.0.3
-                     , vector               ^>= 0.12
-                     , vector-th-unbox      ^>= 0.2.1.6
-
-  ghc-options: -Wall
+  build-depends:
+    , servant-client       ^>= 0.11
+    , vector-th-unbox      ^>= 0.2.1.6
 
 ----------------------------------------------------------------------------
 -- tests
 
 test-suite matrix-lib-test
-  default-language:    Haskell2010
+  import: defaults
+
   type: exitcode-stdio-1.0
   hs-source-dirs:      src-test
-  main-is:             Test.hs
+  main-is: Test.hs
 
-  build-depends:       matrix-lib
+  build-depends:
+    , matrix-lib
 
-  build-depends:       base
-                     , containers
-                     , tasty                ^>= 0.11.2.5
-                     , tasty-quickcheck     ^>= 0.9.1
+    , tasty                ^>= 0.11.2.5
+    , tasty-quickcheck     ^>= 0.9.1
 
 ----------------------------------------------------------------------------
 -- executables
 
-executable matrix-worker
-  default-language:    Haskell2010
-  hs-source-dirs:      src-exe
-  main-is:             MainWorker.hs
+common defaults-exe
+  import: defaults
+  ghc-options: -threaded -rtsopts
+  hs-source-dirs: src-exe
+  build-depends: matrix-lib
 
-  build-depends:       matrix-lib
+executable matrix-worker
+  import: defaults-exe
+
+  main-is: MainWorker.hs
 
   -- non-locals
-  build-depends:       base
-                     , Cabal
-                     , aeson
-                     , bytestring
-                     , concurrent-extra     ^>= 0.7.0.10
-                     , config-value         ^>= 0.6
-                     , containers
-                     , directory
-                     , filepath
-                     , http-types
-                     , io-streams
-                     , lens
-                     , mtl
-                     , servant
-                     , servant-snap         ^>= 0.8.0.1
-                     , snap                 ^>= 1
-                     , snap-core            ^>= 1
-                     , snap-server          ^>= 1
-                     , tar
-                     , text
-                     , time
-                     , unix                 ^>= 2.7.2
-
-  ghc-options: -threaded -Wall -rtsopts
+  build-depends:
+    , concurrent-extra     ^>= 0.7.0.10
+    , config-value         ^>= 0.6
+    , servant-snap         ^>= 0.8.0.1
+    , snap                 ^>= 1
+    , snap-core            ^>= 1
+    , snap-server          ^>= 1
+    , unix                 ^>= 2.7.2
 
 -- mostly for testing
 executable matrix-worker-client
-  default-language:    Haskell2010
-  hs-source-dirs:      src-exe
-  main-is:             MainWorkerClient.hs
+  import: defaults-exe
 
-  build-depends:       matrix-lib
-
-  -- non-locals
-  build-depends:       base
-                     , Cabal
-                     , aeson
-                     , bytestring
-                     , containers
-                     , directory
-                     , filepath
-                     , http-types
-                     , io-streams
-                     , lens
-                     , mtl
-                     , servant
---                   , servant-docs         ^>= 0.8
-                     , tar
-                     , text
-                     , time
-
-  ghc-options: -threaded -Wall -rtsopts
+  main-is: MainWorkerClient.hs
 
 -- Single multi-command binary which orchestrates everything & provides WebUI
 executable matrix-controller
-  default-language:    Haskell2010
-  hs-source-dirs:      src-exe
-  main-is:             Controller/Main.hs
-  other-modules:       Controller.Api
-                     , Controller.Cli
-                     , Controller.Config
-                     , Controller.Compute
-                     , Controller.Db
-                     , Controller.Scheduler
-                     , Controller.WebSvc
+  import: defaults-exe
 
-  build-depends:       matrix-lib
+  main-is: Controller/Main.hs
+
+  other-modules:
+      Controller.Api
+      Controller.Cli
+      Controller.Config
+      Controller.Compute
+      Controller.Db
+      Controller.Scheduler
+      Controller.WebSvc
 
   -- non-locals
-  build-depends:       base
-                     , Cabal
-                     , SafeSemaphore        ^>= 0.10.1
-                     , aeson
-                     , bytestring
-                     , config-schema        ^>= 0.4.1
-                     , containers
-                     , directory
-                     , filepath
-                     , http-types
-                     , io-streams
-                     , lens
-                     , mtl
-                     , optparse-generic     ^>= 1.2
-                     , postgresql-simple
-                     , resource-pool        ^>= 0.2.3.2
-                     , servant
-                     , servant-snap         ^>= 0.8.0.1
-                     , servant-swagger      ^>= 1.1.3
-                     , snap                 ^>= 1
-                     , snap-core            ^>= 1
-                     , snap-cors            ^>= 1.2.11
-                     , snap-server          ^>= 1
-                     , swagger2
-                     , tar
-                     , text
-                     , time
-                     , unordered-containers ^>= 0.2.7.1
-
---                   , product-profunctors  ^>= 0.7.1
---                   , opaleye              ^>= 0.5.1
-
-
-  ghc-options: -threaded -Wall -rtsopts
+  build-depends:
+    , SafeSemaphore        ^>= 0.10.1
+    , config-schema        ^>= 0.4.1
+    , optparse-generic     ^>= 1.2
+    , resource-pool        ^>= 0.2.3.2
+    , servant-snap         ^>= 0.8.0.1
+    , servant-swagger      ^>= 1.1.3
+    , snap                 ^>= 1
+    , snap-core            ^>= 1
+    , snap-cors            ^>= 1.2.11
+    , snap-server          ^>= 1
+    , unordered-containers ^>= 0.2.7.1
