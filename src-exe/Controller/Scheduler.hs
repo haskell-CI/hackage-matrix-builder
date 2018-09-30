@@ -62,6 +62,7 @@ data App = App
   , appWorkers      :: [(BaseUrl,CompilerID)]
   , appWorkerIdleEv :: TMVar ()
   , appDbEvents     :: TChan DbEvent
+  , appNeedFwdProp  :: MVar ()
   }
 
 runScheduler :: PGS.ConnectInfo -> [(BaseUrl,CompilerID)] -> IO ()
@@ -72,6 +73,7 @@ runScheduler ci appWorkers = do
     appQThreads     <- RW.new
     appWorkerIdleEv <- newEmptyTMVarIO
     appDbEvents     <- newBroadcastTChanIO
+    appNeedFwdProp  <- newMVar ()
 
     let app = App{..}
 
@@ -167,6 +169,26 @@ autoQueuer2 App{..} = forever $ do
 
     putStrLn ("Worker got IDLE! " ++ show cnt1)
 
+-- | Forward-propagator thread
+fwdPropagator :: App -> IO ()
+fwdPropagator App{..} = forever $ do
+    takeMVar appNeedFwdProp
+
+    -- forward-propagate fail_deps
+    withResource appDbPool $ \dbconn -> whileM_ $ do
+        -- TODO: this is costly
+        -- instead use 'row1' or a RETURNING clause as seed for traversing
+        (dt5,foo5) <- timeIt $ PGS.execute_ dbconn
+                      "UPDATE iplan_unit SET bstatus = 'fail_deps' \
+                      \WHERE xunitid IN (SELECT DISTINCT a.xunitid FROM iplan_unit a \
+                                        \JOIN iplan_comp_dep ON (a.xunitid = parent) \
+                                        \JOIN iplan_unit b ON (b.xunitid = child) \
+                                        \WHERE a.bstatus IS NULL AND b.bstatus IN ('fail','fail_deps'))"
+        T.putStrLn $ T.pack ("iplan_unit UPDATE => " ++ show (foo5,dt5))
+        pure (foo5 /= 0)
+
+    pure ()
+
 -- background thread
 scheduler :: App -> IO ()
 scheduler App{..} = do
@@ -181,8 +203,9 @@ scheduler App{..} = do
 
     _ <- forkIO $ withResource appDbPool $ \dbconn -> eventListener dbconn appDbEvents
 
-    void $ forkIO $ autoQueuer  App{..}
-    void $ forkIO $ autoQueuer2 App{..}
+    void $ forkIO $ autoQueuer     App{..}
+    void $ forkIO $ autoQueuer2    App{..}
+    void $ forkIO $ fwdPropagator  App{..}
 
     -- startup worker threads
     _thrIds <- forM appWorkers' $ \(wid,(wuri,cid)) -> forkIO (forever $ go appDbEvents wid wuri cid)
@@ -293,11 +316,14 @@ scheduler App{..} = do
 
               -- check whether job-id already exists in DB
               -- TODO: check whether we need to (re)compute results
-              jobExists <- withResource appDbPool $ \dbconn -> queryJobExists dbconn dbJobId
+              (jobExists, jobNeedsRecomp) <- withResource appDbPool $ \dbconn -> (,) <$> queryJobExists dbconn dbJobId
+                                                                                     <*> queryJobNeedsRecomp dbconn dbJobId
 
-              logJob jspec $ T.pack $ "Job " ++ show dbJobId ++ (if jobExists then " exists already!" else " doesn't exist already")
+              logJob jspec $ T.pack $ "Job " ++ show dbJobId
+                             ++ (if jobExists then " exists already!" else " doesn't exist already")
+                             ++ (if jobNeedsRecomp then " ... BUT NEEDS RECOMPUTING!!!!" else "")
 
-              unless jobExists $ do
+              unless (jobExists && not jobNeedsRecomp) $ do
                   withResource appDbPool $ \dbconn ->
                     void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'build-deps' WHERE wid = ?") (Only wid)
 
@@ -347,20 +373,8 @@ scheduler App{..} = do
                         PGS.execute dbconn (doNothing db_iplan_job_insert) $
                               DB_iplan_job dbJobId pidn pidv (pjCompilerId pj) jplan (UUIDs dbJobUids)
 
-                      logJob jspec $ T.pack ("iplan_job insert -> " ++ show (foo3,dt3))
-
-                      -- forward-propagate fail_deps
-                      whileM_ $ do
-                          -- TODO: this is costly
-                          -- instead use 'row1' or a RETURNING clause as seed for traversing
-                          (dt5,foo5) <- timeIt $ PGS.execute_ dbconn
-                                                      "UPDATE iplan_unit SET bstatus = 'fail_deps' \
-                                                      \WHERE xunitid IN (SELECT DISTINCT a.xunitid FROM iplan_unit a \
-                                                                        \JOIN iplan_comp_dep ON (a.xunitid = parent) \
-                                                                        \JOIN iplan_unit b ON (b.xunitid = child) \
-                                                                        \WHERE a.bstatus IS NULL AND b.bstatus IN ('fail','fail_deps'))"
-                          logJob jspec $ T.pack ("iplan_unit UPDATE => " ++ show (foo5,dt5))
-                          pure (foo5 /= 0)
+                      -- trigger forward-propagate fail_deps
+                      void $ tryPutMVar appNeedFwdProp ()
 
               -- in any case, register a solution now
               withResource appDbPool $ \dbconn -> do

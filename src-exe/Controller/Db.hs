@@ -134,6 +134,14 @@ queryJobExists dbconn jid = do
         [Only exists] -> pure exists
         _ -> fail "queryJobExists: the impossible happened"
 
+queryJobNeedsRecomp :: PGS.Connection -> UUID -> IO Bool
+queryJobNeedsRecomp dbconn jid = do
+    PGS.query dbconn "SELECT bool_and(u.bstatus IS NULL) FROM iplan_job j, iplan_unit u WHERE u.xunitid = ANY(j.units) AND jobid = ?"
+                     (Only jid) >>= \case
+      [Only (Just b)] -> pure b
+      [Only Nothing]  -> pure False -- Job didn't exist or had empty units
+      _               -> pure False -- WTF?
+                       -- fail "queryJobNeedsRecomp: the impossible happened"
 
 -- | Minimal specification of a single build job
 data JobSpec = JobSpec PkgId PkgIdxTs CompilerID
