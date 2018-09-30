@@ -43,16 +43,16 @@ import           Servant.Client
 
 -- local modules
 import qualified Controller.Cli                   as Cli
+import qualified Controller.Compute               as Comp
 import           Controller.Config
 import qualified Controller.Scheduler             as Sched
-import qualified Controller.Compute               as Comp
 import qualified Controller.WebSvc                as WebSvc
 import           IndexHelper
 import           PkgId
 import qualified PkgIdxTsSet
+import           System.IO
 import           WorkerApi
 import           WorkerApi.Client
-
 
 pkgIdxTupleToDB :: PkgIdxTuple -> (Text,Text,Int,Int,Text)
 pkgIdxTupleToDB PkgIdxTuple{..} = (pn, ver, rev, t, pitOwner)
@@ -160,6 +160,8 @@ performIndexUpdate dbconn = do
 
 main :: IO ()
 main = do
+    hSetBuffering stdout LineBuffering
+
     opts <- Cli.getOpts
     cconf <- readConfig "controller.cfg"
 

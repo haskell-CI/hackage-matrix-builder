@@ -52,6 +52,7 @@ import           Controller.Db
 import           Job
 import           PkgId
 import           PlanJson                                as PJ
+import           Text.Printf                             (printf)
 import           WorkerApi
 import           WorkerApi.Client
 
@@ -258,6 +259,12 @@ scheduler App{..} = do
 
         let PkgId pidn pidv = pid
 
+        let logDbAction :: String -> Int -> IO Int64 -> IO ()
+            logDbAction msg l0 act = do
+              (dt0,l0') <- timeIt act
+              logJob jspec $ T.pack (printf "%s -> %d/%d %.3fs" msg l0' l0 dt0)
+              pure ()
+
         -- putStrLn "----------------------------------------------------------------------------"
 
         case jpPlan sinfo of
@@ -323,23 +330,21 @@ scheduler App{..} = do
                       let rows1 = map fst dbunits
                       -- TODO: use COALESCE() in ON CONFLICT clause?
 
-                      (dt1,foo1) <- timeIt $ PGS.executeMany dbconn (db_iplan_unit_insert `mappend`
+                      logDbAction "iplan_unit insert" (length rows1) $
+                        PGS.executeMany dbconn (db_iplan_unit_insert `mappend`
                                                       " ON CONFLICT (xunitid) \
                                                       \ DO UPDATE SET bstatus = EXCLUDED.bstatus, logmsg = EXCLUDED.logmsg, dt = EXCLUDED.dt \
                                                       \ WHERE iplan_unit.bstatus IS NULL") $
                               rows1
 
-                      logJob jspec $ T.pack ("iplan_unit insert -> " ++ show (foo1,length rows1,dt1))
-
                       -- TODO: update entries with NULL status
 
                       let rows2 = concatMap snd dbunits
-                      (dt2,foo2) <- timeIt $ PGS.executeMany dbconn (doNothing db_iplan_comp_dep_insert) $
-                              concatMap snd dbunits
+                      logDbAction "iplan_comp_dep insert" (length rows2) $
+                        PGS.executeMany dbconn (doNothing db_iplan_comp_dep_insert) rows2
 
-                      logJob jspec $ T.pack ("iplan_comp_dep insert -> " ++ show (foo2,length rows2,dt2))
-
-                      (dt3,foo3) <- timeIt $ PGS.execute dbconn (doNothing db_iplan_job_insert) $
+                      logDbAction "iplan_job insert" 1 $
+                        PGS.execute dbconn (doNothing db_iplan_job_insert) $
                               DB_iplan_job dbJobId pidn pidv (pjCompilerId pj) jplan (UUIDs dbJobUids)
 
                       logJob jspec $ T.pack ("iplan_job insert -> " ++ show (foo3,dt3))
@@ -359,10 +364,9 @@ scheduler App{..} = do
 
               -- in any case, register a solution now
               withResource appDbPool $ \dbconn -> do
-                  (dt4,foo4) <- timeIt $ PGS.execute dbconn (doNothing "INSERT INTO solution(ptime,jobid,dt) VALUES (?,?,?)")
+                  logDbAction "solution insert" 1 $
+                    PGS.execute dbconn (doNothing "INSERT INTO solution(ptime,jobid,dt) VALUES (?,?,?)")
                           (idxts,dbJobId,jsDuration <$> jpSolve sinfo)
-                  logJob jspec ("solution insert -> " <> tshow (foo4,dt4))
-
 
 queryNextQTask :: PGS.Connection -> [CompilerID] -> QEntry -> IO (Maybe JobSpec)
 queryNextQTask dbconn cids q0 = do
@@ -380,9 +384,10 @@ timeIt act = do
     let dt = realToFrac (t1-t0)
     pure $! seq dt (dt,res)
 
+
 logJob :: JobSpec -> Text -> IO ()
 logJob (JobSpec pid idxts gv) msg = do
-    let pfx = concat [display pid, "@", show idxts, "/", display gv, " >>> "]
+    let pfx = concat [display pid, "@", fmtPkgIdxTs idxts, "/", display gv, " >>> "]
     T.putStrLn $ T.pack pfx <> msg
 
 planItemAllDeps :: PlanItem -> Set UnitID

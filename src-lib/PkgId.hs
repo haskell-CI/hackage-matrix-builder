@@ -28,7 +28,7 @@ module PkgId
     , compilerIDFromCompilerId
     , mkGhcCompilerID
 
-    , PkgIdxTs(..), unPkgIdxTs
+    , PkgIdxTs(..), unPkgIdxTs, fmtPkgIdxTs
     , PkgRev
     ) where
 
@@ -39,6 +39,8 @@ import           Data.Aeson.Types                     (toJSONKeyText)
 import qualified Data.List.NonEmpty                   as NE
 import           Data.String
 import qualified Data.Text                            as T
+import           Data.Time.Format                     (defaultTimeLocale,
+                                                       formatTime)
 import           Data.Vector.Unboxed.Deriving         (derivingUnbox)
 import           Distribution.Compiler                (CompilerFlavor (..),
                                                        CompilerId (..))
@@ -53,6 +55,7 @@ import           Database.PostgreSQL.Simple.ToField
 
 import           Data.Swagger
 import           Servant.API
+
 
 ----------------------------------------------------------------------------
 
@@ -279,6 +282,9 @@ newtype PkgIdxTs = PkgIdxTs Int
 
 unPkgIdxTs :: PkgIdxTs -> Int
 unPkgIdxTs (PkgIdxTs i) = i
+
+fmtPkgIdxTs :: PkgIdxTs -> String
+fmtPkgIdxTs (PkgIdxTs t) = formatTime defaultTimeLocale "%Y-%m-%dT%T" (posixSecondsToUTCTime (fromIntegral t :: POSIXTime))
 
 instance ToSchema PkgIdxTs where
     declareNamedSchema _ = pure $ NamedSchema (Just "IdxState") $ mempty
