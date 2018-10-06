@@ -56,6 +56,7 @@ import qualified Network.HTTP.Types.Header        as HTTP
 import qualified Network.HTTP.Types.Status        as HTTP
 import           Servant
 import           Servant.Client                   (ServantError (..))
+import qualified Servant.Client                   as Serv
 import           Snap.Core
 import           Snap.Http.Server                 (defaultConfig)
 import qualified Snap.Http.Server.Config          as Snap
@@ -748,9 +749,10 @@ getUserInfoIO n = do
     case res of
       Right ui -> pure (Just ui)
 
-      Left (FailureResponse { responseStatus = HTTP.Status { statusCode = 404 }
-                            , responseBody   = "User not found: Could not find user: not presently registered\n"
-                            }) -> pure Nothing
+      Left (FailureResponse (Serv.Response
+                             { responseStatusCode = HTTP.Status { statusCode = 404 }
+                             , responseBody       = "User not found: Could not find user: not presently registered\n"
+                             })) -> pure Nothing
 
       Left err -> fail (show err)
 

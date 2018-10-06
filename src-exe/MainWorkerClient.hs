@@ -63,8 +63,8 @@ main = do
       manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
       res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "127.0.0.1" 8002 "/api"))
       case res of
-        Left (FailureResponse {..}) -> do
-            logDebugShow (responseStatus, responseContentType)
+        Left (FailureResponse (Response {..})) -> do
+            logDebugShow (responseStatusCode, responseHeaders)
             BL.putStr responseBody
         Left err -> do
             logError (tshow err)
