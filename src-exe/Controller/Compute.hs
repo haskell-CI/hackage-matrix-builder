@@ -14,9 +14,10 @@ import           Database.PostgreSQL.Simple.Types (Only (..))
 -- import qualified Database.PostgreSQL.Simple.Types as PGS
 
 -- local modules
+import           Log
 import           PkgId
-import qualified PkgIdxRanges as IdxRanges
-import           PkgIdxRanges (IdxRanges)
+import           PkgIdxRanges                     (IdxRanges)
+import qualified PkgIdxRanges                     as IdxRanges
 
 
 runCompute :: PGS.Connection -> IO ()
@@ -36,7 +37,7 @@ runCompute dbconn = do
     -- TODO/FIXME: empty pkgindex
     [(ptime_watermark, ptime_max)] <- PGS.query_ dbconn "SELECT (SELECT ptime_watermark FROM globals),max(ptime) FROM pkgindex"
 
-    print (ptime_watermark :: PkgIdxTs, ptime_max :: PkgIdxTs)
+    logDebugShow (ptime_watermark :: PkgIdxTs, ptime_max :: PkgIdxTs)
 
     newstales <- PGS.query dbconn
              "WITH t1 as (SELECT pname,pver,prev FROM pkgindex WHERE ptime > ? AND ptime <= ? AND prev > 0), \
@@ -48,7 +49,7 @@ runCompute dbconn = do
              (ptime_watermark, ptime_max)
 
     when False $
-        print (newstales :: [Only UUID])
+        logDebugShow (newstales :: [Only UUID])
 
     -- forM_ newstales $ \(Only xuid) -> do
     --     putStrLn ("-- " ++ show xuid ++ " -----------------------------------------------------------------")
@@ -56,42 +57,42 @@ runCompute dbconn = do
     --     pure ()
 
 
-    putStrLn "============================================================================================================="
+    logInfo "============================================================================================================="
 
     whileM_ $ do
         xs <- PGS.query_ dbconn "SELECT xunitid FROM solution_span WHERE vstale"
         forM_ xs $ \(Only xuid) -> do
-            putStrLn ("-- " ++ show xuid ++ " -----------------------------------------------------------------")
+            logDebug ("-- " <> tshow xuid <> " -----------------------------------------------------------------")
             _ <- querySpanUpd xuid
             pure ()
         pure (not (null xs))
 
     _ <- PGS.execute dbconn "UPDATE globals SET ptime_watermark = ?" (Only ptime_max)
 
-    putStrLn "== ptime watermark updated"
+    logDebug "== ptime watermark updated"
 
     when True $ do
         [Only new_sol_rev_cnt] <- PGS.query_ dbconn "SELECT sync_solution_rev(1000)"
 
-        print (new_sol_rev_cnt :: Int)
+        logDebugShow (new_sol_rev_cnt :: Int)
 
         whileM_ $ do
-            putStrLn "============================================================================================================="
+            logDebug "============================================================================================================="
 
             xs <- PGS.query_ dbconn "SELECT xunitid FROM solution_rev \
                                     \EXCEPT \
                                     \SELECT xunitid FROM solution_span WHERE not vstale \
                                     \LIMIT 1000"
 
-            putStrLn (show (length xs) ++ " solutions fetched...")
+            logDebug (tshow (length xs) <> " solutions fetched...")
 
             forM_ xs $ \(Only xuid) -> do
-                putStrLn ("-- " ++ show xuid ++ " -----------------------------------------------------------------")
+                logDebug ("-- " <> tshow xuid <> " -----------------------------------------------------------------")
                 _res <- querySpanUpd xuid
                 -- print res
                 pure ()
 
-            putStrLn (show (length xs) ++ " solutions fetched...")
+            logDebug (tshow (length xs) <> " solutions fetched...")
 
             pure (not (null xs)) -- 'True' if this iteration did some work
   where
@@ -140,8 +141,8 @@ runCompute dbconn = do
 
             case mold_t0_ir of
               Nothing -> pure ()
-              Just (_,old_ir) | old_ir == new_ir -> putStrLn ("unchanged: " ++ show new_ir)
-                              | otherwise        -> putStrLn ("  CHANGED: " ++ show old_ir ++ " --> " ++ show new_ir)
+              Just (_,old_ir) | old_ir == new_ir -> logDebug ("unchanged: " <> tshow new_ir)
+                              | otherwise        -> logDebug ("  CHANGED: " <> tshow old_ir <> " --> " <> tshow new_ir)
 
             case mold_t0_ir of
               Just (old_t0,_) | old_t0 /= new_t0 -> fail (show (old_t0,new_t0))
@@ -159,7 +160,7 @@ runCompute dbconn = do
                       n <- PGS.execute dbconn "UPDATE solution_span SET vstale = 't' FROM iplan_comp_dep WHERE child = ? AND xunitid = parent AND not vstale"
                           (Only xid)
 
-                      when (n > 0) $ putStrLn ("** Marked " ++ show n ++ " parents STALE! **")
+                      when (n > 0) $ logDebug ("** Marked " <> tshow n <> " parents STALE! **")
 
                   Nothing -> do
                       [Only ex] <- PGS.query dbconn "SELECT EXISTS(SELECT FROM solution_span ss, iplan_comp_dep d WHERE child = ? AND ss.xunitid = parent)" (Only xid)
@@ -196,7 +197,7 @@ runCompute dbconn = do
     lookupRevs2 pname pver revs0 = do
         rs <- lookupRevs1 pname pver
         let t0 = case rs of
-                   [] -> Nothing
+                   []       -> Nothing
                    (t',_):_ -> Just t'
 
         pure $ (t0, IdxRanges.fromList (go' 0 (sort revs0) rs))

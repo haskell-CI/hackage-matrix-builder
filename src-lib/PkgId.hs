@@ -73,7 +73,7 @@ instance ToJSON PkgN where
     toJSON = toJSON . display
 
 instance ToJSONKey PkgN where
-    toJSONKey = toJSONKeyText (T.pack . display)
+    toJSONKey = toJSONKeyText tdisplay
 
 instance FromJSONKey PkgN where
     fromJSONKey = FromJSONKeyTextParser (maybe (fail "PkgN") pure . simpleParse . T.unpack)
@@ -136,7 +136,7 @@ instance ToJSON Ver where
     toJSON = toJSON . display
 
 instance ToJSONKey Ver where
-    toJSONKey = toJSONKeyText (T.pack . display)
+    toJSONKey = toJSONKeyText tdisplay
 
 instance FromJSONKey Ver where
     fromJSONKey = FromJSONKeyTextParser (maybe (fail "Ver") pure . simpleParse . T.unpack)
@@ -148,7 +148,7 @@ instance ToField Ver where
     toField = toField . display
 
 instance ToHttpApiData Ver where
-    toUrlPiece = T.pack . display
+    toUrlPiece = tdisplay
 
 instance FromHttpApiData Ver where
     parseUrlPiece = maybe (Left "invalid Version") Right . simpleParse . T.unpack
@@ -254,7 +254,7 @@ instance ToJSON CompilerID where
     toJSON = toJSON . display
 
 instance ToHttpApiData CompilerID where
-    toUrlPiece = T.pack . display
+    toUrlPiece = tdisplay
 
 instance FromHttpApiData CompilerID where
     parseUrlPiece = maybe (Left $ T.pack "invalid CompilerId") Right . simpleParse . T.unpack

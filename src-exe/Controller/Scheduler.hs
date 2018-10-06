@@ -36,7 +36,6 @@ import qualified Data.Map.Strict                         as Map
 import           Data.Pool
 import qualified Data.Set                                as Set
 import qualified Data.Text                               as T
-import qualified Data.Text.IO                            as T
 import qualified Database.PostgreSQL.Simple              as PGS
 import qualified Database.PostgreSQL.Simple.Notification as PGS
 import           Database.PostgreSQL.Simple.Types        (Only (..))
@@ -50,6 +49,7 @@ import           Servant.Client                          (BaseUrl (..))
 import           Controller.Api
 import           Controller.Db
 import           Job
+import           Log
 import           PkgId
 import           PlanJson                                as PJ
 import           Text.Printf                             (printf)
@@ -67,7 +67,7 @@ data App = App
 
 runScheduler :: PGS.ConnectInfo -> [(BaseUrl,CompilerID)] -> IO ()
 runScheduler ci appWorkers = do
-    putStrLn "Starting scheduler..."
+    logInfo "Starting scheduler..."
 
     appDbPool       <- createPool mkConn killConn 1 10.5 4
     appQThreads     <- RW.new
@@ -82,22 +82,22 @@ runScheduler ci appWorkers = do
     ex <- try $ forever (threadDelay 10000000)
 
     case ex of
-      Left UserInterrupt -> putStrLn "\nCtrl-C received... (a 2nd ctrl-c will terminate instantly!)"
+      Left UserInterrupt -> logInfo "Ctrl-C received... (a 2nd ctrl-c will terminate instantly!)"
       Left e             -> throwIO e
       Right _            -> fail "the impossible happened"
 
-    putStrLn "waiting for scheduler to halt..."
+    logInfo "waiting for scheduler to halt..."
     RW.acquireWrite appQThreads
-    putStrLn "...halted!"
+    logInfo "...halted!"
 
     pure ()
   where
     mkConn = do
-        putStrLn "opening new dbconn"
+        logDebug "opening new dbconn"
         PGS.connect ci
 
     killConn c = do
-        putStrLn "closing a dbconn"
+        logDebug "closing a dbconn"
         PGS.close c
 
 
@@ -122,7 +122,7 @@ eventListener dbconn bchan = do
     _ <- PGS.execute_ dbconn "LISTEN table_event";
     forever $ do
         n@PGS.Notification{..} <- PGS.getNotification dbconn
-        print n
+        logDebug (tshow n)
         when (notificationChannel == "table_event") $ do
             case notificationData of
               "queue"    -> atomically (writeTChan bchan DbEventQueue)
@@ -147,7 +147,7 @@ autoQueuer App{..} = do
                 todo <- isJust <$> queryNextJobTask dbconn allCompilerIds pname ptime
                 when todo $ do
                     tmp <- PGS.execute dbconn "INSERT INTO queue(pname,prio,ptime) VALUES (?,-11,?) ON CONFLICT DO NOTHING" (pname,ptime)
-                    putStrLn ((if tmp == 0 then "NOT adding" else "Adding ") ++ show (pname,ptime) ++ " to queue... ")
+                    logInfo ((if tmp == 0 then "NOT adding" else "Adding ") <> tshow (pname,ptime) <> " to queue... ")
 
         waitForEv bchan (== DbEventPkgIdx)
         flushEvs bchan
@@ -167,7 +167,7 @@ autoQueuer2 App{..} = forever $ do
             else PGS.executeMany dbconn "INSERT INTO queue(pname,prio) VALUES (?,?) ON CONFLICT DO NOTHING"
                                         [ (pname::Text, -50::Int) | Only pname <- toInsert ]
 
-    putStrLn ("Worker got IDLE! " ++ show cnt1)
+    logDebug ("Worker got IDLE! " <> tshow cnt1)
 
 -- | Forward-propagator thread
 fwdPropagator :: App -> IO ()
@@ -184,7 +184,7 @@ fwdPropagator App{..} = forever $ do
                                         \JOIN iplan_comp_dep ON (a.xunitid = parent) \
                                         \JOIN iplan_unit b ON (b.xunitid = child) \
                                         \WHERE a.bstatus IS NULL AND b.bstatus IN ('fail','fail_deps'))"
-        T.putStrLn $ T.pack ("iplan_unit UPDATE => " ++ show (foo5,dt5))
+        logDebug ("iplan_unit UPDATE => " <> tshow (foo5,dt5))
         pure (foo5 /= 0)
 
     pure ()
@@ -212,14 +212,14 @@ scheduler App{..} = do
 
 
     forever $ do
-        -- putStrLn ("MARK")
+        -- logInfo ("MARK")
 
         withResource appDbPool $ \dbconn -> do
             qents <- queryQEntries dbconn
             forM_ qents $ \QEntry{..} -> do
                 queryNextQTask dbconn allCompilerIds QEntry{..} >>= \case
                     Nothing -> do
-                        putStrLn ("deleting completed " ++ show QEntry{..})
+                        logDebug ("deleting completed " <> tshow QEntry{..})
                         deleteQEntry dbconn QEntry{..}
 
                     Just _ -> pure ()
@@ -237,7 +237,7 @@ scheduler App{..} = do
 
         case mtask of
           Nothing -> do
-              putStrLn ("nothing to do left in queue; sleeping a bit... " ++ show cid)
+              logInfo ("nothing to do left in queue; sleeping a bit... " <> tshow cid)
               void $ atomically (tryPutTMVar appWorkerIdleEv ())
               waitForEv dbEvChan (== DbEventQueue)
 
@@ -262,7 +262,7 @@ scheduler App{..} = do
 
         pis <- either (fail . show) pure =<< runExceptT (runClientM' manager wuri $ listPkgDbStore gv)
         let pisLen = length pis
-        T.putStrLn $ T.pack (concat ["store size[", display gv, "] = ", show pisLen])
+        logDebug $ mconcat ["store size[", tdisplay gv, "] = ", tshow pisLen]
 
         when (pisLen > 1000) $ do
             NoContent <- either (fail . show) pure =<< runExceptT (runClientM' manager wuri $ destroyPkgDbStore gv)
@@ -287,8 +287,6 @@ scheduler App{..} = do
               (dt0,l0') <- timeIt act
               logJob jspec $ T.pack (printf "%s -> %d/%d %.3fs" msg l0' l0 dt0)
               pure ()
-
-        -- putStrLn "----------------------------------------------------------------------------"
 
         case jpPlan sinfo of
           Nothing -> do
@@ -319,9 +317,11 @@ scheduler App{..} = do
               (jobExists, jobNeedsRecomp) <- withResource appDbPool $ \dbconn -> (,) <$> queryJobExists dbconn dbJobId
                                                                                      <*> queryJobNeedsRecomp dbconn dbJobId
 
-              logJob jspec $ T.pack $ "Job " ++ show dbJobId
-                             ++ (if jobExists then " exists already!" else " doesn't exist already")
-                             ++ (if jobNeedsRecomp then " ... BUT NEEDS RECOMPUTING!!!!" else "")
+              logJob jspec $ mconcat
+                  [ "Job ", tshow dbJobId
+                  , if jobExists then " exists already!" else " doesn't exist already"
+                  , if jobNeedsRecomp then " ... BUT NEEDS RECOMPUTING!!!!" else ""
+                  ]
 
               unless (jobExists && not jobNeedsRecomp) $ do
                   withResource appDbPool $ \dbconn ->
@@ -387,9 +387,6 @@ queryNextQTask dbconn cids q0 = do
     let Just ptime = qIdxState q0
     queryNextJobTask dbconn cids (qPackageName q0) ptime
 
-tshow :: Show a => a -> Text
-tshow = T.pack . show
-
 timeIt :: IO a -> IO (Double,a)
 timeIt act = do
     t0 <- getPOSIXTime
@@ -402,7 +399,7 @@ timeIt act = do
 logJob :: JobSpec -> Text -> IO ()
 logJob (JobSpec pid idxts gv) msg = do
     let pfx = concat [display pid, "@", fmtPkgIdxTs idxts, "/", display gv, " >>> "]
-    T.putStrLn $ T.pack pfx <> msg
+    logInfo $ T.pack pfx <> msg
 
 planItemAllDeps :: PlanItem -> Set UnitID
 planItemAllDeps PlanItem{..} = mconcat [ ciLibDeps <> ciExeDeps | CompInfo{..} <- Map.elems piComps ]
@@ -418,7 +415,7 @@ planJson2DbUnitComps smap PlanJson{..} = go mempty topoUnits
     -- print rootunits
     -- let topoUnits = toposort (planJsonIdGrap PlanJson{..})
     -- forM_ topoUnits print
-    -- mapM_ (putStrLn . groom) $ go mempty topoUnits
+    -- mapM_ (logInfo . groom) $ go mempty topoUnits
   where
     topoUnits = toposort (planJsonIdGrap PlanJson{..})
 

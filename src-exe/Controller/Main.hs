@@ -48,6 +48,7 @@ import           Controller.Config
 import qualified Controller.Scheduler             as Sched
 import qualified Controller.WebSvc                as WebSvc
 import           IndexHelper
+import           Log
 import           PkgId
 import qualified PkgIdxTsSet
 import           System.IO
@@ -57,8 +58,8 @@ import           WorkerApi.Client
 pkgIdxTupleToDB :: PkgIdxTuple -> (Text,Text,Int,Int,Text)
 pkgIdxTupleToDB PkgIdxTuple{..} = (pn, ver, rev, t, pitOwner)
   where
-    pn  = T.pack $ display pitName
-    ver = maybe "" (T.pack . display) $ pitVer
+    pn  = tdisplay pitName
+    ver = maybe "" tdisplay $ pitVer
     rev = fromIntegral pitRev
     t   = unPkgIdxTs pitTime
 
@@ -90,13 +91,13 @@ jobid2xunitids dbc jid =
 registerPkgIds :: PGS.Connection -> Set PkgId -> IO ()
 registerPkgIds dbconn pids = do
     res1 <- PGS.executeMany dbconn "INSERT INTO pkgname (pname) VALUES (?) ON CONFLICT DO NOTHING" [ Only n | n <- Set.toList pnames ]
-    putStrLn ("new package names: " ++ show res1)
+    logDebug ("new package names: " <> tshow res1)
 
     res1a <- PGS.executeMany dbconn "INSERT INTO version (pver) VALUES (?) ON CONFLICT DO NOTHING" [ Only v | v <- Set.toList pvers ]
-    putStrLn ("new versions: " ++ show res1a)
+    logDebug ("new versions: " <> tshow res1a)
 
     res1c <- PGS.executeMany dbconn "INSERT INTO pkgver (pname,pver) VALUES (?,?) ON CONFLICT DO NOTHING" [ (n,v) | PkgId n v <- Set.toList pids ]
-    putStrLn ("new pkgver entries: " ++ show res1c)
+    logDebug ("new pkgver entries: " <> tshow res1c)
   where
     pnames = Set.fromList  [ n | PkgId n _ <- Set.toList pids ]
     pvers  = Set.fromList  [ v | PkgId _ v <- Set.toList pids ]
@@ -119,19 +120,19 @@ initWorkers dbconn wrks = do
           Right gpkgs -> do
               -- TODO: register also as 'builtin' units
               let pids = Set.fromList (map gpiPkgId gpkgs)
-              mapM_ print pids
+              mapM_ (logDebug . tshow) pids
               registerPkgIds dbconn pids
 
 
 performIndexUpdate :: PGS.Connection -> IO ()
 performIndexUpdate dbconn = do
     t0 <- getPOSIXTime
-    putStrLn "reading db index"
+    logDebug "reading db index"
     oldents <- (evaluate . force . HS.fromList) =<< PGS.query_ dbconn "SELECT pname,pver,prev FROM pkgindex"
     t1 <- getPOSIXTime
-    putStrLn $ "reading db index took " ++ show (t1-t0)
+    logDebug $ "reading db index took " <> tshow (t1-t0)
 
-    putStrLn "reading index..."
+    logDebug "reading index..."
     idxtups <- readIndexTuples indexTar
     pindex' <- evaluate . force . filter (\(a,b,c,_,_) -> not (HS.member (PkgIdxKey a b c) oldents) && b /= "") . map pkgIdxTupleToDB $ idxtups
     let newPkgIds = Set.fromList [ PkgId pn pv | (pn0,pv0,_,_,_) <- pindex'
@@ -140,20 +141,20 @@ performIndexUpdate dbconn = do
                                                ]
 
     t2 <- getPOSIXTime
-    putStrLn $ "reading index took " ++ show (t2-t1)
+    logDebug $ "reading index took " <> tshow (t2-t1)
 
-    putStrLn "registering new db entries..."
+    logDebug "registering new db entries..."
 
     registerPkgIds dbconn newPkgIds
 
     res1b <- PGS.executeMany dbconn "INSERT INTO idxstate (ptime) VALUES (?) ON CONFLICT DO NOTHING" [Only t | (_,_,_,t,_) <- pindex']
-    putStrLn ("new idxstate entries: " ++ show res1b)
+    logDebug ("new idxstate entries: " <> tshow res1b)
 
     res2 <- PGS.executeMany dbconn "INSERT INTO pkgindex (pname,pver,prev,ptime,powner) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING" pindex'
-    putStrLn ("new index entries: " ++ show res2)
+    logDebug ("new index entries: " <> tshow res2)
 
     t3 <- getPOSIXTime
-    putStrLn $ "updating db took " ++ show (t3-t2)
+    logDebug $ "updating db took " <> tshow (t3-t2)
 
     pure ()
 
@@ -197,9 +198,9 @@ main = do
     ci = PGS.ConnectInfo "" 0 "" "" "matrix"
 
     mkConn = do
-        putStrLn "opening new dbconn"
+        logDebug "opening new dbconn"
         PGS.connect ci
 
     killConn c = do
-        putStrLn "closing a dbconn"
+        logDebug "closing a dbconn"
         PGS.close c

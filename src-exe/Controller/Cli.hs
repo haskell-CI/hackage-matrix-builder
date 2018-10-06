@@ -3,6 +3,8 @@
 
 module Controller.Cli where
 
+import           Prelude.Local
+
 import           Options.Generic
 
 -- TODO

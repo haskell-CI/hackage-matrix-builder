@@ -1,8 +1,9 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE LambdaCase      #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeOperators   #-}
+{-# LANGUAGE DataKinds         #-}
+{-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TypeOperators     #-}
 
 module Main where
 
@@ -17,35 +18,33 @@ import           Servant.Client
 -- import           Text.Groom
 import qualified Data.ByteString.Lazy as BL
 
+import           Log
 import           PkgId
 import           WorkerApi
 import           WorkerApi.Client
 
 queries :: Maybe PkgIdxTs -> ([CompilerID],[PkgId]) -> Manager -> BaseUrl -> ExceptT ServantError IO ()
 queries idxts (ghcvers,pkgids) manager baseurl = do
-    liftIO $ do
-        print ghcvers
-        print pkgids
+    logDebugShow ghcvers
+    logDebugShow pkgids
 
-    pretty =<< runClientM'' getWorkerInfo
+    logDebugShow =<< runClientM'' getWorkerInfo
 
     forM_ ghcvers $ \gv -> do
         forM_ pkgids $ \pid -> do
             CreateJobRes jobid <- runClientM'' $ createJob (CreateJobReq gv idxts pid)
             res1 <- runClientM'' $ getJobSolveInfo jobid
-            pretty res1
+            logDebugShow res1
             res2 <- runClientM'' $ getJobBuildDepsInfo jobid
-            pretty res2
+            logDebugShow res2
             res3 <- runClientM'' $ getJobBuildInfo jobid
-            pretty res3
+            logDebugShow res3
             runClientM'' $ destroyJob jobid
 
             -- get (CreateJobReq gv Nothing pid) manager baseurl
 
     return ()
   where
-    pretty x = liftIO (putStrLn (show x))
-
     runClientM'' = runClientM' manager baseurl
 
 main :: IO ()
@@ -53,7 +52,7 @@ main = do
     getArgs >>= \case
       idxtss:ghcverstr:args -> go idxtss ghcverstr args
       _ -> do
-        putStrLn "usage: matrix-worker-client <idxstate> <ghcversion(s>) <pkgid1> [<pkgid2> [ ... ] ]"
+        logError "usage: matrix-worker-client <idxstate> <ghcversion(s>) <pkgid1> [<pkgid2> [ ... ] ]"
         exitFailure
 
   where
@@ -65,15 +64,11 @@ main = do
       res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "127.0.0.1" 8002 "/api"))
       case res of
         Left (FailureResponse {..}) -> do
-            putStrLn $ "Error:\n"
-            print responseStatus
-            print responseContentType
-            putStrLn "----"
+            logDebugShow (responseStatus, responseContentType)
             BL.putStr responseBody
-            putStrLn "\n----"
         Left err -> do
-            putStrLn $ "Error:\n" ++ show err
-        Right () -> putStrLn "DONE"
+            logError (tshow err)
+        Right () -> logInfo "DONE"
 
 
 

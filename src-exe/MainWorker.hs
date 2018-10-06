@@ -61,6 +61,7 @@ import qualified Control.Concurrent.ReadWriteLock  as RWL
 import           Data.Ratio
 import           IndexHelper
 import           Job
+import           Log
 import           PkgId
 import           PlanJson
 import           WorkerApi
@@ -118,9 +119,9 @@ main = do
 
     putMVar cabalExeRef wcCabalExe
 
-    print WorkerConf{..}
+    logDebugShow $ WorkerConf{..}
 
-    print =<< runProc' cabalExe ["--version"]
+    logDebugShow =<< runProc' cabalExe ["--version"]
 
     tmp <- forM wcExes $ \x -> do
         -- print ghcExes
@@ -144,7 +145,7 @@ main = do
     --- () <- exitSuccess
 
     its <- getPkgIndexTs
-    putStrLn ("index-state at startup: " ++ show its)
+    logInfo ("index-state at startup: " <> tshow its)
 
     createDirectoryIfMissing True wcWorkDir
     runWorker App {..} wcPort
@@ -221,7 +222,7 @@ server =
         buildlock <- gets _appStoreBuildLock
         dellock <- gets _appStoreDelLock
 
-        liftIO $ print (CreateJobReq{..})
+        logDebugShow (CreateJobReq{..})
 
         case mGhcExe of
           Nothing -> throwServantErr' err400
@@ -237,7 +238,7 @@ server =
                         -- TODO: use runStep instead
                         res <- liftIO $ runProc' cabalExe [ "update"
                                                           , "--verbose=normal+nowrap+timestamp"]
-                        liftIO $ print res
+                        logDebugShow res
 
                     itm <- liftIO $ readPkgIndex
 
@@ -281,7 +282,7 @@ server =
     listPkgDbGlobal cid = do
         hcs <- gets _appGhcVersions
 
-        liftIO $ print (cid, Map.keys hcs)
+        logDebugShow (cid, Map.keys hcs)
 
         (_,_,gpkgs) <- maybe (throwServantErr' err404) pure (Map.lookup cid hcs)
 
@@ -401,7 +402,7 @@ data Job = Job
     }
 
 jobIdxTsText :: Job -> Text
-jobIdxTsText j = "@" <> T.pack (show ts)
+jobIdxTsText j = "@" <> tshow ts
   where
     PkgIdxTs ts = jobIdxTs j
 
@@ -439,7 +440,7 @@ createNewJob jobBuildLock wdir (jobGhcVer,jobGhcExe) jobPkgId jobIdxTs = do
 
 destroyJob :: Job -> IO ()
 destroyJob (Job{..}) = do
-    putStrLn ("destroyJob called for " ++ show jobId)
+    logInfo ("destroyJob called for " <> tshow jobId)
 
     forM_ [minBound..maxBound] $ \step -> do
         cancelTask (jobStep step (Job{..}))
@@ -464,14 +465,14 @@ getStep step (j@Job{..}) = do
         else pure Nothing
   where
     wdir     = jobFolder
-    pkgIdTxt = T.pack $ display jobPkgId
+    pkgIdTxt = tdisplay jobPkgId
     -- PkgId pkgn0 _ = jobPkgId
     -- pkgnTxt  = T.pack $ display pkgn0
 
     run' step' = do
-        putStrLn (concat ["[",show jobId, "] starting ", show step])
+        logInfo $ mconcat ["[", tshow jobId, "] starting ", tshow step]
         res <- run step'
-        putStrLn (concat ["[",show jobId, "] finished ", show step, " rc=", show (jsExitCode res)])
+        logInfo $ mconcat ["[", tshow jobId, "] finished ", tshow step, " rc=", tshow (jsExitCode res)]
         pure res
 
     ----------------------------------------------------------------------------
@@ -520,7 +521,7 @@ getStep step (j@Job{..}) = do
                   runStep cabalExe $ [ "fetch"
                                      , "--verbose=normal+nowrap+timestamp"
                                      , "--no-dependencies"
-                                     ] ++ map (T.pack . display) pids
+                                     ] ++ map tdisplay pids
 
     run StepBuildDeps = RWL.withWrite jobBuildLock $ do
         withCurrentDirectory wdir $ do
@@ -634,17 +635,17 @@ cleanupTmp = handle hdlr $ do
         when (fileOwner st == uid) $
             case fn of
               'c':'c':_:_:_:_:_ | isRegularFile st -> do
-                              print fn'
+                              logDebugShow fn'
                               removePathForcibly fn'
 
               'g':'h':'c':_:_ | isDirectory st -> do
-                              print fn'
+                              logDebugShow fn'
                               removePathForcibly fn'
 
               _ -> pure ()
   where
     hdlr :: SomeException -> IO ()
-    hdlr e = print e
+    hdlr e = Log.logError (tshow e)
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
 ----------------------------------------------------------------------------
@@ -794,9 +795,9 @@ decodeTodoLine t0 = do
 
 panic :: String -> IO a
 panic msg = do
-    putStrLn "=== PANIC ====================================================================="
-    putStrLn msg
-    putStrLn "==============================================================================="
+    Log.logError "=== PANIC ====================================================================="
+    Log.logError (T.pack msg)
+    Log.logError "==============================================================================="
     fail msg
 
 -- TODO/FIXME: assumes length of timestamp == 14; this will become an

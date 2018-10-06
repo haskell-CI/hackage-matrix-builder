@@ -3,6 +3,12 @@ packages: .
 tests: false
 benchmarks: false
 
+package hackage-matrix-builder3
+  ghc-options: -fhide-source-paths
+
+-- avoid troublesome packages
+constraints: basement -none, foundation -none, cryponite -none
+
 -- workaround https://github.com/haskell/cabal/issues/4432
 -- packages: cabal/Cabal/
 -- constraints: setup.Cabal <1.25

@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns       #-}
+{-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE RecordWildCards    #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StrictData         #-}
@@ -28,6 +29,7 @@ import           Data.String
 import qualified Data.Text               as T
 import           System.IO.Unsafe
 
+import           Log
 import           PkgId
 
 cabalDir :: FilePath
@@ -106,7 +108,7 @@ readPkgIndex = do
           then
             return ((itm0,sz0), itm0)
           else do
-            putStrLn "re-reading pkg index"
+            logInfo "re-reading pkg index"
             itm' <- readIndexTimeMap indexTar
             itm <- evaluate itm'
             return ((itm,sz),itm)

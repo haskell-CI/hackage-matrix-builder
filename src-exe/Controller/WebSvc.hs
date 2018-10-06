@@ -69,6 +69,7 @@ import           Controller.Api
 import           Controller.Db
 import           HackageApi
 import           HackageApi.Client
+import           Log
 import           PkgId
 import           PkgIdxTsSet                      (PkgIdxTsSet)
 import qualified PkgIdxTsSet
@@ -133,7 +134,7 @@ runController !app port =
     apiHandler = Snap.applyCORS Snap.defaultOptions $ serveSnap controllerApi server
 
     uiHandler :: AppHandler ()
-    uiHandler = Snap.serveDirectory "ui"
+    uiHandler = Snap.serveDirectory "ui.v2"
 
     controllerApi :: Proxy (ControllerApi AppHandler)
     controllerApi = Proxy
@@ -206,7 +207,7 @@ server = tagListH
           Just ["Basic",cred] -- FIXME; quick hack
             | s3cr3t == SHA256.hash cred -> pure ()
             | otherwise -> do
-                  liftIO $ print ("bad credentials: " <> cred)
+                  Log.logError ("bad credentials: " <> tshow cred)
                   throwBasicAuth401 "Hackage Matrix"
           _ -> throwBasicAuth401 "Hackage Matrix"
         h
@@ -324,7 +325,7 @@ server = tagListH
     pkgLastCellReport pname cellid = do
         let [gv1,pver1] = T.splitOn "-" cellid
 
-        liftIO $ print (pname,gv1,pver1)
+        logDebugShow (pname,gv1,pver1)
 
         let Just gv = simpleParse (T.unpack gv1)
         -- let crGhcFullVersion = crGhcVersion
@@ -344,7 +345,7 @@ server = tagListH
     pkgIdxStCellReport pname ptime cellid = do
         let [gv1,pver1] = T.splitOn "-" cellid
 
-        liftIO $ print (pname,ptime,gv1,pver1)
+        logDebugShow (pname,ptime,gv1,pver1)
 
         let Just gv = simpleParse (T.unpack gv1)
         -- let crGhcFullVersion = crGhcVersion
