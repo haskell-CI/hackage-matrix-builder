@@ -12,15 +12,16 @@ import Halogen.HTML.Properties as HP
 import Lib.MatrixApi as Api
 import Lib.Types as T
 import Network.RemoteData as RD
-import Data.Maybe (Maybe(Just, Nothing), fromMaybe, isJust, isNothing)
+import Data.Maybe (Maybe(Just, Nothing), fromMaybe, isNothing)
 import Data.Traversable (Accum, mapAccumL)
 import Lib.MiscFFI as Misc
-import Prelude (type (~>), Unit, unit, bind, negate, const, discard, otherwise, pure, show, (<), (>), ($), (&&), (/=), (<$>), (<>), (==), (||), (>>=), (-), (+), (<<<))
+import Prelude (type (~>), Unit, bind, negate, const, discard, otherwise, pure, show, (<), (>), ($), (&&), (/=), (<$>), (<>), (==), (||), (>>=), (-), (+), (<<<))
 import DOM.HTML (window) as DOM
 import DOM.HTML.History (DocumentTitle(DocumentTitle), URL(URL), pushState) as DOM
 import DOM.HTML.Window (history, scroll, screenY) as DOM
-import Debug.Trace
+-- import Debug.Trace
 import Data.Tuple as Tuple
+import Data.Tuple (Tuple(Tuple))
 import Data.Tuple.Nested as TupleN
 import Data.Foldable as Foldable
 import Data.Argonaut as Arg
@@ -271,8 +272,6 @@ component = H.lifecycleComponent
       listIndex <- Api.getPackageReports  (TupleN.get1 st.initPackage)
       tags <- Api.getPackageTags (TupleN.get1 st.initPackage)
       historyPackage <- H.lift $ Api.getPackageHistories (TupleN.get1 st.initPackage)
-      traceAnyA (TupleN.get1 st.initPackage)
-      traceAnyA (TupleN.get2 st.initPackage)
       let
         listIndex' =
           case listIndex of
@@ -286,7 +285,7 @@ component = H.lifecycleComponent
             Just { key } -> (key :: Int)
             Nothing      -> 0
         hist = case historyPackage of
-          RD.Success hs -> Arr.sortBy sortVer (Arr.zip (TupleN.get2 <$> hs) (TupleN.get3 <$> hs))
+          RD.Success hs -> filterHist hs
           _             -> []
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (TupleN.get1 st.initPackage) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (TupleN.get1 st.initPackage) selectedIdx
@@ -351,7 +350,7 @@ component = H.lifecycleComponent
                  }
       heightPage <- H.liftEff $ DOM.window >>= Misc.scrollMaxY
       _ <- H.liftEff $ DOM.window >>= (DOM.scroll 0 heightPage)
-      traceAnyA sRU
+      -- traceAnyA sRU
       hist <- H.liftEff $ DOM.window >>= DOM.history
       pushS <- H.liftEff $ DOM.pushState jObj pageName pageUrl hist
 
@@ -385,7 +384,7 @@ component = H.lifecycleComponent
         listIndex' =
           case listIndex of
             RD.Success idx' -> idx'
-            _              -> []
+            _               -> []
         latestIdx = Misc.getLastIdx listIndex'
         selectedIdx = getIdx (initpkgidx pkg) listIndex'
         mapIdxSt = Map.fromFoldable (toTupleArray listIndex)
@@ -396,11 +395,11 @@ component = H.lifecycleComponent
             Just { key } -> (key :: Int)
             Nothing      -> 0
         hist = case historyPackage of
-          RD.Success hs -> Arr.sortBy sortVer $ Arr.zip (TupleN.get2 <$> hs) (TupleN.get3 <$> hs)
+          RD.Success hs -> filterHist hs
           _             -> []
       reportPackage <- H.lift $ Api.getPackageIdxTsReports (initpkgname pkg) selectedIdx
       queueStat <- H.lift $ Api.getSpecificQueue (initpkgname pkg) selectedIdx
-      traceAnyA "from receive"
+      -- traceAnyA "from receive"
 
       H.modify _  { initPackage = pkg
                   , report = reportPackage
@@ -1044,11 +1043,21 @@ legend =
             [ HH.text "Refresh listings" ]
         ]
 
-sortVer :: Tuple.Tuple T.VersionName T.Revision -> Tuple.Tuple T.VersionName T.Revision -> Ordering
-sortVer (Tuple.Tuple ver1 _) (Tuple.Tuple ver2 _) =
-  let
-    v1 = ((fromMaybe 0) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver1
-    v2 = ((fromMaybe 0) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver2
-  in
-   compare v1 v2
 
+
+filterHist :: T.PackageHistories -> Array (Tuple T.VersionName T.Revision)
+filterHist hs = Arr.sortBy sortVer (Arr.zip (TupleN.get2 <$> hs2) (TupleN.get3 <$> hs2))
+  where
+    hs2 :: T.PackageHistories
+    hs2 =  (\(Tuple _ x) -> x) <$> hs2'
+    hs2' = Map.toUnfoldable $ Map.fromFoldableWith go (Arr.zip (TupleN.get2 <$> hs) hs)
+
+    go h1@(Tuple i1 _) h2@(Tuple i2 _) = if i1 > i2 then h1 else h2
+
+    sortVer :: Tuple T.VersionName T.Revision -> Tuple T.VersionName T.Revision -> Ordering
+    sortVer (Tuple ver1 _) (Tuple ver2 _) =
+      let
+        v1 = ((fromMaybe 0) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver1
+        v2 = ((fromMaybe 0) <<< Int.fromString) <$> Str.split (Str.Pattern ".") ver2
+      in
+       compare v1 v2
