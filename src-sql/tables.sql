@@ -198,7 +198,7 @@ CREATE TABLE iplan_job (
 );
 
 CREATE INDEX ON iplan_job USING GIN (units);
-CREATE INDEX ON iplan_job(pname);
+CREATE INDEX ON iplan_job(pname,pver);
 
 -- represents a unit like in Cabal
 CREATE TABLE iplan_unit (
@@ -365,6 +365,38 @@ INSERT INTO pname_max_ptime(pname,ptime)
   GROUP BY t.pname;
 
 COMMIT;
+
+----------------------------------------------------------------------------
+-- generalization of pname_max_ptime
+-- i.e. all ptimes for which we have at least one report cell
+--
+-- We could make `pname_max_ptime` a VIEW w/ neglible cost for
+-- single-row queries; needs evaluation
+--
+--  CREATE VIEW pname_max_ptime AS SELECT pname, max(ptime) FROM pname_ptimes GROUP BY pname;
+--
+-- NB: pname_ptimes and pname_max_ptime are populated via trigger functions
+
+CREATE TABLE pname_ptimes (
+   pname  text REFERENCES pkgname(pname),
+   ptime  int  REFERENCES idxstate(ptime),
+   PRIMARY KEY(pname,ptime)
+);
+
+
+BEGIN;
+
+DELETE FROM pname_ptimes;
+
+INSERT INTO pname_ptimes(pname,ptime)
+ SELECT t.pname, t.ptime
+   FROM ( SELECT iplan_job.pname, solution.ptime FROM solution JOIN iplan_job USING (jobid)
+          UNION
+          SELECT solution_fail.pname, solution_fail.ptime FROM solution_fail ) t;
+
+COMMIT;
+
+
 
 /*
 

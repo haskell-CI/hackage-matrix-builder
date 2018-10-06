@@ -413,10 +413,16 @@ server = tagListH
 
     reportsH :: PkgN -> AppHandler (Set PkgIdxTs)
     reportsH pkgn = doEtagFoldableGet $ withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
+      {- old (slow) query before we had `pname_ptimes`
+
         ptimes1 <- PGS.query dbconn "SELECT DISTINCT ptime FROM solution_fail WHERE pname = ?" (PGS.Only pkgn)
         ptimes2 <- PGS.query dbconn "SELECT DISTINCT ptime FROM iplan_job JOIN solution USING (jobid) WHERE pname = ?" (PGS.Only pkgn)
         pure (Set.fromList (map fromOnly ptimes1) <>
               Set.fromList (map fromOnly ptimes2))
+      -}
+      ptimes <- PGS.query dbconn "SELECT ptime FROM pname_ptimes WHERE pname = ?" (PGS.Only pkgn)
+      pure (Set.fromList (map fromOnly ptimes))
+
 
     reportsIdxStH :: PkgN -> PkgIdxTs -> AppHandler PkgIdxTsReport
     reportsIdxStH pkgn idxstate = doEtagHashableGet $ do

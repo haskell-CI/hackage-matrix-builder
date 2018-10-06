@@ -44,6 +44,11 @@ BEGIN
     VALUES(NEW.pname,NEW.ptime)
     ON CONFLICT(pname)
     DO UPDATE SET ptime = GREATEST(pname_max_ptime.ptime, EXCLUDED.ptime);
+
+  INSERT INTO pname_ptimes(pname,ptime)
+    VALUES(NEW.pname,NEW.ptime)
+    ON CONFLICT(pname,ptime) DO NOTHING;
+
   RETURN NEW;
 END;
 $$;
@@ -56,6 +61,11 @@ BEGIN
     VALUES((SELECT pname FROM iplan_job j WHERE j.jobid = NEW.jobid), NEW.ptime)
     ON CONFLICT(pname)
     DO UPDATE SET ptime = GREATEST(pname_max_ptime.ptime, EXCLUDED.ptime);
+
+  INSERT INTO pname_ptimes(pname,ptime)
+    VALUES((SELECT pname FROM iplan_job j WHERE j.jobid = NEW.jobid), NEW.ptime)
+    ON CONFLICT(pname,ptime) DO NOTHING;
+
   RETURN NEW;
 END;
 $$;
