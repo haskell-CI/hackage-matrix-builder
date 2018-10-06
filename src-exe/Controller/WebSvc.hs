@@ -57,10 +57,10 @@ import qualified Network.HTTP.Types.Status        as HTTP
 import           Servant
 import           Servant.Client                   (ServantError (..))
 import           Snap.Core
-import qualified Snap.CORS                        as Snap
 import           Snap.Http.Server                 (defaultConfig)
 import qualified Snap.Http.Server.Config          as Snap
 import           Snap.Snaplet
+import qualified Snap.Util.CORS                   as Snap
 import qualified Snap.Util.FileServe              as Snap
 import qualified System.IO.Streams                as Streams
 

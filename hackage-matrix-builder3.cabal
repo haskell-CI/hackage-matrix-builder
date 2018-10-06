@@ -106,7 +106,7 @@ executable matrix-worker
     , config-value         ^>= 0.6
     , servant-snap         ^>= 0.8.0.1
     , snap                 ^>= 1
-    , snap-core            ^>= 1
+    , snap-core            ^>= 1.0.3.2
     , snap-server          ^>= 1
     , unix                 ^>= 2.7.2
 
@@ -141,6 +141,5 @@ executable matrix-controller
     , servant-swagger      ^>= 1.1.3
     , snap                 ^>= 1
     , snap-core            ^>= 1
-    , snap-cors            ^>= 1.2.11
     , snap-server          ^>= 1
     , unordered-containers ^>= 0.2.7.1
