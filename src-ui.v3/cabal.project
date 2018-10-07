@@ -1,0 +1,31 @@
+with-compiler: /opt/ghcjs/8.0/bin/ghcjs
+compiler: ghcjs
+
+packages: .
+
+----------------------------------------------------------------------------
+-- reflex-0.5 has no proper Hackage releases yet
+
+source-repository-package
+    type: git
+    location: https://github.com/reflex-frp/reflex.git
+    tag: c339a17fd03337e3c180c0d8d6cd91028d55de55
+
+source-repository-package
+    type: git
+    location: https://github.com/reflex-frp/reflex-dom.git
+    tag: 105dd76021e8ab9568bbdac78daf1ba642d76e92
+    subdir: reflex-dom-core
+
+source-repository-package
+    type: git
+    location: https://github.com/reflex-frp/reflex-dom.git
+    tag: 105dd76021e8ab9568bbdac78daf1ba642d76e92
+    subdir: reflex-dom
+
+-- Alternatively:
+--
+-- packages:
+--   deps/reflex-0.5.0.20180719.tar.gz
+--   deps/reflex-dom-0.4.0.20180719.tar.gz
+--   deps/reflex-dom-core-0.4.0.20180719.tar.gz

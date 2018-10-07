@@ -122,6 +122,7 @@ runController !app port =
                   ,("/users/",    hashRedir)
                   ,("/latest/",   hashRedir)
 
+                  ,("/ng/",       uiHandlerNg)
                   ,("/",          uiHandler)
                   ]
         return app
@@ -136,6 +137,9 @@ runController !app port =
 
     uiHandler :: AppHandler ()
     uiHandler = Snap.serveDirectory "ui.v2"
+
+    uiHandlerNg :: AppHandler ()
+    uiHandlerNg = Snap.serveDirectory "ui.v3"
 
     controllerApi :: Proxy (ControllerApi AppHandler)
     controllerApi = Proxy

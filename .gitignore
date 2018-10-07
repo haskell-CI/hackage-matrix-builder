@@ -8,6 +8,7 @@
 
 # generated
 /ui.v2/ui.js
+/ui.v3/ui.js
 
 # runtime
 /log
