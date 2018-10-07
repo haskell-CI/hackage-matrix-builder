@@ -136,10 +136,14 @@ runController !app port =
     apiHandler = Snap.applyCORS Snap.defaultOptions $ serveSnap controllerApi server
 
     uiHandler :: AppHandler ()
-    uiHandler = Snap.serveDirectory "ui.v2"
+    uiHandler = do
+      modifyResponse $ setHeader "Cache-Control" "max-age=60, must-revalidate"
+      Snap.serveDirectory "ui.v2"
 
     uiHandlerNg :: AppHandler ()
-    uiHandlerNg = Snap.serveDirectory "ui.v3"
+    uiHandlerNg = do
+      modifyResponse $ setHeader "Cache-Control" "max-age=60, must-revalidate"
+      Snap.serveDirectory "ui.v3"
 
     controllerApi :: Proxy (ControllerApi AppHandler)
     controllerApi = Proxy
