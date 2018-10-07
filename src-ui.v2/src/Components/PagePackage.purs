@@ -122,6 +122,7 @@ component = H.lifecycleComponent
             [ HH.div
                 [ HP.class_ (H.ClassName "rightcol") ]
                 [ legend
+                , refreshDiv
                 , queueing state
                 , tagging state
                 , indexing state
@@ -160,6 +161,7 @@ component = H.lifecycleComponent
             [ HH.div
                 [ HP.class_ (H.ClassName "rightcol") ]
                 [ legend
+                , refreshDiv
                 , queueing state
                 , tagging state
                 ]
@@ -179,6 +181,7 @@ component = H.lifecycleComponent
             [ HH.div
                 [ HP.class_ (H.ClassName "rightcol") ]
                 [ legend
+                , refreshDiv
                 , queueing state
                 , tagging state
                 ]
@@ -960,6 +963,18 @@ renderNavBtn st =
                  ]
   ]
 
+refreshDiv :: forall p. HH.HTML p (Query Unit)
+refreshDiv =
+  HH.div
+    [ HP.class_ (H.ClassName "sub") ]
+    [ HH.button
+      [ HP.class_ (H.ClassName "refresh")
+      , HP.title "Refresh report data"
+      , HE.onClick $ HE.input_ (Initialize)
+      ]
+      [ HH.text "Refresh report data" ]
+    ]
+
 legend :: forall p. HH.HTML p (Query Unit)
 legend =
   HH.div
@@ -1035,12 +1050,6 @@ legend =
                     [ HH.text "test-result missing" ]
                 ]
             ]
-        , HH.button
-            [ HP.class_ (H.ClassName "refresh")
-            , HP.title "Refresh listings"
-            , HE.onClick $ HE.input_ (Initialize)
-            ]
-            [ HH.text "Refresh listings" ]
         ]
 
 
