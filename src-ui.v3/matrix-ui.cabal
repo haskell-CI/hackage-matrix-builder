@@ -21,11 +21,15 @@ executable matrix-ui
   cpp-options: -DGHCJS_BROWSER
 
   build-depends:
-    , Prelude    ^>= 0.1.0.0
-    , aeson      ^>= 1.1.2
-    , base       ^>= 4.9.1.0
-    , containers ^>= 0.5.7.1
-    , lens       ^>= 4.16.1
-    , reflex     ^>= 0.5
-    , reflex-dom ^>= 0.4
-    , text       ^>= 1.2.2.2
+    , Prelude         ^>= 0.1.0.0
+    , aeson           ^>= 1.1.2
+    , base            ^>= 4.9.1.0
+    , containers      ^>= 0.5.7.1
+    , lens            ^>= 4.16.1
+    , reflex          ^>= 0.5
+    , reflex-dom      ^>= 0.4
+    , text            ^>= 1.2.2.2
+    , time            ^>= 1.6.0.1
+
+    , servant-reflex  ^>= 0.3.3
+    , servant         ^>= 0.12.1

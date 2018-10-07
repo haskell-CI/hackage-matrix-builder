@@ -23,6 +23,11 @@ source-repository-package
     tag: 105dd76021e8ab9568bbdac78daf1ba642d76e92
     subdir: reflex-dom
 
+source-repository-package
+    type: git
+    location: https://github.com/imalsogreg/servant-reflex.git
+    tag: cc2d9b1f4f0c81bd98a7cb5313c5d2c802d5a50b
+
 -- Alternatively:
 --
 -- packages:
