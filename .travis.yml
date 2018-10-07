@@ -28,11 +28,11 @@ before_cache:
 matrix:
   include:
     - compiler: "ghc-8.0.2"
-      env: INSTALLED=false
+      env: INSTALLED=false TEST=--disable-tests BENCH=--disable-benchmarks
       addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.0.2], sources: [hvr-ghc]}}
-    - compiler: "ghc-8.2.1"
-    # env: TEST=--disable-tests BENCH=--disable-benchmarks
-      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.2.1], sources: [hvr-ghc]}}
+    - compiler: "ghc-8.2.2"
+      env: TEST=--disable-tests BENCH=--disable-benchmarks
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.2.2], sources: [hvr-ghc]}}
 
 before_install:
  - HC=${CC}
