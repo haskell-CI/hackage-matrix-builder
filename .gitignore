@@ -7,7 +7,7 @@
 /cabal.project.local
 
 # generated
-/ui/ui.js
+/ui.v2/ui.js
 
 # runtime
 /log
