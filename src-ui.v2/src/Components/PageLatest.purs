@@ -46,9 +46,6 @@ component = H.lifecycleComponent
             [ HP.class_ (H.ClassName "rightcol") ]
             [ HH.div
                 [ HP.class_ (H.ClassName "sub") ]
-                [ HH.text "Times are shown in your timezone" ]
-            , HH.div
-                [ HP.class_ (H.ClassName "sub") ]
                 [ HH.button
                     [ HP.class_ (H.ClassName "refresh")
                     , HP.title "Refresh listings"

@@ -70,12 +70,6 @@ component = H.lifecycleComponent
       , HP.class_ (H.ClassName "page")
       ]
       [ HH.div
-          [ HP.class_ (H.ClassName "rightcol") ]
-          [ HH.div
-              [ HP.class_ (H.ClassName "sub") ]
-              [ HH.text "Times are shown in your timezone" ]
-          ]
-      , HH.div
           [ HP.class_ (H.ClassName "leftcol") ]
           [ HH.h2
               [ HP.class_ (H.ClassName "main-header") ]
