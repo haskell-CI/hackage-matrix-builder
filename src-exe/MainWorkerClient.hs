@@ -59,7 +59,7 @@ main = do
     go idxtss ghcverstr args = do
       let Just ghcver = mapM simpleParse (words ghcverstr)
           Just pkgs   = mapM simpleParse args
-          idxts = PkgIdxTs (read idxtss)
+          Just idxts  = PkgIdxTs <$> read idxtss
       manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
       res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "127.0.0.1" 8002 "/api"))
       case res of

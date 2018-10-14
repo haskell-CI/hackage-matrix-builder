@@ -1,8 +1,8 @@
 {-# LANGUAGE DataKinds         #-}
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE LambdaCase        #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PolyKinds         #-}
 {-# LANGUAGE RankNTypes        #-}
 {-# LANGUAGE RecordWildCards   #-}
@@ -11,16 +11,17 @@
 module Controller.Api where
 
 import           Prelude.Local
+import           Util.WebSvc
 
-import           HackageApi                           (UserName(..))
+import           HackageApi                           (UserName (..))
 import           PkgId
 import qualified PkgIdxTsSet
 
-import           Data.Set (Set)
 import qualified Data.Aeson                           as J
 import qualified Data.Aeson.Types                     as J
 import           Data.Char
 import           Data.Data.Lens
+import           Data.Set                             (Set)
 import qualified Data.Swagger                         as Swag
 import qualified Database.PostgreSQL.Simple           as PGS
 import           Database.PostgreSQL.Simple.FromField
@@ -217,10 +218,10 @@ instance PGS.FromRow QEntry
 
 -- V2 API
 data QEntryRow = QEntryRow
-    { qrPriority    :: Int
-    , qrModified    :: UTCTime
-    , qrPkgname     :: PkgN
-    , qrIdxstate    :: PkgIdxTs
+    { qrPriority :: Int
+    , qrModified :: UTCTime
+    , qrPkgname  :: PkgN
+    , qrIdxstate :: PkgIdxTs
     } deriving (Generic,Eq,Ord,Show)
 
 instance PGS.FromRow QEntryRow
@@ -423,9 +424,9 @@ instance NFData   CellReportDetail
 instance Hashable CellReportDetail
 
 data UnitIdInfo = UnitIdInfo
-    { uiiId     :: UUID
+    { uiiId      :: UUID
 --    , uiiUnitid :: UnitID
-    , uiiHcver  :: CompilerID
+    , uiiHcver   :: CompilerID
     , uiiPkgname :: PkgN
     , uiiPkgver  :: Ver
 --    , uuiFlags   :: J.Value

@@ -24,8 +24,8 @@ module PkgIdxTsSet
     , drop
     ) where
 
-import           Prelude.Local       hiding (drop, null, take)
-import           Prelude             ()
+import           Prelude.Local       hiding (drop, empty, null, take)
+import           Util.WebSvc
 
 import qualified Data.Set            as Set
 import qualified Data.Vector.Unboxed as VU

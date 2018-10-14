@@ -82,8 +82,9 @@ null (IRA rs) = Prelude.null rs
 
 -- | Test whether 'IdxRanges' represents an interval with non-infinite bounds.
 isBounded :: IdxRanges -> Bool
-isBounded (IRA []) = True
-isBounded (IRA rs) = (isJust . snd . last) rs
+isBounded (IRA rs)
+  | Just (_,ub) <- last rs = isJust ub
+  | otherwise              = True
 
 ----------------------------------------------------------------------------
 -- operations

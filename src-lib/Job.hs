@@ -13,6 +13,7 @@ module Job
     ) where
 
 import           Prelude.Local
+import           Util.WebSvc
 
 import qualified Data.Text                 as T
 import qualified Data.Text.Encoding        as T

@@ -11,7 +11,7 @@ import           PkgId
 import           WorkerApi
 
 runClientM' :: Manager -> BaseUrl -> ClientM a -> ExceptT ServantError IO a
-runClientM' manager baseurl act = ExceptT (runClientM act (ClientEnv manager baseurl))
+runClientM' manager' baseurl act = ExceptT (runClientM act (ClientEnv manager' baseurl))
 
 getWorkerInfo       ::                 ClientM WorkerInfo
 getJobsInfo         ::                 ClientM [JobId]

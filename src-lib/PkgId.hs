@@ -8,6 +8,8 @@
 
 {-# OPTIONS_GHC -Wall #-}
 
+-- {-# OPTIONS_GHC -ddump-splices #-}
+
 module PkgId
     ( PkgN(..)
     , pkgNFromPackageName
@@ -37,7 +39,6 @@ import           Prelude.Local
 import           Data.Aeson
 import           Data.Aeson.Types                     (toJSONKeyText)
 import qualified Data.List.NonEmpty                   as NE
-import           Data.String
 import qualified Data.Text                            as T
 import           Data.Time.Format                     (defaultTimeLocale,
                                                        formatTime)
@@ -300,6 +301,7 @@ instance ToParamSchema PkgIdxTs where
         & minimum_ ?~ 0
         & maximum_ ?~ 0x7fffffff
 
+-- needed by "PkgIdxTsSet"
 derivingUnbox "PkgIdxTs" [t| PkgIdxTs -> Int |] [| \(PkgIdxTs x) -> x |] [| PkgIdxTs |]
 
 ----------------------------------------------------------------------------

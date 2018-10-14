@@ -212,8 +212,8 @@ runCompute dbconn = do
     lookupRevs1 :: PkgN -> Ver -> IO [(PkgIdxTs,Maybe PkgIdxTs)]
     lookupRevs1 pname pver = do
         res0 <- PGS.query dbconn "SELECT prev,ptime FROM pkgindex WHERE pname = ? AND pver = ? ORDER BY prev" (pname,pver)
-        let ptimes = map snd (res0 :: [(Int,PkgIdxTs)])
+        let ptimes@(_:ptimes') = map snd (res0 :: [(Int,PkgIdxTs)])
         -- TODO: assert consecutive rev nums
-        pure (zipWith (,) ptimes (map Just (tail ptimes) ++ [Nothing]))
+        pure (zipWith (,) ptimes (map Just ptimes' ++ [Nothing]))
 
 

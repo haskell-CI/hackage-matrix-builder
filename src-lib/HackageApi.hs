@@ -1,23 +1,24 @@
-{-# LANGUAGE DataKinds             #-}
-{-# LANGUAGE DeriveGeneric         #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PolyKinds             #-}
-{-# LANGUAGE StrictData            #-}
-{-# LANGUAGE TypeOperators         #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PolyKinds                  #-}
+{-# LANGUAGE StrictData                 #-}
+{-# LANGUAGE TypeOperators              #-}
 
 module HackageApi where
 
 import           Prelude.Local
+import           Util.WebSvc
 
 -- import qualified Data.Aeson               as J
-import           Servant.API
-import           Servant.API.ContentTypes
+import           Data.Swagger
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
-import           Data.Swagger
+import           Servant.API
+import           Servant.API.ContentTypes
 
 data JSON0
 

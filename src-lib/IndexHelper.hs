@@ -25,7 +25,6 @@ import qualified Data.ByteString.Lazy    as BSL
 import qualified Data.IntMap             as IntMap
 import qualified Data.Map.Strict         as Map
 import qualified Data.Set                as Set
-import           Data.String
 import qualified Data.Text               as T
 import           System.IO.Unsafe
 

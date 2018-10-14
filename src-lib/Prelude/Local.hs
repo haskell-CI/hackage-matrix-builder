@@ -8,10 +8,8 @@
 
 module Prelude.Local
     ( T.Text
-    , Generic
     , FromJSON(..)
     , ToJSON(..)
-    , Swag.ToSchema(..)
 
     , C.simpleParse, C.display
 
@@ -45,10 +43,6 @@ module Prelude.Local
     , toposort
     , firstJustM
     , whileM_
-    , myToJSON, myToEncoding, myParseJSON
-    , myToJSONCml, myToEncodingCml, myParseJSONCml
-    , myDeclareNamedSchema
-    , myDeclareNamedSchemaCml
 
     , tshow
     , tdisplay
@@ -85,84 +79,55 @@ module Prelude.Local
 import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
-import           Control.Exception               hiding (Handler)
-import           Control.Lens                    hiding ((<.>))
+import           Control.Exception        hiding (Handler)
+import           Control.Lens             hiding ((<.>))
 import           Control.Monad
 import           Control.Monad.IO.Class
-import qualified Crypto.Hash.SHA256              as SHA256
+import qualified Crypto.Hash.SHA256       as SHA256
 import           Data.Aeson
-import           Data.Aeson.Types
 import           Data.Bifunctor
 import           Data.Bits
-import qualified Data.ByteString                 as BS
-import qualified Data.ByteString.Lazy            as BSL
-import qualified Data.ByteString.Short           as SBS
-import           Data.Char                       (isDigit, isUpper, toLower)
-import           Data.Coerce                     (coerce)
+import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Lazy     as BSL
+import qualified Data.ByteString.Short    as SBS
+import           Data.Char                (isDigit)
+import           Data.Coerce              (coerce)
 import           Data.Foldable
-import qualified Data.Graph                      as G
+import qualified Data.Graph               as G
 import           Data.Hashable
 import           Data.Int
-import           Data.IntMap                     (IntMap)
-import           Data.List                       hiding (uncons)
-import           Data.List.NonEmpty              (NonEmpty (..))
-import           Data.Map                        (Map)
-import qualified Data.Map.Strict                 as Map
+import           Data.IntMap              (IntMap)
+import           Data.List                hiding (head, init, last, tail,
+                                           uncons)
+import           Data.List.NonEmpty       (NonEmpty (..))
+import           Data.Map                 (Map)
+import qualified Data.Map.Strict          as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Ord
 import           Data.Proxy
 import           Data.Semigroup
-import           Data.Set                        (Set)
-import qualified Data.Set                        as Set
-import qualified Data.Swagger                    as Swag
-import qualified Data.Swagger.Declare            as Swag
-import qualified Data.Swagger.Internal.Schema    as Swag
-import qualified Data.Swagger.Internal.TypeShape as Swag
-import qualified Data.Text                       as T
-import           Data.Time.Clock                 (NominalDiffTime, UTCTime,
-                                                  diffUTCTime, getCurrentTime)
-import           Data.Time.Clock.POSIX           (POSIXTime, getPOSIXTime,
-                                                  posixSecondsToUTCTime,
-                                                  utcTimeToPOSIXSeconds)
-import qualified Data.UUID.Types                 as UUID
-import           Data.Vector                     (Vector)
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
+import qualified Data.Text                as T
+import           Data.Time.Clock          (NominalDiffTime, UTCTime,
+                                           diffUTCTime, getCurrentTime)
+import           Data.Time.Clock.POSIX    (POSIXTime, getPOSIXTime,
+                                           posixSecondsToUTCTime,
+                                           utcTimeToPOSIXSeconds)
+import qualified Data.UUID.Types          as UUID
+import           Data.Vector              (Vector)
 import           Data.Word
-import qualified Distribution.Text               as C
-import           GHC.Generics
-import           Prelude                         hiding (print, putStr,
-                                                  putStrLn)
+import qualified Distribution.Text        as C
+import           Prelude                  hiding (print, putStr, putStrLn,
+                                           uncons)
 import           System.Directory
 import           System.Environment
 import           System.Exit
 import           System.FilePath
-import           System.IO.Streams               (InputStream, OutputStream)
+import           System.IO.Streams        (InputStream, OutputStream)
 import           Text.Read
 
-
-myDeclareNamedSchema, myDeclareNamedSchemaCml :: forall a proxy . (Generic a, Swag.GToSchema (Rep a), Swag.TypeHasSimpleShape a "genericDeclareNamedSchemaUnrestricted") => proxy a -> Swag.Declare (Swag.Definitions Swag.Schema) Swag.NamedSchema
-myDeclareNamedSchema = Swag.genericDeclareNamedSchema (Swag.defaultSchemaOptions { Swag.fieldLabelModifier = labelMod, Swag.constructorTagModifier = tagMod })
-myDeclareNamedSchemaCml = Swag.genericDeclareNamedSchema (Swag.defaultSchemaOptions { Swag.fieldLabelModifier = labelModCml })
-
-myToJSON, myToJSONCml :: (Generic a, GToJSON Zero (Rep a)) => a -> Value
-myToJSON = genericToJSON (defaultOptions { omitNothingFields = True, fieldLabelModifier = labelMod, constructorTagModifier = tagMod })
-myToJSONCml = genericToJSON (defaultOptions { omitNothingFields = True, fieldLabelModifier = labelModCml })
-
-myToEncoding, myToEncodingCml :: (Generic a, GToEncoding Zero (Rep a)) => a -> Encoding
-myToEncoding = genericToEncoding (defaultOptions { omitNothingFields = True, fieldLabelModifier = labelMod, constructorTagModifier = tagMod })
-myToEncodingCml = genericToEncoding (defaultOptions { omitNothingFields = True, fieldLabelModifier = labelModCml })
-
-myParseJSON, myParseJSONCml :: (Generic a, GFromJSON Zero (Rep a)) => Value -> Parser a
-myParseJSON = genericParseJSON (defaultOptions { fieldLabelModifier = labelMod, constructorTagModifier = tagMod })
-myParseJSONCml = genericParseJSON (defaultOptions { fieldLabelModifier = labelModCml })
-
-labelMod, tagMod, labelModCml :: String -> String
-labelMod    = camelTo2 '_' . dropWhile (not . isUpper)
-tagMod    = camelTo2 '_' . dropWhile isUpper
-labelModCml = uncap        . dropWhile (not . isUpper)
-  where
-    uncap []     = []
-    uncap (c:cs) = toLower c : cs
 
 uuidNil :: UUID.UUID
 uuidNil = UUID.nil

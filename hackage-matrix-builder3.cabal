@@ -16,6 +16,8 @@ common defaults
   default-language:    Haskell2010
   ghc-options:         -Wall
   default-extensions:  NoImplicitPrelude
+  other-extensions:    TemplateHaskell
+  mixins:              base hiding (Prelude)
 
   build-depends:
     , Cabal                ^>= 2.4.0.1
@@ -46,6 +48,7 @@ common defaults
     , time                 ^>= 1.6 || ^>= 1.8
     , uuid-types           ^>= 1.0.3
     , vector               ^>= 0.12
+    , Prelude              ^>= 0.1.0.1
 
 library matrix-lib
   import: defaults
@@ -64,6 +67,7 @@ library matrix-lib
       WorkerApi.Client
       HackageApi
       HackageApi.Client
+      Util.WebSvc
 
   -- non-locals
   build-depends:

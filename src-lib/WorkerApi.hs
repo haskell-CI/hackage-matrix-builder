@@ -12,6 +12,7 @@ import           Servant.API
 import           Job
 import           PkgId
 import           Prelude.Local
+import           Util.WebSvc
 
 type TsMsg = (Maybe POSIXTime,NonEmpty Text)
 
