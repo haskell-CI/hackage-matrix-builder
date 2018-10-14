@@ -17,7 +17,9 @@ module Controller.Api
     , Ver -- , verToText
     , UserName
     , PkgRev
-    , GhcVer
+
+    , ControllerInfo(..)
+    , CompilerInfo(..)
 
     , UserPkgs(..)
 
@@ -83,7 +85,9 @@ swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
 
 type ControllerApi m =
   -- New-style API; we stick w/ the more common RESTful convention of using plural nouns for listable collections
-       "v2" :> "idxstates" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] PkgIdxTsSet.PkgIdxTsSet
+       "v2" :> "info" :> Get '[JSON] ControllerInfo -- static meta-information
+
+  :<|> "v2" :> "idxstates" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] PkgIdxTsSet.PkgIdxTsSet
   :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
 
   :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)
@@ -113,11 +117,9 @@ type ControllerApi m =
 
   :<|> "v2" :> "workers" :> Get '[JSON] [WorkerRow]
 
+----------------------------------------------------------------------------
 
 type TagName = Text
-
--- v1, to be removed
-type GhcVer = Ver
 
 data TagsInfo = TagsInfo     (Set TagName)
               | TagsInfoPkgs (Map TagName (Set PkgN))
@@ -125,10 +127,34 @@ data TagsInfo = TagsInfo     (Set TagName)
 
 instance ToSchema TagsInfo -- FIXME
 
-
 instance ToJSON TagsInfo where
     toJSON (TagsInfo x)     = toJSON x
     toJSON (TagsInfoPkgs x) = toJSON x
+
+----------------------------------------------------------------------------
+
+data ControllerInfo = ControllerInfo
+     { ciCompilers :: Map CompilerID CompilerInfo
+     } deriving (Generic,Eq,Ord)
+
+instance ToJSON   ControllerInfo where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON ControllerInfo where { parseJSON = myParseJSON }
+instance ToSchema ControllerInfo where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   ControllerInfo
+instance Hashable ControllerInfo
+
+data CompilerInfo = CompilerInfo
+    { ciActive  :: !Bool
+    , ciUiLabel :: Maybe Text
+    } deriving (Generic,Eq,Ord)
+
+instance ToJSON   CompilerInfo where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON CompilerInfo where { parseJSON = myParseJSON }
+instance ToSchema CompilerInfo where { declareNamedSchema = myDeclareNamedSchema }
+instance NFData   CompilerInfo
+instance Hashable CompilerInfo
+
+----------------------------------------------------------------------------
 
 -- TODO: use PkgRev -- needs 'FromField PkgRev' instance
 data PkgHistoryEntry = PkgHistoryEntry !PkgIdxTs !Ver !Int !UserName

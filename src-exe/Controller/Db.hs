@@ -42,6 +42,7 @@ import           PlanJson                             as PJ
 
 -- TODO
 type HcID = PkgId
+type GhcVer = Ver
 
 -- for PG's benefit
 newtype UUIDs = UUIDs { unUUIDs :: [UUID] }

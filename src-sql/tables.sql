@@ -126,8 +126,9 @@ CREATE TABLE owner (
 ----------------------------------------------------------------------------
 
 CREATE TABLE hscompiler (
-    compiler text PRIMARY KEY
+    compiler text PRIMARY KEY,
     ui_ver   text UNIQUE, -- manual mapping
+    active   boolean NOT NULL DEFAULT FALSE
 );
 
 INSERT INTO hscompiler (compiler,ui_ver) VALUES ('ghc-7.8.4','7.8');

@@ -254,6 +254,12 @@ instance FromJSON CompilerID where
 instance ToJSON CompilerID where
     toJSON = toJSON . display
 
+instance ToJSONKey CompilerID where
+    toJSONKey = toJSONKeyText tdisplay
+
+instance FromJSONKey CompilerID where
+    fromJSONKey = FromJSONKeyTextParser (maybe (fail "CompilerID") pure . simpleParse . T.unpack)
+
 instance ToHttpApiData CompilerID where
     toUrlPiece = tdisplay
 

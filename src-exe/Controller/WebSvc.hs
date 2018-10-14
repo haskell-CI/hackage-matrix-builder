@@ -156,7 +156,8 @@ runController !app port =
         redirect' ("/#" <> uri) 307
 
 server :: Server (ControllerApi AppHandler) '[] AppHandler
-server = idxStatesH
+server = ctlInfoH
+    :<|> idxStatesH
     :<|> idxStatesLatestH
 
     :<|> packagesH
@@ -225,6 +226,14 @@ server = idxStatesH
         res <- h0
         let etag = etagFromHashable res
         doEtag $ pure (etag, pure res)
+
+    ----------------------------------------------------------------------------
+    -- global meta-info --------------------------------------------------------
+
+    ctlInfoH :: AppHandler ControllerInfo
+    ctlInfoH = doEtagHashableGet $ withDbc $ \dbconn -> do
+        xs <- PGS.query_ dbconn "SELECT compiler,ui_ver,active FROM hscompiler"
+        pure (ControllerInfo $! Map.fromList [ (k, CompilerInfo{..}) | (k,ciUiLabel,ciActive) <- xs ])
 
     ----------------------------------------------------------------------------
     -- tag ---------------------------------------------------------------------
