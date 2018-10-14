@@ -55,8 +55,8 @@ import           System.IO
 import           WorkerApi
 import           WorkerApi.Client
 
-pkgIdxTupleToDB :: PkgIdxTuple -> (Text,Text,Int,Int,Text)
-pkgIdxTupleToDB PkgIdxTuple{..} = (pn, ver, rev, t, pitOwner)
+pkgIdxTupleToDB :: PkgIdxTuple -> (Text,Text,Int,Int,Text,Int)
+pkgIdxTupleToDB PkgIdxTuple{..} = (pn, ver, rev, t, pitOwner, pitOwnerId)
   where
     pn  = tdisplay pitName
     ver = maybe "" tdisplay $ pitVer
@@ -88,16 +88,22 @@ jobid2xunitids dbc jid =
 
 -}
 
+
+logDebugIns :: Text -> IO Int64 -> IO ()
+logDebugIns lbl act = do
+  cnt <- act
+  logDebug (mconcat ["new ", lbl, " entries: ", tshow cnt])
+
 registerPkgIds :: PGS.Connection -> Set PkgId -> IO ()
 registerPkgIds dbconn pids = do
-    res1 <- PGS.executeMany dbconn "INSERT INTO pkgname (pname) VALUES (?) ON CONFLICT DO NOTHING" [ Only n | n <- Set.toList pnames ]
-    logDebug ("new package names: " <> tshow res1)
+    logDebugIns "pkgname" $
+      PGS.executeMany dbconn "INSERT INTO pkgname (pname) VALUES (?) EXCEPT SELECT pname FROM pkgname" [ Only n | n <- Set.toList pnames ]
 
-    res1a <- PGS.executeMany dbconn "INSERT INTO version (pver) VALUES (?) ON CONFLICT DO NOTHING" [ Only v | v <- Set.toList pvers ]
-    logDebug ("new versions: " <> tshow res1a)
+    logDebugIns "version" $
+      PGS.executeMany dbconn "INSERT INTO version (pver) VALUES (?) EXCEPT SELECT pver FROM version" [ Only v | v <- Set.toList pvers ]
 
-    res1c <- PGS.executeMany dbconn "INSERT INTO pkgver (pname,pver) VALUES (?,?) ON CONFLICT DO NOTHING" [ (n,v) | PkgId n v <- Set.toList pids ]
-    logDebug ("new pkgver entries: " <> tshow res1c)
+    logDebugIns "pkgver" $
+      PGS.executeMany dbconn "INSERT INTO pkgver (pname,pver) VALUES (?,?) ON CONFLICT DO NOTHING" [ (n,v) | PkgId n v <- Set.toList pids ]
   where
     pnames = Set.fromList  [ n | PkgId n _ <- Set.toList pids ]
     pvers  = Set.fromList  [ v | PkgId _ v <- Set.toList pids ]
@@ -134,8 +140,8 @@ performIndexUpdate dbconn = do
 
     logDebug "reading index..."
     idxtups <- readIndexTuples indexTar
-    pindex' <- evaluate . force . filter (\(a,b,c,_,_) -> not (HS.member (PkgIdxKey a b c) oldents) && b /= "") . map pkgIdxTupleToDB $ idxtups
-    let newPkgIds = Set.fromList [ PkgId pn pv | (pn0,pv0,_,_,_) <- pindex'
+    pindex' <- evaluate . force . filter (\(a,b,c,_,_,_) -> not (HS.member (PkgIdxKey a b c) oldents) && b /= "") . map pkgIdxTupleToDB $ idxtups
+    let newPkgIds = Set.fromList [ PkgId pn pv | (pn0,pv0,_,_,_,_) <- pindex'
                                                , Just pn <- [simpleParse (T.unpack pn0)]
                                                , Just pv <- [simpleParse (T.unpack pv0)]
                                                ]
@@ -147,11 +153,14 @@ performIndexUpdate dbconn = do
 
     registerPkgIds dbconn newPkgIds
 
-    res1b <- PGS.executeMany dbconn "INSERT INTO idxstate (ptime) VALUES (?) ON CONFLICT DO NOTHING" [Only t | (_,_,_,t,_) <- pindex']
-    logDebug ("new idxstate entries: " <> tshow res1b)
+    logDebugIns "owner" $
+      PGS.executeMany dbconn "INSERT INTO owner (owner_id,name) VALUES (?,?) ON CONFLICT DO NOTHING" [(oi,o) | (_,_,_,_,o,oi) <- pindex']
 
-    res2 <- PGS.executeMany dbconn "INSERT INTO pkgindex (pname,pver,prev,ptime,powner) VALUES (?,?,?,?,?) ON CONFLICT DO NOTHING" pindex'
-    logDebug ("new index entries: " <> tshow res2)
+    logDebugIns "idxstate" $
+      PGS.executeMany dbconn "INSERT INTO idxstate (ptime) VALUES (?) ON CONFLICT DO NOTHING" [Only t | (_,_,_,t,_,_) <- pindex']
+
+    logDebugIns "pkgindex" $
+      PGS.executeMany dbconn "INSERT INTO pkgindex (pname,pver,prev,ptime,powner,powner_id) VALUES (?,?,?,?,?,?) ON CONFLICT DO NOTHING" pindex'
 
     t3 <- getPOSIXTime
     logDebug $ "updating db took " <> tshow (t3-t2)

@@ -36,6 +36,7 @@ CREATE TYPE unit AS enum('unit');
 
 -- encodes valid(!) versions both as string & array
 CREATE TABLE version (
+-- TODO: add new pver_id
     pver text PRIMARY KEY,
     -- pvera gives us lexicographic ordering
     pvera int[] NOT NULL CHECK ((pvera <> '{}') AND (0 <= all(pvera)))
@@ -48,7 +49,8 @@ CREATE TRIGGER version_trigger BEFORE INSERT OR UPDATE ON version
 ----------------------------------------------------------------------------
 
 CREATE TABLE pkgname (
-    pname text PRIMARY KEY
+    pname text PRIMARY KEY,
+    pname_id int UNIQUE NOT NULL -- TODO: make PK
 );
 
 -- TODO: rename to pkgrel or pkgnamever
@@ -63,7 +65,7 @@ CREATE TABLE pkgver (
 CREATE TABLE pkg_blacklist (
     pname   text,
     pver    text,
-    PRIMARY KEY(pname, pver),
+    PRIMARY KEY(pname,pver),
     FOREIGN KEY(pname,pver) REFERENCES pkgver(pname,pver),
     ctime    int NOT NULL DEFAULT unix_now() -- creation time of this row
 );
@@ -100,7 +102,8 @@ CREATE TABLE pkgindex (
     PRIMARY KEY (pname, pver, prev),
     ------------------------------------------------------------
     ptime   int     NOT NULL REFERENCES idxstate(ptime), -- posix-time
-    powner  text    NOT NULL,
+    powner  text    NOT NULL, -- redundant; fixme
+    powner_id int   NOT NULL REFERENCES owner(owner_id),
     FOREIGN KEY (pname, pver) REFERENCES pkgver (pname, pver)
 );
 
@@ -112,6 +115,13 @@ CREATE INDEX ON pkgindex(ptime);
 DROP TRIGGER   pkgindex_event_notify ON pkgindex;
 CREATE TRIGGER pkgindex_event_notify AFTER INSERT OR UPDATE ON pkgindex
   EXECUTE PROCEDURE table_event_notify();
+
+----------------------------------------------------------------------------
+
+CREATE TABLE owner (
+  owner_id int PRIMARY KEY,
+  name     text NOT NULL UNIQUE
+);
 
 ----------------------------------------------------------------------------
 

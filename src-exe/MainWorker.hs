@@ -7,12 +7,12 @@
 {-# LANGUAGE PolyKinds         #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE StrictData        #-}
-{-# LANGUAGE TemplateHaskell   #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
 module Main where
 
+import           GHC.Enum                          (pred)
 import           Prelude.Local
 
 import           Control.Concurrent
@@ -617,7 +617,7 @@ getJobBuild (Job{..}) = do
                                   in (units, zip (map fst units) tdurs)
 
                    let fs = if jsExitCode == 0 then mempty
-                            else (if null blogs then mempty else (Set.singleton $ fst $ last blogs))
+                            else (maybe mempty (Set.singleton . fst) (last blogs))
 
                    return (Map.map (unlinesTS . toList) $ Map.fromList blogs, fs, Map.fromList dts0)
 
@@ -838,7 +838,9 @@ splitTS t = do
     guard (T.length t2 == 3)
 
     -- weird.. for some reason we can't 'read "123.456" :: Rational'
-    let ts = ((read $ T.unpack t1)*1000 + (read $ T.unpack t2)) % 1000
+    t1' <- read (T.unpack t1)
+    t2' <- read (T.unpack t2)
+    let ts = (t1'*1000 + t2') % 1000
 
     pure (fromRational ts,T.drop 1 rest)
 

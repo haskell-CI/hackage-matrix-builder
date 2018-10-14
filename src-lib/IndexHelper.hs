@@ -41,15 +41,16 @@ indexTar = cabalDir </> "packages" </> "hackage.haskell.org" </> "01-index.tar"
 ----------------------------------------------------------------------------
 
 data PkgIdxTuple = PkgIdxTuple
-    { pitName  :: PkgN
-    , pitVer   :: Maybe Ver
-    , pitRev   :: PkgRev
-    , pitTime  :: PkgIdxTs -- unix epoch secs
-    , pitOwner :: Text
+    { pitName    :: PkgN
+    , pitVer     :: Maybe Ver
+    , pitRev     :: PkgRev
+    , pitTime    :: !PkgIdxTs -- unix epoch secs
+    , pitOwner   :: Text
+    , pitOwnerId :: !Int
     } deriving Show
 
 -- internal
-type IdxTuple = (PkgN, Maybe Ver, PkgRev, PkgIdxTs, Text)
+type IdxTuple = (PkgN, Maybe Ver, PkgRev, PkgIdxTs, Text, Int)
 
 readIndexTuples :: FilePath -> IO [PkgIdxTuple]
 readIndexTuples idxtar = do
@@ -64,15 +65,16 @@ readIndexTuples idxtar = do
       decode :: Tar.Entry -> Maybe IdxTuple
       decode (Tar.Entry{..}) = do
           (pkgn,mpkgv) <- decodeEntry (Tar.Entry{..})
-          pure (pkgn,mpkgv, 0, PkgIdxTs (fromIntegral entryTime), owner)
+          pure (pkgn,mpkgv, 0, PkgIdxTs (fromIntegral entryTime), owner, owner_id)
         where
-          owner = T.pack $ Tar.ownerName $ entryOwnership
+          !owner = T.pack $ Tar.ownerName entryOwnership
+          !owner_id = Tar.ownerId entryOwnership
 
       internPkgIds :: [IdxTuple] -> [PkgIdxTuple]
       internPkgIds = go2 mempty mempty mempty mempty
         where
           go2 _ _ _ _ [] = []
-          go2 !nc !vc !rc !oc ((n,mv,_,t,o):es) = (PkgIdxTuple n' mv' r' t o') : go2 nc' vc' rc' oc' es
+          go2 !nc !vc !rc !oc ((n,mv,_,t,o,oi):es) = (PkgIdxTuple n' mv' r' t o' oi) : go2 nc' vc' rc' oc' es
             where
               (o',oc')  = mapIntern o oc
               (n',nc')  = mapIntern n nc
@@ -131,7 +133,8 @@ decodeEntry e
   = Just (pn, Just pv)
 
   | (pn', "preferred-versions") <- splitFileName fp
-  = Just (fromString $ init pn', Nothing)
+  , Just pn'' <- init pn'
+  = Just (fromString pn'', Nothing)
 
   | otherwise = error "decodeEntry: unexpected entry"
   where
