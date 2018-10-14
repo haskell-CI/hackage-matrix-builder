@@ -216,11 +216,11 @@ scheduler App{..} = do
 
         withResource appDbPool $ \dbconn -> do
             qents <- queryQEntries dbconn
-            forM_ qents $ \QEntry{..} -> do
-                queryNextQTask dbconn allCompilerIds QEntry{..} >>= \case
+            forM_ qents $ \QEntryRow{..} -> do
+                queryNextQTask dbconn allCompilerIds QEntryRow{..} >>= \case
                     Nothing -> do
-                        logDebug ("deleting completed " <> tshow QEntry{..})
-                        deleteQEntry dbconn QEntry{..}
+                        logDebug ("deleting completed " <> tshow QEntryRow{..})
+                        deleteQEntry dbconn QEntryRow{..}
 
                     Just _ -> pure ()
 
@@ -382,10 +382,8 @@ scheduler App{..} = do
                     PGS.execute dbconn (doNothing "INSERT INTO solution(ptime,jobid,dt) VALUES (?,?,?)")
                           (idxts,dbJobId,jsDuration <$> jpSolve sinfo)
 
-queryNextQTask :: PGS.Connection -> [CompilerID] -> QEntry -> IO (Maybe JobSpec)
-queryNextQTask dbconn cids q0 = do
-    let Just ptime = qIdxState q0
-    queryNextJobTask dbconn cids (qPackageName q0) ptime
+queryNextQTask :: PGS.Connection -> [CompilerID] -> QEntryRow -> IO (Maybe JobSpec)
+queryNextQTask dbconn cids q0 = queryNextJobTask dbconn cids (qrPkgname q0) (qrIdxstate q0)
 
 timeIt :: IO a -> IO (Double,a)
 timeIt act = do

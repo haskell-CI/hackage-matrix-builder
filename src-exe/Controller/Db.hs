@@ -111,19 +111,15 @@ instance PGS.ToRow DB_iplan_job
 ----------------------------------------------------------------------------
 -- queries
 
-queryQEntries :: PGS.Connection -> IO [QEntry]
+queryQEntries :: PGS.Connection -> IO [QEntryRow]
 queryQEntries dbconn =
     PGS.query_ dbconn "SELECT prio,modified,pname,ptime FROM queue ORDER BY prio desc, modified desc, ptime desc, pname asc"
 
-deleteQEntry :: PGS.Connection -> QEntry -> IO ()
-deleteQEntry dbconn QEntry{..} =
-    void $ PGS.execute dbconn "DELETE FROM queue WHERE pname = ? AND ptime = ?" (qPackageName, qIdxState)
+deleteQEntry :: PGS.Connection -> QEntryRow -> IO ()
+deleteQEntry dbconn QEntryRow{..} =
+    void $ PGS.execute dbconn "DELETE FROM queue WHERE pname = ? AND ptime = ?" (qrPkgname, qrIdxstate)
 
--- pname,prio,modified,ptime
--- data DB_queue = DB_queue PkgN Int UTCTime PkgIdxTs
---               deriving (Show,Generic)
--- instance PGS.FromRow DB_queue
-
+----
 
 doNothing :: PGS.Query -> PGS.Query
 doNothing = flip mappend " ON CONFLICT DO NOTHING"
