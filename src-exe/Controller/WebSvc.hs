@@ -155,33 +155,8 @@ runController !app port =
         uri <- withRequest (pure . rqURI)
         redirect' ("/#" <> uri) 307
 
-mkListSlice :: Word -> [a] -> ListSlice a
-mkListSlice ofs xs = ListSlice ofs (fromIntegral $ length xs) xs
-
 server :: Server (ControllerApi AppHandler) '[] AppHandler
-server = tagListH
-    :<|> tagSetH
-    :<|> tagDelH
-
-    :<|> pkgListH
-    :<|> llrListH
-    :<|> pkgVerInfoH
-    :<|> pkgTagsH
-    :<|> pkgLastReport
-    :<|> pkgLastCellReport
-    :<|> pkgIdxStReport
-    :<|> pkgIdxStCellReport
-
-    :<|> queListH
-    :<|> quePostH
-    :<|> queGetH
-    :<|> quePutH
-    :<|> queDelH
-
-    :<|> usrListH
-
-    -- v2
-    :<|> idxStatesH
+server = idxStatesH
     :<|> idxStatesLatestH
 
     :<|> packagesH
@@ -254,11 +229,6 @@ server = tagListH
     ----------------------------------------------------------------------------
     -- tag ---------------------------------------------------------------------
 
-    tagListH _cnt = do
-        withDbc $ \dbconn -> do
-            tags <- queryAllTags dbconn
-            pure $ mkListSlice 0 [ TagListEntry tn pns | (tn,pns) <- Map.toList tags ]
-
     tagSetH, tagDelH :: TagName -> PkgN -> AppHandler ()
     tagSetH tagn pkgn = needAuth $ withDbc $ \dbconn -> do
             _ <- PGS.execute dbconn "INSERT INTO pname_tag (tagname,pname) values (?,?) ON CONFLICT DO NOTHING" (tagn,pkgn)
@@ -269,107 +239,9 @@ server = tagListH
             pure ()
 
     ----------------------------------------------------------------------------
-    -- package -----------------------------------------------------------------
-
-    pkgListH :: Maybe Word -> AppHandler (ListSlice PkgListEntry)
-    pkgListH mcnt = do
-        withDbc $ \dbconn -> PGS.withTransaction dbconn $ do
-            res <- case mcnt of
-                Nothing -> PGS.query_ dbconn
-                            "SELECT pname,r.ptime \
-                            \FROM (SELECT DISTINCT pname FROM pkgindex) AS i \
-                            \LEFT JOIN pname_max_ptime r USING (pname) \
-                            \ORDER BY pname"
-                Just cnt -> PGS.query dbconn
-                             "SELECT pname,r.ptime \
-                             \FROM (SELECT DISTINCT pname FROM pkgindex) AS i \
-                             \LEFT JOIN pname_max_ptime r USING (pname) \
-                             \ORDER BY pname \
-                             \LIMIT ?"
-                             (Only cnt)
-
-            tags <- queryAllTagsInv dbconn
-            let ents = [ PkgListEntry pn (Map.findWithDefault mempty pn tags) (fmap ptime2utc pt)
-                       | (pn,pt) <- res ]
-            pure $! mkListSlice 0 ents
-
-    llrListH :: Maybe Word -> AppHandler (ListSlice PkgListEntry2)
-    llrListH mcnt = do
-        withDbc $ \dbconn -> PGS.withTransaction dbconn $ do
-            res <- case mcnt of
-                     Nothing  -> PGS.query_ dbconn
-                                  "SELECT pname,ptime FROM pname_max_ptime ORDER BY ptime desc,pname"
-                     Just cnt -> PGS.query dbconn
-                                  "SELECT pname,ptime FROM pname_max_ptime ORDER BY ptime desc,pname LIMIT ?"
-                                  (Only cnt)
-
-            let ents = [ PkgListEntry2 pn (ptime2utc pt) | (pn,pt) <- res ]
-            pure $! mkListSlice 0 ents
-
-    pkgVerInfoH pkgn = do
-        withDbc $ \dbconn -> do
-            res <- PGS.query dbconn "SELECT pver, max(prev) FROM pkgindex WHERE pver <> '' AND pname = ? GROUP BY pver" (PGS.Only pkgn)
-            let ents = sort [ PkgVerInfoEntry v (fromIntegral (rev :: Int))  "normal" | (v,rev) <- res ]
-            pure (PkgVerInfo pkgn ents)
-
-
-    pkgTagsH pkgn = do
-        withDbc $ \dbconn -> do
-            res <- PGS.query dbconn "SELECT tagname FROM pname_tag WHERE pname = ? ORDER BY tagname" (PGS.Only pkgn)
-            pure (map PGS.fromOnly res)
-
-
-    pkgLastReport pname = do
-        ptimes <- withDbc $ \dbconn -> do
-            map fromOnly <$>
-              PGS.query dbconn "SELECT ptime FROM pname_max_ptime WHERE pname = ?"
-                (Only pname)
-
-        case ptimes of
-          []      -> throwServantErr' err404
-          ptime:_ -> withDbc $ \dbconn -> queryJobReport dbconn pname ptime
-
-    pkgIdxStReport pname ptime =
-        withDbcGuard (pkgnExists pname) $ \dbconn -> queryJobReport dbconn pname ptime
-
-    pkgLastCellReport :: PkgN -> Text -> AppHandler CellReport
-    pkgLastCellReport pname cellid = do
-        let [gv1,pver1] = T.splitOn "-" cellid
-
-        logDebugShow (pname,gv1,pver1)
-
-        let Just gv = simpleParse (T.unpack gv1)
-        -- let crGhcFullVersion = crGhcVersion
-        let pver :: Ver
-            Just pver = simpleParse (T.unpack pver1)
-
-        ptimes <- withDbc $ \dbconn -> do
-            map fromOnly <$>
-              PGS.query dbconn "SELECT ptime FROM pname_max_ptime WHERE pname = ?"
-                (Only pname)
-
-        case ptimes of
-          []      -> throwServantErr' err404
-          ptime:_ -> withDbc $ \dbconn -> queryCellReport dbconn (PkgId pname pver) gv ptime
-
-    pkgIdxStCellReport :: PkgN -> PkgIdxTs -> Text -> AppHandler CellReport
-    pkgIdxStCellReport pname ptime cellid = do
-        let [gv1,pver1] = T.splitOn "-" cellid
-
-        logDebugShow (pname,ptime,gv1,pver1)
-
-        let Just gv = simpleParse (T.unpack gv1)
-        -- let crGhcFullVersion = crGhcVersion
-        let pver :: Ver
-            Just pver = simpleParse (T.unpack pver1)
-
-        withDbcGuard (pkgnExists pname) $ \dbconn -> queryCellReport dbconn (PkgId pname pver) gv ptime
-
-    ----------------------------------------------------------------------------
     -- v2/idxstates-------------------------------------------------------------
 
     idxStatesH :: Maybe PkgIdxTs -> Maybe PkgIdxTs -> AppHandler PkgIdxTsSet
-
     idxStatesH mlb mub = doEtag $ do
         pits0 <- fetchPkgIdxTsCache
 
@@ -579,47 +451,7 @@ server = tagListH
         pure NoContent
 
     ----------------------------------------------------------------------------
-    -- queue -------------------------------------------------------------------
-
-    queListH _cnt = do
-        ents <- withDbc $ \dbconn -> do
-            PGS.query_ dbconn "SELECT prio,modified,pname,ptime FROM queue ORDER BY prio desc, modified desc"
-        pure $ mkListSlice 0 ents
-
-    quePostH qent = needAuth $ withDbc $ \dbconn -> do
-        let pn = qPackageName qent
-            pp = qPriority qent
-
-        _ <- PGS.execute dbconn "INSERT INTO queue(pname,prio) \
-                                \VALUES (?,?) \
-                                \ON CONFLICT (pname,ptime) \
-                                \DO UPDATE SET prio = EXCLUDED.prio, modified = DEFAULT"
-                                (pn,pp)
-        pure ()
-
-    queGetH pkgn = headOr404M $ withDbc $ \dbconn ->
-        PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ?" (Only pkgn)
-
-    quePutH pkgn prio = needAuth $ headOr404M $withDbc $ \dbconn ->
-        PGS.query dbconn "UPDATE queue SET prio = ?, modified = DEFAULT \
-                         \WHERE pname = ? \
-                         \RETURNING prio,modified,pname,ptime"
-                         (prio,pkgn)
-
-    queDelH pkgn = needAuth $ do
-        withDbc $ \dbconn -> do
-            _ <- PGS.execute dbconn "DELETE FROM queue WHERE pname = ?" (PGS.Only pkgn)
-            pure ()
-
-    ----------------------------------------------------------------------------
     -- user -------------------------------------------------------------------
-
-    usrListH :: UserName -> Handler App App UserPkgs
-    usrListH uname = do
-        mpkgs <- liftIO $ getUserInfoIO uname
-        case mpkgs of
-          Just pkgs -> pure (UserPkgs uname (uiPackages pkgs))
-          Nothing   -> throwServantErr' err404
 
     usersListH :: UserName -> Handler App App UserPkgs
     usersListH uname = do

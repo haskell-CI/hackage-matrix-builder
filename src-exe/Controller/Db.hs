@@ -30,7 +30,6 @@ import qualified Data.Aeson                           as J
 import qualified Data.ByteString.Char8                as BS
 import qualified Data.Map.Strict                      as Map
 import qualified Data.Set                             as Set
-import qualified Data.Text                            as T
 import qualified Database.PostgreSQL.Simple           as PGS
 import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
@@ -174,85 +173,6 @@ queryNextJobTask dbconn cids pname ptime = do
             in Just $! JobSpec (PkgId pname pver) ptime gv
 
 ----------------------------------------------------------------------------
-
-queryCellReport :: PGS.Connection -> PkgId -> Ver -> PkgIdxTs -> IO CellReport
-queryCellReport dbconn (PkgId pname pver) ghc_ui_ver ptime = do
-    let crGhcVersion = ghc_ui_ver
-
-    -- TODO: error handling
-    [Only cid] <- PGS.query dbconn "SELECT compiler FROM hscompiler WHERE ui_ver = ?" (Only ghc_ui_ver)
-
-    let crGhcFullVersion = compilerVer cid
-
-    msgs <- PGS.query dbconn
-             "SELECT logmsg FROM solution \
-             \JOIN iplan_job j USING (jobid) \
-             \JOIN iplan_unit u ON (xunitid = ANY(units)) \
-             \WHERE logmsg is not null \
-             \  AND j.pname = ? AND j.pver = ? AND j.compiler = ? AND ptime = ? \
-             \ORDER BY u.ctime ASC"
-             (pname, pver, cid, ptime)
-
-    let crLogMsg = T.unlines (map fromOnly msgs)
-
-    pure CellReport{..}
-
-queryJobReport :: PGS.Connection -> PkgN -> PkgIdxTs -> IO JobReport
-queryJobReport dbconn pname ptime = do
-    vrevs <- Map.fromList <$>
-             PGS.query dbconn
-             "SELECT pver, max(prev) FROM pkgindex \
-             \WHERE pver <> '' AND pname = ? AND ptime <= ? \
-             \GROUP BY pver" (pname, ptime)
-
-    evaluate (rnf vrevs)
-
-    ipfails <- PGS.query dbconn
-               "SELECT compiler,pver FROM solution_fail WHERE pname = ? AND ptime = ?"
-               (pname, ptime)
-
-    evaluate (rnf ipfails)
-
-    jobs <- PGS.query dbconn
-            "SELECT DISTINCT j.compiler,j.pver,bstatus \
-            \FROM iplan_job j JOIN solution USING (jobid) \
-            \JOIN iplan_unit ON (xunitid = ANY (units)) \
-            \WHERE j.pname = ? AND ptime = ?"
-            (pname, ptime)
-
-    evaluate (rnf jobs)
-
-    let ipsols :: Map Ver (Map Ver JobResultType)
-        ipsols = Map.map t1 $
-                 Map.fromListWith (Map.unionWith mappend) [ (compilerVer k, Map.singleton v [st]) | (k,v,st) <- jobs ]
-
-        t1 :: Map Ver [Maybe IPStatus] -> Map Ver JobResultType
-        t1 vst0 = Map.fromList [ (v,st) | (v,st0) <- Map.toList vst0, Just st <- [st2res st0] ]
-
-        st2res :: [Maybe IPStatus] -> Maybe JobResultType
-        st2res [] = Just JRTNoIpFail
-        st2res xs
-          | all (== Nothing) xs               = Nothing
-          | all (== Just IPOk) xs             = Just JRTOk
-          | any (== Just IPBuildFail) xs      = Just JRTFail
-          | any (== Just IPBuildDepsFail) xs  = Just (JRTFailDeps 1)
-          | otherwise                         = Just JRTNoIpFail
-
-    let ipfailm :: Map Ver (Map Ver JobResultType)
-        ipfailm = Map.fromListWith mappend [ (compilerVer k,Map.singleton v JRTNoIp) | (k,v) <- ipfails ]
-
-        table = Map.unionWith mappend ipfailm ipsols -- TODO: assert non-overlap
-
-    let jrResults = [ JobResult (alterVer (take 2) gv) gv
-                      [ JobGhcResult v (Map.findWithDefault 0 v vrevs) ty
-                      | (v,ty) <- Map.toList ents ]
-                    | (gv, ents) <- Map.toList table ]
-        jrModified = ptime2utc ptime
-
-        jrPackageName = pname
-
-    pure JobReport{..}
-
 
 queryPkgReport :: PGS.Connection -> PkgN -> PkgIdxTs -> IO PkgIdxTsReport
 queryPkgReport dbconn pname ptime = do
