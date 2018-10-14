@@ -113,6 +113,7 @@ runController !app port =
 
     initApp :: SnapletInit App App
     initApp = makeSnaplet "matrix-controller" "Matrix CI controller" Nothing $ do
+        wrapSite (Snap.applyCORS Snap.defaultOptions)
         addRoutes [("/api/swagger.json",apiSwaggerJsonHandler)
                   ,("/api/",      apiHandler)
 
@@ -128,21 +129,21 @@ runController !app port =
         return app
 
     apiSwaggerJsonHandler :: AppHandler ()
-    apiSwaggerJsonHandler = Snap.applyCORS Snap.defaultOptions $ do
+    apiSwaggerJsonHandler = do
         modifyResponse $ setContentType "application/json"
         writeLBS (J.encode swaggerDoc)
 
     apiHandler :: AppHandler ()
-    apiHandler = Snap.applyCORS Snap.defaultOptions $ serveSnap controllerApi server
+    apiHandler = serveSnap controllerApi server
 
     uiHandler :: AppHandler ()
     uiHandler = do
-      modifyResponse $ setHeader "Cache-Control" "max-age=60, must-revalidate"
+      modifyResponse $ setHeader "Cache-Control" "max-age=0, must-revalidate"
       Snap.serveDirectory "ui.v2"
 
     uiHandlerNg :: AppHandler ()
     uiHandlerNg = do
-      modifyResponse $ setHeader "Cache-Control" "max-age=60, must-revalidate"
+      modifyResponse $ setHeader "Cache-Control" "max-age=0, must-revalidate"
       Snap.serveDirectory "ui.v3"
 
     controllerApi :: Proxy (ControllerApi AppHandler)
