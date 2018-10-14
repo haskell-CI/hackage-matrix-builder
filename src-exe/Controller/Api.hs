@@ -117,7 +117,11 @@ type ControllerApi m =
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> Get '[JSON]  QEntryRow
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> DeleteNoContent '[JSON] NoContent
+
   :<|> "v2" :> "users" :> "name"                 :> Capture "username" UserName :> Get '[JSON] UserPkgs
+
+  :<|> "v2" :> "workers" :> Get '[JSON] [WorkerRow]
+
 
 type ListOp e = QueryParam "count" Word :> Post '[JSON] (ListSlice e)
 
@@ -170,6 +174,7 @@ data PkgVerInfoEntry = PkgVerInfoEntry
     , pviePreference :: !Text
     } deriving (Generic,Eq,Ord)
 
+-- TODO: use PkgRev -- needs 'FromField PkgRev' instance
 data PkgHistoryEntry = PkgHistoryEntry !PkgIdxTs !Ver !Int !UserName
                      deriving (Generic,Eq,Ord)
     -- { pheIdxState :: !PkgIdxTs
@@ -234,6 +239,51 @@ instance Hashable QEntryRow where
 data QEntryUpd = QEntryUpd
     { quPriority :: Int
     } deriving (Generic,Eq,Ord,Show)
+
+
+-- (wid,mtime,wstate,pname,pver,ptime,compiler)
+data WState = WSidle
+            | WSinit
+            | WSsolve
+            | WSbuilddeps
+            | WSbuild
+            | WSdone
+            | WSerror
+            deriving (Eq,Ord,Show,Generic)
+
+instance NFData WState
+instance Hashable WState
+instance ToJSON   WState where { toJSON    = myToJSON; toEncoding = myToEncoding }
+instance FromJSON WState where { parseJSON = myParseJSON }
+instance ToSchema WState where { declareNamedSchema = myDeclareNamedSchema }
+
+instance FromField WState where
+    fromField _f mdata = return (go mdata) -- FIXME, check type
+      where
+        go (Just "idle")       = WSidle
+        go (Just "init")       = WSinit
+        go (Just "solve")      = WSsolve
+        go (Just "build-deps") = WSbuilddeps
+        go (Just "build")      = WSbuild
+        go (Just "done")       = WSdone
+        go (Just "error")      = WSerror
+        go _                   = error ("FromField(WState) " ++ show mdata)
+
+data WorkerRow = WorkerRow
+    { wrId         :: !Int
+    , wrModified   :: !Int -- unix timestamp; fixme, convert to UTCTime
+    , wrState      :: !WState
+    , wrPkgname    :: Maybe PkgN
+    , wrPkgversion :: Maybe Ver
+    , wrIdxState   :: Maybe PkgIdxTs
+    , wrHcversion  :: Maybe CompilerID
+    } deriving (Generic,Eq,Ord,Show)
+
+instance PGS.FromRow WorkerRow
+instance Hashable WorkerRow
+instance ToJSON   WorkerRow where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
+instance FromJSON WorkerRow where { parseJSON = myParseJSONCml }
+instance ToSchema WorkerRow where { declareNamedSchema = myDeclareNamedSchemaCml }
 
 instance ToJSON   a => ToJSON   (ListSlice a) where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON a => FromJSON (ListSlice a) where { parseJSON = myParseJSON }

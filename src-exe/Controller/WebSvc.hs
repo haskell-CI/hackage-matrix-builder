@@ -205,6 +205,7 @@ server = tagListH
     :<|> queuePutPkgIdxStH
     :<|> queueDelPkgIdxStH
     :<|> usersListH
+    :<|> workersListH
   where
 
     needAuth :: AppHandler a -> AppHandler a
@@ -626,6 +627,9 @@ server = tagListH
           Just pkgs -> pure (UserPkgs uname (uiPackages pkgs))
           Nothing   -> throwServantErr' err404
 
+    workersListH :: Handler App App [WorkerRow]
+    workersListH = doEtagFoldableGet $ withDbc $ \dbconn -> do
+      PGS.query_ dbconn "SELECT wid,mtime,wstate,pname,pver,ptime,compiler FROM worker ORDER BY wid"
 
 -- | Retrieve 'PkgLstCache' and update its content if stale
 --
