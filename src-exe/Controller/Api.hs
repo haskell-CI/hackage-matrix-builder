@@ -32,6 +32,7 @@ module Controller.Api
     , WState(..)
 
     , PkgHistoryEntry(..)
+    , IdxHistoryEntry(..)
 
     , PkgIdxTsReport(..)
     , CellReportType(..)
@@ -57,7 +58,6 @@ import           Database.PostgreSQL.Simple.FromField
 import           Database.PostgreSQL.Simple.ToField
 import           Servant.API
 import           Servant.Swagger                      as Swag
-
 
 swaggerDoc :: Swag.Swagger
 swaggerDoc = toSwagger (Proxy :: Proxy (ControllerApi ()))
@@ -91,23 +91,24 @@ type ControllerApi m =
   :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
 
   :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)
-  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Set TagName)
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Vector TagName)
   :<|> "v2" :> "packages" :> "*"                    :> "reports" :> "latest" :> Get '[JSON] (Map PkgN PkgIdxTs)
-  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Vector PkgIdxTs)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
+  :<|> "v2" :> "packages" :> "*"                    :> "history" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] (Vector IdxHistoryEntry)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
 
   :<|> "v2" :> "units" :> Capture "unitid" UUID :> Get '[JSON] UnitIdInfo
   :<|> "v2" :> "units" :> Capture "unitid" UUID :> "deps" :> Get '[JSON] (Map UUID UnitIdTree)
 
   :<|> "v2" :> "tags" :> QueryFlag "pkgnames" :> Get '[JSON] TagsInfo
-  :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Set PkgN)
+  :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Get '[JSON] (Vector PkgN)
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> PutNoContent '[JSON] NoContent
   :<|> "v2" :> "tags" :> Capture "tagname" TagName :> Capture "pkgname" PkgN :> DeleteNoContent '[JSON] NoContent
 
-  :<|> "v2" :> "queue" :>                                                          Get '[JSON] [QEntryRow]
-  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :>                                Get '[JSON] [QEntryRow]
+  :<|> "v2" :> "queue" :>                                                          Get '[JSON] (Vector QEntryRow)
+  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :>                                Get '[JSON] (Vector QEntryRow)
 --  :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> ReqBody '[JSON] QEntryUpd :> Post '[JSON] QEntryRow
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> Get '[JSON]  QEntryRow
   :<|> "v2" :> "queue" :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow
@@ -115,7 +116,8 @@ type ControllerApi m =
 
   :<|> "v2" :> "users" :> "name"                 :> Capture "username" UserName :> Get '[JSON] UserPkgs
 
-  :<|> "v2" :> "workers" :> Get '[JSON] [WorkerRow]
+  :<|> "v2" :> "workers" :>                           Get '[JSON] (Vector WorkerRow)
+  :<|> "v2" :> "workers" :> Capture "pkgname" PkgN :> Get '[JSON] (Vector WorkerRow)
 
 ----------------------------------------------------------------------------
 
@@ -167,13 +169,18 @@ data PkgHistoryEntry = PkgHistoryEntry !PkgIdxTs !Ver !Int !UserName
 
 instance PGS.FromRow PkgHistoryEntry
 
+data IdxHistoryEntry = IdxHistoryEntry !PkgIdxTs !PkgN !Ver !Int !UserName
+                     deriving (Generic,Eq,Ord)
+
+instance PGS.FromRow IdxHistoryEntry
+
 
 -- V2 API
 data QEntryRow = QEntryRow
-    { qrPriority :: Int
-    , qrModified :: UTCTime
-    , qrPkgname  :: PkgN
-    , qrIdxstate :: PkgIdxTs
+    { qrPriority :: !Int
+    , qrModified :: !UTCTime
+    , qrPkgname  :: !PkgN
+    , qrIdxstate :: !PkgIdxTs
     } deriving (Generic,Eq,Ord,Show)
 
 instance PGS.FromRow QEntryRow
@@ -184,7 +191,7 @@ instance Hashable QEntryRow where
 
 -- | Subset of 'QEntryRow' which can be set/updated via PUT request
 data QEntryUpd = QEntryUpd
-    { quPriority :: Int
+    { quPriority :: !Int
     } deriving (Generic,Eq,Ord,Show)
 
 
@@ -246,6 +253,13 @@ instance ToSchema PkgHistoryEntry where
         s <- myDeclareNamedSchema p
         pure $ s & Swag.schema.Swag.description ?~ "Package history entry represented as 4-tuple (idxstate,version,revision,username)"
                  & Swag.schema.Swag.example     ?~ toJSON (PkgHistoryEntry (PkgIdxTs 1343543615) (mkVer (1 :| [0])) 0 (UserName "EdwardKmett"))
+
+instance ToJSON   IdxHistoryEntry where { toJSON = myToJSON; toEncoding = myToEncoding }
+instance ToSchema IdxHistoryEntry where
+    declareNamedSchema p = do -- (        & (example ?~ toJSON (PkgIdxTs 1491048000)
+        s <- myDeclareNamedSchema p
+        pure $ s & Swag.schema.Swag.description ?~ "Package history entry represented as 5-tuple (idxstate,pkgname,version,revision,username)"
+                 & Swag.schema.Swag.example     ?~ toJSON (IdxHistoryEntry (PkgIdxTs 1343543615) (PkgN "lens") (mkVer (1 :| [0])) 0 (UserName "EdwardKmett"))
 
 
 data UserPkgs = UserPkgs

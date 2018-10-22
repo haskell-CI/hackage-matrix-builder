@@ -26,6 +26,7 @@ import qualified Data.IntMap             as IntMap
 import qualified Data.Map.Strict         as Map
 import qualified Data.Set                as Set
 import qualified Data.Text               as T
+import qualified Data.Vector             as V
 import           System.IO.Unsafe
 
 import           Log
@@ -112,6 +113,7 @@ readPkgIndex = do
             logInfo "re-reading pkg index"
             itm' <- readIndexTimeMap indexTar
             itm <- evaluate itm'
+            logInfo "pkg index load complete"
             return ((itm,sz),itm)
 
 getPkgIndexTs :: IO PkgIdxTs
@@ -142,7 +144,6 @@ decodeEntry e
 
 decodeEntry' :: Tar.Entry -> Maybe (Int, (PkgN, Maybe Ver))
 decodeEntry' e = fmap ((,) (fromIntegral $ Tar.entryTime e)) (decodeEntry e)
-
 
 mapIntern :: Ord k => k -> Map k k -> (k,Map k k)
 mapIntern k m = maybe (k,Map.insert k k m) (\k' -> (k',m)) (Map.lookup k m)
@@ -178,7 +179,6 @@ makeTimeMap = go IntMap.empty Set.empty 0 . internPkgIds . mapMaybe decodeEntry'
             (mv',vc') = case mv of
               Just (Ver v) -> first (Just . Ver) (mapIntern v vc)
               Nothing      -> (Nothing, vc)
-
 
 readIndexTimeMap :: FilePath -> IO IndexTimeMap
 readIndexTimeMap fn = makeTimeMap <$> readIndex fn

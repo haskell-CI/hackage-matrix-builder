@@ -50,18 +50,19 @@ queries idxts (ghcvers,pkgids) manager baseurl = do
 main :: IO ()
 main = do
     getArgs >>= \case
-      idxtss:ghcverstr:args -> go idxtss ghcverstr args
+      hostport0:idxtss:ghcverstr:args
+        | Just hostport <- decodeHostPort hostport0 -> go hostport idxtss ghcverstr args
       _ -> do
-        logError "usage: matrix-worker-client <idxstate> <ghcversion(s>) <pkgid1> [<pkgid2> [ ... ] ]"
+        logError "usage: matrix-worker-client <host:port> <idxstate> <ghcversion(s>) <pkgid1> [<pkgid2> [ ... ] ]"
         exitFailure
 
   where
-    go idxtss ghcverstr args = do
+    go (h,p) idxtss ghcverstr args = do
       let Just ghcver = mapM simpleParse (words ghcverstr)
           Just pkgs   = mapM simpleParse args
           Just idxts  = PkgIdxTs <$> read idxtss
       manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-      res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http "127.0.0.1" 8002 "/api"))
+      res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http h p "/api"))
       case res of
         Left (FailureResponse (Response {..})) -> do
             logDebugShow (responseStatusCode, responseHeaders)
@@ -71,4 +72,8 @@ main = do
         Right () -> logInfo "DONE"
 
 
-
+decodeHostPort :: String -> Maybe (String,Int)
+decodeHostPort s0 = do
+  (h,':':pstr) <- pure (break (==':') s0)
+  p <- readMaybe pstr
+  pure (h,p)

@@ -34,36 +34,37 @@ import           Prelude.Local
 
 import           Control.Monad.Except
 import           Control.Monad.State
-import qualified Crypto.Hash.SHA256               as SHA256
-import qualified Data.Aeson                       as J
-import qualified Data.ByteString.Builder          as BB
-import qualified Data.ByteString.Char8            as BS
-import qualified Data.ByteString.Lazy             as LBS
-import qualified Data.Foldable                    as F
-import           Data.Function                    (on)
-import qualified Data.Map.Strict                  as Map
+import qualified Crypto.Hash.SHA256                as SHA256
+import qualified Data.Aeson                        as J
+import qualified Data.ByteString.Builder           as BB
+import qualified Data.ByteString.Char8             as BS
+import qualified Data.ByteString.Lazy              as LBS
+import qualified Data.Foldable                     as F
+import           Data.Function                     (on)
+import qualified Data.Map.Strict                   as Map
 import           Data.Pool
-import qualified Data.Set                         as Set
-import qualified Data.Text                        as T
-import qualified Data.Vector                      as V
-import qualified Database.PostgreSQL.Simple       as PGS
-import           Database.PostgreSQL.Simple.Types (Only (..))
-import           Network.HTTP.Client              (defaultManagerSettings,
-                                                   managerResponseTimeout,
-                                                   newManager,
-                                                   responseTimeoutNone)
-import qualified Network.HTTP.Types.Header        as HTTP
-import qualified Network.HTTP.Types.Status        as HTTP
+import qualified Data.Set                          as Set
+import qualified Data.Text                         as T
+import qualified Data.Vector                       as V
+import qualified Database.PostgreSQL.Simple        as PGS
+import           Database.PostgreSQL.Simple.Types  (Only (..))
+import qualified Database.PostgreSQL.Simple.Vector as PGS.V
+import           Network.HTTP.Client               (defaultManagerSettings,
+                                                    managerResponseTimeout,
+                                                    newManager,
+                                                    responseTimeoutNone)
+import qualified Network.HTTP.Types.Header         as HTTP
+import qualified Network.HTTP.Types.Status         as HTTP
 import           Servant
-import           Servant.Client                   (ServantError (..))
-import qualified Servant.Client                   as Serv
+import           Servant.Client                    (ServantError (..))
+import qualified Servant.Client                    as Serv
 import           Snap.Core
-import           Snap.Http.Server                 (defaultConfig)
-import qualified Snap.Http.Server.Config          as Snap
+import           Snap.Http.Server                  (defaultConfig)
+import qualified Snap.Http.Server.Config           as Snap
 import           Snap.Snaplet
-import qualified Snap.Util.CORS                   as Snap
-import qualified Snap.Util.FileServe              as Snap
-import qualified System.IO.Streams                as Streams
+import qualified Snap.Util.CORS                    as Snap
+import qualified Snap.Util.FileServe               as Snap
+import qualified System.IO.Streams                 as Streams
 
 -- local modules
 import           Controller.Api
@@ -72,7 +73,7 @@ import           HackageApi
 import           HackageApi.Client
 import           Log
 import           PkgId
-import           PkgIdxTsSet                      (PkgIdxTsSet)
+import           PkgIdxTsSet                       (PkgIdxTsSet)
 import qualified PkgIdxTsSet
 
 -- | See 'fetchPkgLstCache'
@@ -166,6 +167,7 @@ server = ctlInfoH
     :<|> reportsH
     :<|> reportsIdxStH
     :<|> reportsIdxStCellH
+    :<|> packagesAnyHistoryH
     :<|> packagesHistoryH
 
     :<|> unitsIdH
@@ -183,6 +185,7 @@ server = ctlInfoH
     :<|> queueDelPkgIdxStH
     :<|> usersListH
     :<|> workersListH
+    :<|> workersListPkgH
   where
 
     needAuth :: AppHandler a -> AppHandler a
@@ -284,17 +287,30 @@ server = ctlInfoH
         let etag = etagFromPkgIdxTs (Just is) (V.length plst)
         return (etag, pure plst)
 
-    packagesTagsH :: PkgN -> AppHandler (Set TagName)
+    packagesTagsH :: PkgN -> AppHandler (Vector TagName)
     packagesTagsH pkgn = doEtagFoldableGet $ withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
-        res <- PGS.query dbconn "SELECT tagname FROM pname_tag WHERE pname = ? ORDER BY tagname" (PGS.Only pkgn)
-        pure (Set.fromList $ map PGS.fromOnly res)
+        res <- PGS.V.query dbconn "SELECT tagname FROM pname_tag WHERE pname = ? ORDER BY tagname" (PGS.Only pkgn)
+        pure (coerce (res :: Vector (Only TagName)))
+
+    packagesAnyHistoryH :: Maybe PkgIdxTs -> Maybe PkgIdxTs -> AppHandler (Vector IdxHistoryEntry)
+    packagesAnyHistoryH mlb mub = doEtag $ do
+        res <- withDbc $ \dbconn -> case (mlb,mub) of
+          (Nothing,Nothing) -> PGS.V.query_ dbconn "SELECT ptime,pname,pver,prev,powner FROM pkgindex ORDER BY ptime,pname,pver,prev,powner"
+          (Just lb,Nothing) -> PGS.V.query dbconn "SELECT ptime,pname,pver,prev,powner FROM pkgindex WHERE ptime >= ? ORDER BY ptime,pname,pver,prev,powner" (Only lb)
+          (Nothing,Just ub) -> PGS.V.query dbconn "SELECT ptime,pname,pver,prev,powner FROM pkgindex WHERE ptime <= ? ORDER BY ptime,pname,pver,prev,powner" (Only ub)
+          (Just lb,Just ub) -> PGS.V.query dbconn "SELECT ptime,pname,pver,prev,powner FROM pkgindex WHERE ptime >= ? AND ptime <= ? ORDER BY ptime,pname,pver,prev,powner" (lb,ub)
+        let is | V.null res = PkgIdxTs 0
+               | IdxHistoryEntry is' _ _ _ _ <- V.last res = is'
+
+            etag = etagFromPkgIdxTs (Just is) (V.length res)
+
+        return (etag, pure res)
 
     packagesHistoryH :: PkgN -> AppHandler (Vector PkgHistoryEntry)
     packagesHistoryH pkgn = doEtag $ do
-        xs <- withDbcGuard (pkgnExists pkgn) $ \dbconn ->
-          PGS.query dbconn "SELECT ptime,pver,prev,powner FROM pkgindex WHERE pname = ? ORDER BY (ptime,pver,prev,powner)" (PGS.Only pkgn)
-        let res = V.fromList xs
-            PkgHistoryEntry is _ _ _ = V.last res -- TODO: is res guarnateed to be non-empty?
+        res <- withDbcGuard (pkgnExists pkgn) $ \dbconn ->
+          PGS.V.query dbconn "SELECT ptime,pver,prev,powner FROM pkgindex WHERE pname = ? ORDER BY ptime,pver,prev,powner" (PGS.Only pkgn)
+        let PkgHistoryEntry is _ _ _ = V.last res -- TODO: is res guarnateed to be non-empty?
             etag = etagFromPkgIdxTs (Just is) (V.length res)
         return (etag, pure res)
 
@@ -303,7 +319,7 @@ server = ctlInfoH
         xs <- withDbc $ \dbconn -> PGS.query_ dbconn "SELECT pname,ptime FROM pname_max_ptime"
         pure (Map.fromList xs)
 
-    reportsH :: PkgN -> AppHandler (Set PkgIdxTs)
+    reportsH :: PkgN -> AppHandler (Vector PkgIdxTs)
     reportsH pkgn = doEtagFoldableGet $ withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
       {- old (slow) query before we had `pname_ptimes`
 
@@ -312,8 +328,8 @@ server = ctlInfoH
         pure (Set.fromList (map fromOnly ptimes1) <>
               Set.fromList (map fromOnly ptimes2))
       -}
-      ptimes <- PGS.query dbconn "SELECT ptime FROM pname_ptimes WHERE pname = ?" (PGS.Only pkgn)
-      pure (Set.fromList (map fromOnly ptimes))
+      ptimes <- PGS.V.query dbconn "SELECT ptime FROM pname_ptimes WHERE pname = ? ORDER BY ptime" (PGS.Only pkgn)
+      pure (coerce (ptimes :: Vector (Only PkgIdxTs)))
 
 
     reportsIdxStH :: PkgN -> PkgIdxTs -> AppHandler PkgIdxTsReport
@@ -402,11 +418,11 @@ server = ctlInfoH
     tagsH False = TagsInfo <$> doEtagFoldableGet (withDbc queryAllTagnames)
     tagsH True  = TagsInfoPkgs <$> withDbc queryAllTags -- FIXME: ETag
 
-    tagsGetH :: TagName -> AppHandler (Set PkgN)
+    tagsGetH :: TagName -> AppHandler (Vector PkgN)
     tagsGetH tn = doEtagFoldableGet $ do
         r <- withDbc $ \dbconn -> do
-            res <- PGS.query dbconn "SELECT pname FROM pname_tag WHERE tagname = ? ORDER BY pname" (PGS.Only tn)
-            pure (Set.fromList $ map PGS.fromOnly res)
+            res <- PGS.V.query dbconn "SELECT pname FROM pname_tag WHERE tagname = ? ORDER BY pname" (PGS.Only tn)
+            pure (coerce (res :: Vector (Only PkgN)))
 
         when (r == mempty) $
             throwServantErr' err404
@@ -420,13 +436,13 @@ server = ctlInfoH
     ----------------------------------------------------------------------------
     -- queue v2 --------------------------------------------------------------
 
-    queueGetH :: Handler App App [QEntryRow]
+    queueGetH :: Handler App App (Vector QEntryRow)
     queueGetH = doEtagFoldableGet $ withDbc $ \dbconn ->
-      PGS.query_ dbconn "SELECT prio,modified,pname,ptime FROM queue ORDER BY prio desc, modified desc"
+      PGS.V.query_ dbconn "SELECT prio,modified,pname,ptime FROM queue ORDER BY prio desc, modified desc"
 
-    queueGetPkgH :: PkgN -> Handler App App [QEntryRow]
+    queueGetPkgH :: PkgN -> Handler App App (Vector QEntryRow)
     queueGetPkgH pname = doEtagFoldableGet $ withDbcGuard (pkgnExists pname) $ \dbconn ->
-      PGS.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ? ORDER BY prio desc, modified desc" (Only pname)
+      PGS.V.query dbconn "SELECT prio,modified,pname,ptime FROM queue WHERE pname = ? ORDER BY prio desc, modified desc" (Only pname)
 
     -- FIXME: etag
     queueGetPkgIdxStH :: PkgN -> PkgIdxTs -> AppHandler QEntryRow
@@ -469,9 +485,13 @@ server = ctlInfoH
           Just pkgs -> pure (UserPkgs uname (uiPackages pkgs))
           Nothing   -> throwServantErr' err404
 
-    workersListH :: Handler App App [WorkerRow]
+    workersListH :: Handler App App (Vector WorkerRow)
     workersListH = doEtagFoldableGet $ withDbc $ \dbconn -> do
-      PGS.query_ dbconn "SELECT wid,mtime,wstate,pname,pver,ptime,compiler FROM worker ORDER BY wid"
+      PGS.V.query_ dbconn "SELECT wid,mtime,wstate,pname,pver,ptime,compiler FROM worker ORDER BY wid"
+
+    workersListPkgH :: PkgN -> Handler App App (Vector WorkerRow)
+    workersListPkgH pname = doEtagFoldableGet $ withDbcGuard (pkgnExists pname) $ \dbconn -> do
+      PGS.V.query dbconn "SELECT wid,mtime,wstate,pname,pver,ptime,compiler FROM worker WHERE pname = ? ORDER BY wid" (Only pname)
 
 -- | Retrieve 'PkgLstCache' and update its content if stale
 --
@@ -490,9 +510,8 @@ fetchPkgLstCache = do
             if is0 == is1
             then pure (cache0, cache0) -- no-op
             else do
-               lst1 <- (coerce :: [Only PkgN] -> [PkgN]) <$> PGS.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
-               lst1' <- evaluate (force (V.fromList lst1))
-               let !cache1 = PkgLstCache is1 lst1'
+               lst1 <- (coerce :: (Vector (Only PkgN)) -> (Vector PkgN)) <$> PGS.V.query_ dbconn "SELECT pname FROM pkgname ORDER by pname"
+               let !cache1 = PkgLstCache is1 lst1
                pure (cache1, cache1)
 
 -- | Retrieve 'PkgIdxTsSet' cache and update its content if stale

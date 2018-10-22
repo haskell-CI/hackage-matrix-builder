@@ -15,3 +15,6 @@ constraints: basement -none, foundation -none, cryponite -none
 -- allow-newer: Cabal:directory
 -- package Cabal
 --  flags: -old-directory
+
+-- temporary workaround
+allow-older: postgresql-simple:aeson

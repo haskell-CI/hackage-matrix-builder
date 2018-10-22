@@ -18,7 +18,7 @@ data CtrlConf = CtrlConf
 type WorkerCfg = (BaseUrl,CompilerID)
 
 readConfig :: FilePath -> IO CtrlConf
-readConfig = flip loadValueFromFile ctrlConfSpec
+readConfig = loadValueFromFile ctrlConfSpec
   where
     ctrlConfSpec :: ValueSpecs CtrlConf
     ctrlConfSpec = sectionsSpec "CtrlConf" $
@@ -42,5 +42,3 @@ readConfig = flip loadValueFromFile ctrlConfSpec
 
     compilerSpec :: ValueSpecs CompilerID
     compilerSpec = customSpec "compiler-id" valuesSpec (simpleParse . T.unpack)
-
-

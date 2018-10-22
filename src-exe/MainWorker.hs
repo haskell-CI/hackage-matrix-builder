@@ -10,7 +10,7 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
-module Main where
+module Main (main) where
 
 import           GHC.Enum                          (pred)
 import           Prelude.Local
@@ -21,7 +21,6 @@ import           Control.Monad.State
 import qualified Data.Aeson                        as J
 import qualified Data.ByteString.Char8             as BS
 import qualified Data.ByteString.Lazy              as LBS
-import qualified Data.IntMap.Strict                as IntMap
 import qualified Data.List.NonEmpty                as NonEmpty
 import qualified Data.Map.Strict                   as Map
 import qualified Data.Set                          as Set
@@ -59,15 +58,15 @@ import           Control.Concurrent.ReadWriteLock  (RWLock)
 import qualified Control.Concurrent.ReadWriteLock  as RWL
 
 import           Data.Ratio
-import           IndexHelper
 import           Job
 import           Log
 import           PkgId
 import           PlanJson
+import           Worker.PkgIndex
 import           WorkerApi
 
 data App = App
-    { _appBootTime       :: POSIXTime
+    { _appBootTime       :: !POSIXTime
     , _appGhcVersions    :: (Map.Map CompilerID (FilePath,ProgramDb,[GPkgInfo]))
 
     , _appJobs           :: TVar (Map.Map JobId Job)
@@ -134,10 +133,13 @@ main = do
                                (Set.fromList $ map unitIDFromUnitId $ depends p)
                     | p <- allPackages glob_pkgs ]
 
+        () <- evaluate (rnf (map rnfGPkgInfo gpkgs))
+
         return (hcid, (x,pdb,gpkgs))
 
-    let _appGhcVersions = Map.fromList tmp
-        _appWorkDir = wcWorkDir
+    _appGhcVersions <- evaluate (Map.fromList tmp)
+
+    let _appWorkDir = wcWorkDir
 
     _appStoreDelLock <- RWL.new
     _appStoreBuildLock <- RWL.new
@@ -145,7 +147,7 @@ main = do
     --- () <- exitSuccess
 
     its <- getPkgIndexTs
-    logInfo ("index-state at startup: " <> tshow its)
+    logInfo ("index-state at startup: " <> T.pack (fmtPkgIdxTs its))
 
     createDirectoryIfMissing True wcWorkDir
     runWorker App {..} wcPort
@@ -181,12 +183,12 @@ server =
 
     getJobSolveH :: JobId -> AppHandler JobSolve
     getJobSolveH jid = lookupJob jid >>= \case
-          Just j  -> setTimeout (60*60) >> liftIO (getJobSolve j)
+          Just j  -> setTimeout (30*60) >> liftIO (getJobSolve j)
           Nothing -> throwServantErr' err404
 
     getJobBuildDepsH :: JobId -> AppHandler JobBuildDeps
     getJobBuildDepsH jid = lookupJob jid >>= \case
-          Just j  -> setTimeout (60*60) >> liftIO (getJobBuildDeps j)
+          Just j  -> setTimeout (90*60) >> liftIO (getJobBuildDeps j)
           Nothing -> throwServantErr' err404
 
     getJobBuildH :: JobId -> AppHandler JobBuild
@@ -229,27 +231,34 @@ server =
 
           Just (ghcExe,_,_) -> do
               itm0 <- liftIO $ readPkgIndex
-              let headts0 = PkgIdxTs $ fst (IntMap.findMax itm0)
+              let headts0 = pkgIndexTs itm0
 
               (itm,its) <- case cjrqIndexTs of
-                Nothing -> pure (itm0,headts0)
+                Nothing -> do
+                    logWarning "index-state missing from request; this isn't supported anymore"
+                    (throwServantErr' err400) --FIXME
+                    -- pure (itm0,headts0)
                 Just ts0 -> do
                     when (ts0 > headts0) $ do
                         -- TODO: use runStep instead
+                        logInfo "index-state requested newer than current index cache; syncing..."
                         res <- liftIO $ runProc' cabalExe [ "update"
                                                           , "--verbose=normal+nowrap+timestamp"]
                         logDebugShow res
 
                     itm <- liftIO $ readPkgIndex
 
-                    if IntMap.member (unPkgIdxTs ts0) itm
+                    if pkgIndexTsMember ts0 itm
                             then pure (itm,ts0)
-                            else (throwServantErr' err400) --FIXME
+                            else do
+                              logWarning ("index-state requested does not exist " <> tshow (ts0, pkgIndexTs itm))
+                              (throwServantErr' err400) --FIXME
 
-              let Just itm' = IntMap.lookup (unPkgIdxTs its) itm
-                  exists = Set.member cjrqPkgId itm'
+              -- assert (pkgIndexTsMember ts0 itm)
+              let exists = pkgIndexMember its cjrqPkgId itm
 
-              unless exists $
+              unless exists $ do
+                  logWarning "pkg-id didn't exist in requested index-state"
                   throwServantErr' err400
 
               newJob <- liftIO $ createNewJob buildlock wdir (cjrqGhcVersion,ghcExe) cjrqPkgId its
@@ -344,7 +353,7 @@ runWorker !app port = do
     let cfg = Config.setAccessLog (Config.ConfigFileLog $ cwd </> "log" </> "access.log") $
               Config.setErrorLog  (Config.ConfigFileLog $ cwd </> "log" </> "error.log") $
               Config.setPort (fromIntegral port) $
-              Config.setDefaultTimeout 1800 $
+              Config.setDefaultTimeout 3600 $
               defaultConfig
 
     serveSnaplet cfg initApp
@@ -629,20 +638,28 @@ cleanupTmp = handle hdlr $ do
     uid <- getEffectiveUserID
     fns <- listDirectory "/tmp"
 
-    forM_ fns $ \fn -> do
+    cnts <- forM fns $ \fn -> do
         let fn' = "/tmp/" ++ fn
         st <- getSymbolicLinkStatus fn'
-        when (fileOwner st == uid) $
-            case fn of
-              'c':'c':_:_:_:_:_ | isRegularFile st -> do
-                              logDebugShow fn'
-                              removePathForcibly fn'
 
-              'g':'h':'c':_:_ | isDirectory st -> do
-                              logDebugShow fn'
-                              removePathForcibly fn'
+        case fn of
+          _ | fileOwner st /= uid -> pure 0
 
-              _ -> pure ()
+          'c':'c':_:_:_:_:_ | isRegularFile st -> do
+                          logDebugShow fn'
+                          removePathForcibly fn'
+                          pure 1
+
+          'g':'h':'c':_:_ | isDirectory st -> do
+                          logDebugShow fn'
+                          removePathForcibly fn'
+                          pure 1
+
+          _ -> pure (0 :: Int)
+
+    let cnt = sum cnts
+    when (cnt > 0) $
+      logDebug ("removed " <> tshow cnt <> " left-over entries in /tmp")
   where
     hdlr :: SomeException -> IO ()
     hdlr e = Log.logError (tshow e)
@@ -669,13 +686,14 @@ parseActionLog t0 = mapMaybe go (linesTS t0)
                                  _ -> Nothing
     go _ = Nothing
 
-
+{- FIXME/TODO
 parseFailedUnits :: Text -> [UnitID]
 parseFailedUnits t0 = map go (drop 1 $ T.splitOn ("\nFailed to build ") t0)
   where
     go t = case T.words t of
       (_:"Build":"log":"(":logfn:"):":_) | Just t1' <- T.stripPrefix "logs/" logfn, Just t2' <- T.stripSuffix ".log" t1' -> UnitID t2'
       _ -> error ("unexpected msg structure")
+-}
 
 findLegacyCN :: [TsMsg] -> Maybe UnitID
 findLegacyCN = go
@@ -844,3 +862,6 @@ splitTS t = do
 
     pure (fromRational ts,T.drop 1 rest)
 
+
+rnfGPkgInfo :: GPkgInfo -> ()
+rnfGPkgInfo (GPkgInfo a !_ !_) = rnf a

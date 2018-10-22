@@ -40,6 +40,7 @@ import           Data.Aeson
 import           Data.Aeson.Types                     (toJSONKeyText)
 import qualified Data.List.NonEmpty                   as NE
 import qualified Data.Text                            as T
+import           Data.Time.Clock.POSIX                (POSIXTime)
 import           Data.Time.Format                     (defaultTimeLocale,
                                                        formatTime)
 import           Data.Vector.Unboxed.Deriving         (derivingUnbox)
@@ -64,8 +65,8 @@ newtype PkgN = PkgN PackageName deriving (Eq,Ord,NFData,C.Text)
 
 instance Show PkgN where
     showsPrec p x
-      | p >= 11    = (("(PkgN \""++display x++"\")") ++)
-      | otherwise  = (("PkgN \""++display x++"\"") ++)
+      | p >= 11    = (("(PkgN \""<>display x<>"\")") <>)
+      | otherwise  = (("PkgN \""<>display x<>"\"") <>)
 
 instance FromJSON PkgN where
     parseJSON = withText "PkgN" $ maybe (fail "invalid 'PkgN'") pure . simpleParse . T.unpack
@@ -121,8 +122,8 @@ newtype Ver = Ver Version deriving (Eq,Ord,NFData,C.Text)
 
 instance Show Ver where
     showsPrec p x
-      | p >= 11    = (("(Ver \""++display x++"\")") ++)
-      | otherwise  = (( "Ver \""++display x++"\"") ++)
+      | p >= 11    = (("(Ver \""<>display x<>"\")") <>)
+      | otherwise  = (( "Ver \""<>display x<>"\"") <>)
 
 -- instance C.Text Ver where
 --     disp = disp . verToVersion
