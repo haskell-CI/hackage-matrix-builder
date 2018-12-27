@@ -128,16 +128,19 @@ executable matrix-controller
 
   other-modules:
       Controller.Api
+      Controller.Badge
       Controller.Cli
       Controller.Config
       Controller.Compute
       Controller.Db
       Controller.Scheduler
+      Controller.Types
       Controller.WebSvc
 
   -- non-locals
   build-depends:
     , SafeSemaphore        ^>= 0.10.1
+    , base-encoding        ^>= 0.1.0.0
     , config-schema        ^>= 0.5.0
     , optparse-generic     ^>= 1.2
     , resource-pool        ^>= 0.2.3.2

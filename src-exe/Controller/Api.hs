@@ -46,6 +46,7 @@ module Controller.Api
 import           Prelude.Local
 import           Util.WebSvc
 
+import           Controller.Badge
 import           HackageApi                           (UserName (..))
 import           PkgId
 import qualified PkgIdxTsSet
@@ -91,6 +92,7 @@ type ControllerApi m =
   :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
 
   :<|> "v2" :> "packages" :> Get '[JSON] (Vector PkgN)
+  :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "badge" :> Get '[SVG] Badge
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "tags" :> Get '[JSON] (Vector TagName)
   :<|> "v2" :> "packages" :> "*"                    :> "reports" :> "latest" :> Get '[JSON] (Map PkgN PkgIdxTs)
   :<|> "v2" :> "packages" :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Vector PkgIdxTs)

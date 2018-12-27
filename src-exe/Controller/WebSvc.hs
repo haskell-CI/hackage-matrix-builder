@@ -28,7 +28,10 @@
 --            /,_/      '`-'
 --
 
-module Controller.WebSvc where
+module Controller.WebSvc
+    ( module Controller.WebSvc
+    , module Controller.Types
+    ) where
 
 import           Prelude.Local
 
@@ -68,24 +71,15 @@ import qualified System.IO.Streams                 as Streams
 
 -- local modules
 import           Controller.Api
+import           Controller.Badge
 import           Controller.Db
+import           Controller.Types
 import           HackageApi
 import           HackageApi.Client
 import           Log
 import           PkgId
 import           PkgIdxTsSet                       (PkgIdxTsSet)
 import qualified PkgIdxTsSet
-
--- | See 'fetchPkgLstCache'
-data PkgLstCache = PkgLstCache !PkgIdxTs !(Vector PkgN)
-
-data App = App
-  { appDbPool        :: Pool PGS.Connection
-  , appPkgLstCache   :: MVar PkgLstCache   -- ^ see 'fetchPkgLstCache'
-  , appPkgIdxTsCache :: MVar PkgIdxTsSet -- ^ see 'fetchPkgIdxTsCache'
-  }
-
-newtype ETag = ETag ByteString
 
 etagFromPkgIdxTs :: Maybe PkgIdxTs -> Int -> ETag
 etagFromPkgIdxTs mis sz
@@ -162,6 +156,7 @@ server = ctlInfoH
     :<|> idxStatesLatestH
 
     :<|> packagesH
+    :<|> packagesBadgeH
     :<|> packagesTagsH
     :<|> reportsStarH
     :<|> reportsH
@@ -218,17 +213,16 @@ server = ctlInfoH
         modifyResponse $ setHeader "ETag" qetag
         cont
 
+    doEtag' :: (a -> ETag) -> AppHandler a -> AppHandler a
+    doEtag' f h0 = do
+        a <- h0
+        doEtag $ pure (f a, pure a)
+
     doEtagFoldableGet :: (Foldable f, Hashable a) => AppHandler (f a) -> AppHandler (f a)
-    doEtagFoldableGet h0 = do
-        xs <- h0
-        let etag = etagFromHashable (F.toList xs)
-        doEtag $ pure (etag, pure xs)
+    doEtagFoldableGet = doEtag' (etagFromHashable . F.toList)
 
     doEtagHashableGet :: Hashable a => AppHandler a -> AppHandler a
-    doEtagHashableGet h0 = do
-        res <- h0
-        let etag = etagFromHashable res
-        doEtag $ pure (etag, pure res)
+    doEtagHashableGet = doEtag' etagFromHashable
 
     ----------------------------------------------------------------------------
     -- global meta-info --------------------------------------------------------
@@ -292,6 +286,14 @@ server = ctlInfoH
         res <- PGS.V.query dbconn "SELECT tagname FROM pname_tag WHERE pname = ? ORDER BY tagname" (PGS.Only pkgn)
         pure (coerce (res :: Vector (Only TagName)))
 
+    packagesBadgeH :: PkgN -> AppHandler Badge
+    packagesBadgeH pkgn = do
+      badge <- withDbcGuard (pkgnExists pkgn) $ \dbconn -> do
+        repExists <- pkgnReportExists pkgn dbconn
+        pure (if repExists then BadgeOK else BadgeUnknown)
+
+      doEtag' badgeEtag (pure badge)
+
     packagesAnyHistoryH :: Maybe PkgIdxTs -> Maybe PkgIdxTs -> AppHandler (Vector IdxHistoryEntry)
     packagesAnyHistoryH mlb mub = doEtag $ do
         res <- withDbc $ \dbconn -> case (mlb,mub) of
@@ -346,6 +348,11 @@ server = ctlInfoH
     pkgnExists :: PkgN -> PGS.Connection -> IO Bool
     pkgnExists pkgn dbconn = do
         [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM pkgname WHERE pname = ?)" (PGS.Only pkgn)
+        pure ex
+
+    pkgnReportExists :: PkgN -> PGS.Connection -> IO Bool
+    pkgnReportExists pkgn dbconn = do
+        [Only ex] <- PGS.query dbconn "SELECT EXISTS (SELECT FROM pname_ptimes WHERE pname = ?)" (PGS.Only pkgn)
         pure ex
 
     pkgIdxTsExists :: PkgIdxTs -> PGS.Connection -> IO Bool
