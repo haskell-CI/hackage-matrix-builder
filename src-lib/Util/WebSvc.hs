@@ -2,6 +2,10 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes       #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module Util.WebSvc
     (
       -- * 'FromJSON'/'ToJSON' instances

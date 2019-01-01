@@ -4,6 +4,10 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE RecordWildCards       #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module Controller.Badge
     ( Badge(..)
     , badgeRender

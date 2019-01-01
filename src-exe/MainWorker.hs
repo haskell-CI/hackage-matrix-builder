@@ -10,6 +10,10 @@
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE TypeOperators     #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module Main (main) where
 
 import           GHC.Enum                          (pred)

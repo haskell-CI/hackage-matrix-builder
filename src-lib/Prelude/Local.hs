@@ -6,6 +6,10 @@
 
 {-# OPTIONS_GHC -Wno-orphans #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module Prelude.Local
     ( T.Text
     , FromJSON(..)

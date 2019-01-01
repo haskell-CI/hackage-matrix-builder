@@ -4,6 +4,10 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE StrictData         #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module IndexHelper
     ( readIndexTimeMap
     , IndexTimeMap
@@ -20,13 +24,11 @@ import           Prelude.Local
 
 import qualified Codec.Archive.Tar       as Tar
 import qualified Codec.Archive.Tar.Entry as Tar
--- import           Control.Exception
 import qualified Data.ByteString.Lazy    as BSL
 import qualified Data.IntMap             as IntMap
 import qualified Data.Map.Strict         as Map
 import qualified Data.Set                as Set
 import qualified Data.Text               as T
-import qualified Data.Vector             as V
 import           System.IO.Unsafe
 
 import           Log

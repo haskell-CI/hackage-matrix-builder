@@ -5,6 +5,10 @@
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE StrictData        #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module Job
     ( JobStep(..), runStep
     , Task, newTask, runTask, cancelTask

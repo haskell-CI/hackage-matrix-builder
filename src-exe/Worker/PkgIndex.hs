@@ -1,6 +1,10 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- |
+-- Copyright: © 2018 Herbert Valerio Riedel
+-- SPDX-License-Identifier: GPL-3.0-or-later
+--
 module Worker.PkgIndex
     ( getPkgIndexTs
     , pkgIndexTs
@@ -19,8 +23,6 @@ import           IndexHelper         (PkgIdxTuple (..), indexTar,
 import           Log
 import           PkgId
 import           Prelude.Local
-
-import           Debug.Trace
 
 data PkgIndex = PkgIndex !(Vector PkgIdxTsId) !(VU.Vector PkgIdxTs)
 

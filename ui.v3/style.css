@@ -1,0 +1,47 @@
+body,h1,h2,h3,h4,h5,h6,a {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 14px;
+}
+
+h2 { font-size: 24px; font-weight: 400; }
+
+
+table {
+    border: 2px solid black;
+    border-collapse: collapse;
+}
+
+th { background-color: #eeeeee;
+     border: 1px solid black;
+     padding: 2px;
+   }
+td { border: 1px solid black;
+     padding: 2px;
+   }
+
+td.stat-ok        { background-color: #00ff00; text-align: center; }
+td.stat-ok-no-ip  { background-color: #007700; text-align: center; }
+td.stat-fail      { background-color: #ff0000; text-align: center; }
+td.stat-fail-deps { background-color: #770000; text-align: center; }
+td.stat-queued    { background-color: #777700; text-align: center; }
+
+td.stat-unknown   { background-color: #000000; }
+
+td.stat-wip       {
+    text-align: center;
+    background-color: #ffff00;
+    animation:wip-fade 1000ms infinite;
+    -webkit-animation:wip-fade 1000ms infinite;
+}
+
+@keyframes wip-fade {
+    from { opacity: 1.0; }
+    50% { opacity: 0.5; }
+    to { opacity: 1.0; }
+}
+
+@-webkit-keyframes wip-fade {
+    from { opacity: 1.0; }
+    50% { opacity: 0.5; }
+    to { opacity: 1.0; }
+}
