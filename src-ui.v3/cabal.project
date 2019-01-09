@@ -1,10 +1,15 @@
-with-compiler: /opt/ghcjs/8.0/bin/ghcjs
+with-compiler: /opt/ghcjs/8.4/bin/ghcjs
 compiler: ghcjs
 
 packages: .
 
 ----------------------------------------------------------------------------
 -- reflex-0.5 has no proper Hackage releases yet
+
+source-repository-package
+    type: git
+    location: https://github.com/ghcjs/ghcjs-base
+    tag: b8d51f65ae1921b2f031710bf75e17f216de442a
 
 source-repository-package
     type: git
@@ -26,18 +31,24 @@ source-repository-package
 source-repository-package
     type: git
     location: https://github.com/reflex-frp/reflex-dom-contrib.git
-    tag: bb0acb9a4a66fddb0bc72ab9bc0d376b4ee2bf1d
+    tag: 2a0eb6105ba68de4ca9be309c38ff902093b923e
 
 source-repository-package
     type: git
     location: https://github.com/imalsogreg/servant-reflex.git
-    tag: cc2d9b1f4f0c81bd98a7cb5313c5d2c802d5a50b
+    tag: d64362d0ccdf2c5939f83bbe87f3de2f4226eaa3
 
 source-repository-package
     type: git
     location: https://github.com/3noch/reflex-dom-nested-routing.git
     tag: c49c75c693de8516d1b19314be500482bea9426c
 
+-- these are patched in the ghcjs distribution
+constraints: unix      installed
+           , directory installed
+           , process   installed
+           , time      installed
+           , filepath  installed
 
 -- Alternatively:
 --
