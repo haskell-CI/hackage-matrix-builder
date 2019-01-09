@@ -42,5 +42,5 @@ executable matrix-ui
     , reflex-dom                ^>= 0.4
     , reflex-dom-core           ^>= 0.4
     , reflex-dom-contrib        ^>= 0.5.1.0
-    , reflex-dom-nested-routing  == 0.0.3
+--  , reflex-dom-nested-routing  == 0.0.3
     , servant-reflex            ^>= 0.3.3
