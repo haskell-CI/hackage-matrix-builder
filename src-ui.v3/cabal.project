@@ -6,27 +6,32 @@ packages: .
 ----------------------------------------------------------------------------
 -- reflex-0.5 has no proper Hackage releases yet
 
-source-repository-package
-    type: git
-    location: https://github.com/ghcjs/ghcjs-base
-    tag: b8d51f65ae1921b2f031710bf75e17f216de442a
+-- these one has have released!
+--
+-- i.e. http://hackage.haskell.org/package/reflex-0.5
+-- source-repository-package
+--     type: git
+--     location: https://github.com/reflex-frp/reflex.git
+--     tag: 185e4eaca5e32dfeb879b4bc6c5429c2f34739c0
+--
+-- i.e. http://hackage.haskell.org/package/reflex-dom-core-0.4
+-- source-repository-package
+--     type: git
+--     location: https://github.com/reflex-frp/reflex-dom.git
+--     tag: 8e615a8a57cbb492f73dc9e6966c0cb865679c4d
+--     subdir: reflex-dom-core
+--
+-- i.e. http://hackage.haskell.org/package/reflex-dom-0.4
+-- source-repository-package
+--     type: git
+--     location: https://github.com/reflex-frp/reflex-dom.git
+--     tag: 8e615a8a57cbb492f73dc9e6966c0cb865679c4d
+--     subdir: reflex-dom
 
 source-repository-package
-    type: git
-    location: https://github.com/reflex-frp/reflex.git
-    tag: 185e4eaca5e32dfeb879b4bc6c5429c2f34739c0
-
-source-repository-package
-    type: git
-    location: https://github.com/reflex-frp/reflex-dom.git
-    tag: 8e615a8a57cbb492f73dc9e6966c0cb865679c4d
-    subdir: reflex-dom-core
-
-source-repository-package
-    type: git
-    location: https://github.com/reflex-frp/reflex-dom.git
-    tag: 8e615a8a57cbb492f73dc9e6966c0cb865679c4d
-    subdir: reflex-dom
+   type: git
+   location: https://github.com/ghcjs/ghcjs-base
+   tag: b8d51f65ae1921b2f031710bf75e17f216de442a
 
 source-repository-package
     type: git
