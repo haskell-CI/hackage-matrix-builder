@@ -27,11 +27,13 @@ packages: .
 --     location: https://github.com/reflex-frp/reflex-dom.git
 --     tag: 8e615a8a57cbb492f73dc9e6966c0cb865679c4d
 --     subdir: reflex-dom
-
-source-repository-package
-   type: git
-   location: https://github.com/ghcjs/ghcjs-base
-   tag: b8d51f65ae1921b2f031710bf75e17f216de442a
+--
+-- i.e. http://hackage.haskell.org/package/ghcjs-base-0.2.0.0
+-- source-repository-package
+--    type: git
+--    location: https://github.com/ghcjs/ghcjs-base
+--    tag: b8d51f65ae1921b2f031710bf75e17f216de442a
+--
 
 source-repository-package
     type: git
