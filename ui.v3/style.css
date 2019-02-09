@@ -21,6 +21,7 @@ td { border: 1px solid black;
 
 td.stat-ok        { background-color: #00ff00; text-align: center; }
 td.stat-ok-no-ip  { background-color: #007700; text-align: center; }
+td.stat-fail-bjle { background-color: #cc7700; text-align: center; }
 td.stat-fail      { background-color: #ff0000; text-align: center; }
 td.stat-fail-deps { background-color: #770000; text-align: center; }
 td.stat-queued    { background-color: #777700; text-align: center; }

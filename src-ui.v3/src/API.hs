@@ -207,17 +207,21 @@ emptyCellReportSummary = CellReportSummary Nothing Nothing Nothing Nothing Nothi
 fmtCRS :: CellReportSummary -> (Text, Text)
 fmtCRS CellReportSummary{..} = (T.unwords
     [ ty
-    , maybe "" (("J:"<>) . T.pack . show) crsBjle
+    , maybe "" fmtBJ crsBjle
     , maybe "" (("E:"<>) . T.pack . show) crsPerr
     , maybe "" (("O:"<>) . T.pack . show) crsBok
     , maybe "" (("F:"<>) . T.pack . show) crsBfail
     , maybe "" (("D:"<>) . T.pack . show) crsBdfail
     ], cls)
   where
+    fmtBJ 2000 = "2k"
+    fmtBJ x    = ("J:"<>) . T.pack . show $ x
+
     (ty,cls) = case crsT of
       Nothing                           -> ("", "stat-unknown")
       Just CRTna                        -> ("NA", "stat-unknown") -- ?
-      Just CRTpf                        -> ("OK (no-ip)", "stat-ok-no-ip")
+      Just CRTpf | Just _    <- crsBjle -> ("FAIL (BJ)", "stat-fail-bjle")
+                 | otherwise            -> ("OK (no-ip)", "stat-ok-no-ip")
       Just CRTse | Just _ <- crsBok
                  , Nothing <- crsBfail
                  , Nothing <- crsBdfail -> ("OK", "stat-ok")
