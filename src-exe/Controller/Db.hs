@@ -182,10 +182,10 @@ queryNextJobTask dbconn cids pname ptime = do
 queryPkgReport :: PGS.Connection -> PkgN -> PkgIdxTs -> IO PkgIdxTsReport
 queryPkgReport dbconn pname ptime = do
     ipfails <- PGS.query dbconn
-               "SELECT compiler,pver FROM solution_fail WHERE pname = ? AND ptime = ?"
+               "SELECT compiler,pver,solverlim FROM solution_fail WHERE pname = ? AND ptime = ?"
                (pname, ptime)
 
-    evaluate (rnf ipfails)
+    evaluate (rnf (ipfails :: [(CompilerID,Ver,Maybe Int)]))
 
     jobs <- PGS.query dbconn
             "SELECT DISTINCT j.compiler,j.pver,bstatus \
@@ -218,8 +218,8 @@ queryPkgReport dbconn pname ptime = do
           | otherwise                         = Just noipFailCRS
 
     let ipfailm, table :: Map Ver (Map GhcVer CellReportSummary)
-        ipfailm = Map.fromListWith mappend [ (v,Map.singleton (compilerVer k) noipCRS)
-                                           | (k,v) <- ipfails
+        ipfailm = Map.fromListWith mappend [ (v,Map.singleton (compilerVer k) (maybe noipCRS noipBjeCRS mbje))
+                                           | (k,v,mbje) <- ipfails
                                            ]
 
         table = Map.unionWith mappend ipfailm ipsols -- TODO: assert non-overlap
@@ -244,6 +244,11 @@ queryPkgReport dbconn pname ptime = do
     pure PkgIdxTsReport{..}
   where
     naCRS = CellReportSummary Nothing Nothing Nothing Nothing Nothing Nothing
+
+    noipBjeCRS 2000 = naCRS { crsT = Just CRTpf, crsBjle = Just 2000 }
+    noipBjeCRS l
+      | l >= 0      = naCRS { crsT = Just CRTpf, crsBjle = Just (fromIntegral l) }
+      | otherwise   = naCRS { crsT = Just CRTpf, crsBjle = Just 0 } -- internal error
 
     noipCRS     = naCRS { crsT = Just CRTpf }
     noipFailCRS = naCRS { crsT = Just CRTpf, crsPerr = Just True }
