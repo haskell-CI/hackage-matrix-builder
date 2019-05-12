@@ -29,10 +29,10 @@ matrix:
   include:
     - compiler: "ghc-8.0.2"
       env: INSTALLED=false TEST=--disable-tests BENCH=--disable-benchmarks
-      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.0.2], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-3.0,ghc-8.0.2], sources: [hvr-ghc]}}
     - compiler: "ghc-8.2.2"
       env: TEST=--disable-tests BENCH=--disable-benchmarks
-      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-head,ghc-8.2.2], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-3.0,ghc-8.2.2], sources: [hvr-ghc]}}
 
 before_install:
  - HC=${CC}
@@ -53,15 +53,15 @@ install:
  - rm -fv cabal.project.local
  - "echo 'packages: .' > cabal.project"
  - rm -f cabal.project.freeze
- - cabal new-build -w ${HC} ${TEST} ${BENCH} --dep -j2 all
- - cabal new-build -w ${HC} --disable-tests --disable-benchmarks --dep -j2 all
+ - cabal v2-build -w ${HC} ${TEST} ${BENCH} --dep -j2 all
+ - cabal v2-build -w ${HC} --disable-tests --disable-benchmarks --dep -j2 all
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
 script:
  - if [ -f configure.ac ]; then autoreconf -i; fi
  - rm -rf .ghc.environment.* dist/
- - cabal sdist # test that a source-distribution can be generated
+ - cabal v1-sdist # test that a source-distribution can be generated
  - cd dist/
  - SRCTAR=(${PKGNAME}-*.tar.gz)
  - SRC_BASENAME="${SRCTAR/%.tar.gz}"
@@ -72,17 +72,17 @@ script:
  - "echo 'packages: .' > cabal.project"
  # this builds all libraries and executables (without tests/benchmarks)
  - rm -f cabal.project.freeze
- - cabal new-build -w ${HC} --disable-tests --disable-benchmarks all
+ - cabal v2-build -w ${HC} --disable-tests --disable-benchmarks all
  # this builds all libraries and executables (including tests/benchmarks)
  # - rm -rf ./dist-newstyle
 
  # Build with installed constraints for packages in global-db
  - if $INSTALLED; then
-     echo cabal new-build -w ${HC} --disable-tests --disable-benchmarks $(${HCPKG} list --global --simple-output --names-only | sed 's/\([a-zA-Z0-9-]\{1,\}\) */--constraint="\1 installed" /g') all | sh;
+     echo cabal v2-build -w ${HC} --disable-tests --disable-benchmarks $(${HCPKG} list --global --simple-output --names-only | sed 's/\([a-zA-Z0-9-]\{1,\}\) */--constraint="\1 installed" /g') all | sh;
    else echo "Not building with installed constraints"; fi
 
  # build & run tests, build benchmarks
- - cabal new-build -w ${HC} ${TEST} ${BENCH} all
+ - cabal v2-build -w ${HC} ${TEST} ${BENCH} all
 
 # REGENDATA ["hackage-matrix-builder3.cabal"]
 # EOF

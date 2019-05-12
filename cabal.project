@@ -3,8 +3,8 @@ packages: .
 tests: false
 benchmarks: false
 
-package hackage-matrix-builder3
-  ghc-options: -fhide-source-paths
+-- package hackage-matrix-builder3
+--   ghc-options: -fhide-source-paths
 
 -- avoid troublesome packages
 constraints: basement -none, foundation -none, cryponite -none
