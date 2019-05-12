@@ -6,7 +6,7 @@
 #
 language: c
 sudo: false
-dist: trusty
+dist: xenial
 
 git:
   submodules: false  # whether to recursively clone submodules
@@ -29,10 +29,10 @@ matrix:
   include:
     - compiler: "ghc-8.0.2"
       env: INSTALLED=false TEST=--disable-tests BENCH=--disable-benchmarks
-      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-3.0,ghc-8.0.2], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-3.0,ghc-8.0.2,libbrotli-dev], sources: [hvr-ghc]}}
     - compiler: "ghc-8.2.2"
       env: TEST=--disable-tests BENCH=--disable-benchmarks
-      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-3.0,ghc-8.2.2], sources: [hvr-ghc]}}
+      addons: {apt: {packages: [ghc-ppa-tools,cabal-install-3.0,ghc-8.2.2,libbrotli-dev], sources: [hvr-ghc]}}
 
 before_install:
  - HC=${CC}
