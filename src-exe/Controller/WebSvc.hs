@@ -117,7 +117,8 @@ runController !app port =
           [ ServeObj ""            True  "text/html"       True  $ ServeObjSrcFile "ui.v3/index.html"  3
           , ServeObj "ui.js"       False "text/javascript" True  $ ServeObjSrcFile "ui.v3/ui.js"       3
           , ServeObj "style.css"   False "text/css"        True  $ ServeObjSrcFile "ui.v3/style.css"   3
-          , ServeObj "loading.gif" False "image/gif"       False $ ServeObjSrcFile "ui.v3/loading.gif" 3
+       -- this entry is useful for non-inlined images
+       -- , ServeObj "loading.gif" False "image/gif"       False $ ServeObjSrcFile "ui.v3/loading.gif" 3
           ]
 
         wrapSite (Snap.applyCORS Snap.defaultOptions)
