@@ -11,6 +11,9 @@ module Controller.Util
     , serveFolderMem
     , ServeObjSrc(..)
     , ServeObj(..)
+
+    , withBrotliCompression'
+    , withBrotliCompression
     ) where
 
 import           Prelude.Local                    as Prelude
@@ -23,12 +26,18 @@ import qualified Crypto.Hash.SHA256               as SHA256
 import qualified Data.Attoparsec.ByteString.Char8 as P
 import           Data.ByteString                  (ByteString)
 import qualified Data.ByteString                  as BS
+import qualified Data.ByteString.Builder          as BB
 import qualified Data.ByteString.Lazy             as BS.L
 import qualified Data.Map.Strict                  as Map
+import qualified Data.Set                         as Set
 import           Data.Time                        (Day (..), UTCTime (..))
 import           Snap.Core
 import           Snap.Internal.Parsing            (fullyParse)
+import qualified Snap.Util.GZip                   as Snap
 import qualified System.Directory                 as Dir
+import qualified System.IO.Streams                as Streams
+
+import qualified System.IO.Streams.Brotli         as BrotliStr
 
 import qualified Log
 
@@ -74,9 +83,10 @@ serveFolderMem entries0 = do
                   pure $ obj0 { sobjSource = ServeObjSrcFile' fp ttl cd }
 
 
-{-# NOINLINE serveFileMem #-}
 serveFileMem :: MonadSnap m => ByteString {- content-type -} -> BS.L.ByteString -> m ()
-serveFileMem mime identityData = serveCachedData (mkCachedData True mime identityData)
+serveFileMem mime identityData = serveCachedData cd
+  where
+    cd = mkCachedData True mime identityData
 
 ----------------------------------------------------------------------------
 -- internals
@@ -289,3 +299,46 @@ acceptParser = do
     float = do
         _ <- P.takeWhile P.isDigit
         (P.char '.' >> P.takeWhile P.isDigit >> pure ()) <|> pure ()
+
+
+withBrotliCompression :: MonadSnap m => m a -> m ()
+withBrotliCompression = withBrotliCompression' Snap.compressibleMimeTypes
+
+withBrotliCompression' :: MonadSnap m => Set ByteString -> m a -> m ()
+withBrotliCompression' mimetypes act = do
+    void act
+    rs <- getResponse
+
+    unless (isJust $ getHeader "Content-Encoding" rs) $ do
+      let mct = normCtype <$> getHeader "Content-Type" rs
+      forM_ mct $ \ct -> when (Set.member ct mimetypes) $ do
+        rq <- getRequest
+
+        let acceptedEncoding  = fromMaybe "" $ getHeader "Accept-Encoding" rq
+            acceptedEncodings = either mempty id $ fullyParse acceptedEncoding acceptParser
+
+        when ("br" `elem` acceptedEncodings) brotliCompression
+
+    getResponse >>= finishWith
+  where
+    normCtype = BS.takeWhile (\c -> c /= 0x3b && c /= 0x20 && not (9 >= c && c <= 13))
+
+brotliCompression :: MonadSnap m => m ()
+brotliCompression = modifyResponse f
+  where
+    f rs = setHeader "Content-Encoding" "br"  $
+           setHeader "Vary" "Accept-Encoding" $
+           clearContentLength                 $
+           modifyResponseBody go rs
+
+    go :: (OutputStream BB.Builder -> IO (OutputStream BB.Builder))
+       ->  OutputStream BB.Builder -> IO (OutputStream BB.Builder)
+    go body stream = go2 stream >>= body
+
+    go2 :: OutputStream BB.Builder -> IO (OutputStream BB.Builder)
+    go2 = unbuilderStream >=> BrotliStr.compressWith cparms >=> Streams.builderStream
+
+    cparms = BrotliStr.defaultCompressParams { BrotliStr.compressLevel = BrotliStr.CompressionLevel7 }
+
+unbuilderStream :: OutputStream BB.Builder -> IO (OutputStream ByteString)
+unbuilderStream ostream = Streams.makeOutputStream (\mx -> Streams.write (BB.byteString <$> mx) ostream)

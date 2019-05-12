@@ -138,12 +138,10 @@ runController !app port =
         return app
 
     apiSwaggerJsonHandler :: AppHandler ()
-    apiSwaggerJsonHandler = do
-        modifyResponse $ setContentType "application/json"
-        writeLBS (J.encode swaggerDoc)
+    apiSwaggerJsonHandler = serveFileMem "application/json" (J.encode swaggerDoc)
 
     apiHandler :: AppHandler ()
-    apiHandler = serveSnap controllerApi server
+    apiHandler = withBrotliCompression $ serveSnap controllerApi server
 
     uiHandler :: AppHandler ()
     uiHandler = do
