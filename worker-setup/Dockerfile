@@ -11,7 +11,7 @@ ADD ./xghc-7.x /opt/ghc/7.10.3/bin/xghc
 ADD ./xghc-8.x /opt/ghc/8.0.2/bin/xghc
 ADD ./xghc-8.x /opt/ghc/8.2.2/bin/xghc
 ADD ./xghc-8.x /opt/ghc/8.4.4/bin/xghc
-ADD ./xghc-8.x /opt/ghc/8.6.3/bin/xghc
+ADD ./xghc-8.x /opt/ghc/8.6.5/bin/xghc
 RUN sed -i 's|"$PKGCONF" ${1+"$@"}|"$PKGCONF" +RTS -M1G -RTS ${1+"$@"}|g' /opt/ghc/*/bin/ghc-pkg-[78]*.*
 
 # user setup

@@ -118,7 +118,11 @@ RUN apt-get install -y \
     && apt-get autoremove -y --purge && apt-get clean
 
 # recheck for updated dists
-#RUN echo 1 && apt-get update && apt-get dist-upgrade -y
+RUN echo 1 && apt-get update && apt-get dist-upgrade -y
+
+# 2nd iteration
+RUN apt-get install -y libalut-dev libflint-dev libdbusmenu-gtk3-dev libuv1-dev libbrotli-dev liblz-dev libgtkglext1-dev librsvg2-dev libwebkitgtk-3.0-dev r-base-core libsdl2-image-dev libarchive-dev libwebkit-dev libsdl2-mixer-dev libsox-dev \
+ && apt-get autoremove -y --purge && apt-get clean
 
 # GHC toolchains
 RUN apt-get install -y \
@@ -130,5 +134,9 @@ RUN apt-get install -y \
         ghc-8.0.2  \
         ghc-8.2.2  \
         ghc-8.4.4  \
-        ghc-8.6.3  \
+        ghc-8.6.5  \
     && apt-get clean
+
+# add-ons -- to be moved to the front at some point
+#RUN apt-get install -y libalut-dev libflint-dev libdbusmenu-gtk3-dev libuv1-dev libbrotli-dev liblz-dev \
+# && apt-get autoremove -y --purge && apt-get clean
