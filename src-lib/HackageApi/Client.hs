@@ -15,7 +15,7 @@ import           Servant.Client.Core  (parseBaseUrl)
 import           HackageApi
 
 runClientM' :: Manager -> BaseUrl -> ClientM a -> ExceptT ServantError IO a
-runClientM' manager' baseurl act = ExceptT (runClientM act (ClientEnv manager' baseurl))
+runClientM' manager' baseurl act = ExceptT (runClientM act (ClientEnv manager' baseurl Nothing))
 
 getUsers    ::              ClientM [UserNameId]
 getUserInfo :: UserName  -> ClientM UserInfo
