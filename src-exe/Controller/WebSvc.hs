@@ -78,6 +78,7 @@ import           Controller.Api
 import           Controller.Badge
 import           Controller.Db
 import           Controller.Types
+import           Controller.Util
 import           HackageApi
 import           HackageApi.Client
 import           Log
@@ -112,6 +113,13 @@ runController !app port =
 
     initApp :: SnapletInit App App
     initApp = makeSnaplet "matrix-controller" "Matrix CI controller" Nothing $ do
+        ngHandler <- serveFolderMem
+          [ ServeObj ""            True  "text/html"       True  $ ServeObjSrcFile "ui.v3/index.html"  3
+          , ServeObj "ui.js"       False "text/javascript" True  $ ServeObjSrcFile "ui.v3/ui.js"       3
+          , ServeObj "style.css"   False "text/css"        True  $ ServeObjSrcFile "ui.v3/style.css"   3
+          , ServeObj "loading.gif" False "image/gif"       False $ ServeObjSrcFile "ui.v3/loading.gif" 3
+          ]
+
         wrapSite (Snap.applyCORS Snap.defaultOptions)
         addRoutes [("/api/swagger.json",apiSwaggerJsonHandler)
                   ,("/api/",      apiHandler)
@@ -122,7 +130,8 @@ runController !app port =
                   ,("/users/",    hashRedir)
                   ,("/latest/",   hashRedir)
 
-                  ,("/ng/",       uiHandlerNg)
+                  ,("/ng/",       ngHandler)
+
                   ,("/",          uiHandler)
                   ]
         return app
@@ -139,11 +148,6 @@ runController !app port =
     uiHandler = do
       modifyResponse $ setHeader "Cache-Control" "max-age=0, must-revalidate"
       Snap.serveDirectory "ui.v2"
-
-    uiHandlerNg :: AppHandler ()
-    uiHandlerNg = do
-      modifyResponse $ setHeader "Cache-Control" "max-age=0, must-revalidate"
-      Snap.serveDirectory "ui.v3"
 
     controllerApi :: Proxy (ControllerApi AppHandler)
     controllerApi = Proxy

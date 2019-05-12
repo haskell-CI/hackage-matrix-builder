@@ -8,7 +8,6 @@ license-file:        LICENSE
 author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
 category:            Network
-build-type:          Simple
 extra-source-files:  ChangeLog.md
 tested-with:         GHC == 8.2.2
 
@@ -136,12 +135,16 @@ executable matrix-controller
       Controller.Scheduler
       Controller.Types
       Controller.WebSvc
+      Controller.Util
 
   -- non-locals
   build-depends:
     , SafeSemaphore        ^>= 0.10.1
+    , attoparsec           ^>= 0.13.2.2
     , base-encoding        ^>= 0.1.0.0
+    , brotli               ^>= 0.0.0.0
     , config-schema        ^>= 0.5.0
+    , cryptohash-md5       ^>= 0.11.100.1
     , optparse-generic     ^>= 1.2
     , resource-pool        ^>= 0.2.3.2
     , servant-snap         ^>= 0.8.1
@@ -150,3 +153,4 @@ executable matrix-controller
     , snap-core            ^>= 1.0.3.2
     , snap-server          ^>= 1.0.3.3
     , unordered-containers ^>= 0.2.7.1
+    , zlib                 ^>= 0.6.2
