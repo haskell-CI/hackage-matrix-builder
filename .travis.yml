@@ -52,6 +52,8 @@ install:
  - sed -i.bak 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
  - rm -fv cabal.project.local
  - "echo 'packages: .' > cabal.project"
+ # FIXME: temporary hack
+ - "cabal v2-configure --allow-older=postgresql-simple:aeson"
  - rm -f cabal.project.freeze
  - cabal v2-build -w ${HC} ${TEST} ${BENCH} --dep -j2 all
  - cabal v2-build -w ${HC} --disable-tests --disable-benchmarks --dep -j2 all
@@ -70,6 +72,8 @@ script:
 ## from here on, CWD is inside the extracted source-tarball
  - rm -fv cabal.project.local
  - "echo 'packages: .' > cabal.project"
+ # FIXME: temporary hack
+ - "cabal v2-configure --allow-older=postgresql-simple:aeson"
  # this builds all libraries and executables (without tests/benchmarks)
  - rm -f cabal.project.freeze
  - cabal v2-build -w ${HC} --disable-tests --disable-benchmarks all
