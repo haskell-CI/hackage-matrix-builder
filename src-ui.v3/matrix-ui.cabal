@@ -25,16 +25,16 @@ executable matrix-ui
 
   build-depends:
     , Prelude                   ^>= 0.1.0.0
-    , aeson                     ^>= 1.2.4
+    , aeson                     ^>= 1.4.3
     , base                      ^>= 4.9.1.0 || ^>= 4.11.1.0
     , containers                ^>= 0.5.7.1
-    , lens                      ^>= 4.16
+    , lens                      ^>= 4.17.1
     , text                      ^>= 1.2.2.2
     , time                      ^>= 1.6.0.1 || ^>= 1.8.0.2
     , network-uri               ^>= 2.6.1.0
     , vector                    ^>= 0.12.0.1
     , uuid-types                ^>= 1.0.3
-    , servant                   ^>= 0.13
+    , servant                   ^>= 0.16
 
     -- unreleased Git snapshots of deps; see cabal.project for provenance
     -- , ghcjs-dom-jsffi
@@ -43,4 +43,4 @@ executable matrix-ui
     , reflex-dom-core           ^>= 0.4
     , reflex-dom-contrib        ^>= 0.5.1.0
 --  , reflex-dom-nested-routing  == 0.0.3
-    , servant-reflex            ^>= 0.3.3
+    , servant-reflex            ^>= 0.3.4

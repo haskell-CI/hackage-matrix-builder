@@ -38,12 +38,14 @@ packages: .
 source-repository-package
     type: git
     location: https://github.com/reflex-frp/reflex-dom-contrib.git
-    tag: 2a0eb6105ba68de4ca9be309c38ff902093b923e
+    tag: 796a3f0fa1ff59cbad97c918983355b46c3b6aa0
 
 source-repository-package
     type: git
     location: https://github.com/imalsogreg/servant-reflex.git
-    tag: d64362d0ccdf2c5939f83bbe87f3de2f4226eaa3
+    tag: 9310745a99c670ec244ecdcac6577d0f365f6946
+
+allow-newer: servant-reflex:http-api-data, servant-reflex:servant
 
 -- source-repository-package
 --    type: git
@@ -56,6 +58,10 @@ constraints: unix      installed
            , process   installed
            , time      installed
            , filepath  installed
+
+-- temporary
+allow-newer: reflex-dom-core-0.5:aeson
+allow-newer: reflex-dom-core-0.4:aeson
 
 -- Alternatively:
 --

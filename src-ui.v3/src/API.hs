@@ -63,7 +63,7 @@ import           Data.Time        (UTCTime)
 import           Data.UUID.Types  (UUID)
 import           Data.Vector      (Vector)
 import           GHC.Generics     (Rep)
-import           Reflex.Dom
+import           Reflex.Dom hiding (Client)
 import           Servant.API
 import           Servant.Reflex
 
