@@ -8,8 +8,18 @@ license-file:        LICENSE
 author:              Herbert Valerio Riedel
 maintainer:          hvr@gnu.org
 category:            Network
-extra-source-files:  ChangeLog.md
 tested-with:         GHC ==8.6.5 || ==8.4.4 || ==8.2.2 || ==8.0.2
+description:
+  This package contains the Hackage Matrix CI server backends
+  powering http://matrix.hackage.haskell.org
+
+extra-source-files:
+  ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/haskell-CI/hackage-matrix-builder.git
+
 
 common defaults
   default-language:    Haskell2010
