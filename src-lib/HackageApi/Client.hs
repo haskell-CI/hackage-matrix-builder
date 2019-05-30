@@ -7,15 +7,14 @@ module HackageApi.Client where
 import           Prelude.Local
 
 import           Control.Monad.Except (ExceptT (..))
-import           Network.HTTP.Client  (Manager)
 import           Servant.API
-import           Servant.Client
-import           Servant.Client.Core  (parseBaseUrl)
+import           Servant.HttpStreams
+import           Servant.Client.Core  (parseBaseUrl, ClientError)
 
 import           HackageApi
 
-runClientM' :: Manager -> BaseUrl -> ClientM a -> ExceptT ServantError IO a
-runClientM' manager' baseurl act = ExceptT (runClientM act (ClientEnv manager' baseurl Nothing))
+runClientM' :: NFData a => BaseUrl -> ClientM a -> ExceptT ClientError IO a
+runClientM' baseurl act = ExceptT $ withClientEnvIO baseurl (runClientM act)
 
 getUsers    ::              ClientM [UserNameId]
 getUserInfo :: UserName  -> ClientM UserInfo

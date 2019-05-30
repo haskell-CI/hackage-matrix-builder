@@ -15,10 +15,7 @@ import           Prelude.Local
 
 import           Control.Monad.Except (ExceptT (..), runExceptT)
 -- import Data.Aeson
-import           Network.HTTP.Client  (Manager, defaultManagerSettings,
-                                       managerResponseTimeout, newManager,
-                                       responseTimeoutNone)
-import           Servant.Client
+import           Servant.HttpStreams
 -- import           Text.Groom
 import qualified Data.ByteString.Lazy as BL
 
@@ -27,8 +24,8 @@ import           PkgId
 import           WorkerApi
 import           WorkerApi.Client
 
-queries :: Maybe PkgIdxTs -> ([CompilerID],[PkgId]) -> Manager -> BaseUrl -> ExceptT ServantError IO ()
-queries idxts (ghcvers,pkgids) manager baseurl = do
+queries :: Maybe PkgIdxTs -> ([CompilerID],[PkgId]) -> BaseUrl -> ExceptT ClientError IO ()
+queries idxts (ghcvers,pkgids) baseurl = do
     logDebugShow ghcvers
     logDebugShow pkgids
 
@@ -49,7 +46,8 @@ queries idxts (ghcvers,pkgids) manager baseurl = do
 
     return ()
   where
-    runClientM'' = runClientM' manager baseurl
+    runClientM'' :: NFData a => ClientM a -> ExceptT ClientError IO a
+    runClientM'' = runClientM' baseurl
 
 main :: IO ()
 main = do
@@ -65,10 +63,9 @@ main = do
       let Just ghcver = mapM simpleParse (words ghcverstr)
           Just pkgs   = mapM simpleParse args
           Just idxts  = PkgIdxTs <$> read idxtss
-      manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-      res <- runExceptT (queries (Just idxts) (ghcver,pkgs) manager (BaseUrl Http h p "/api"))
+      res <- runExceptT (queries (Just idxts) (ghcver,pkgs) (BaseUrl Http h p "/api"))
       case res of
-        Left (FailureResponse (Response {..})) -> do
+        Left (FailureResponse _ (Response {..})) -> do
             logDebugShow (responseStatusCode, responseHeaders)
             BL.putStr responseBody
         Left err -> do

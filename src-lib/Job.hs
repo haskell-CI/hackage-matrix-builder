@@ -39,6 +39,7 @@ data JobStep = JobStep
 
 instance ToJSON   JobStep where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON JobStep where { parseJSON = myParseJSON }
+instance NFData   JobStep
 
 runStep :: FilePath -> [Text] -> IO JobStep
 runStep exe args = do

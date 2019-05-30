@@ -5,17 +5,18 @@
 
 module Main where
 
+import           Prelude
+
 import           Test.Tasty
--- import Test.Tasty.SmallCheck as SC
+-- import        Test.Tasty.SmallCheck as SC
 import           Test.Tasty.QuickCheck as QC
--- import Test.Tasty.HUnit
+-- import        Test.Tasty.HUnit
 
 import           PkgId
 import qualified PkgIdxRanges          as IR
 import qualified PkgIdxTsSet           as PIS
 
 import qualified Data.Set              as Set
-import           Data.Word
 
 main :: IO ()
 main = defaultMain tests
@@ -40,7 +41,7 @@ qcProps1 = testGroup "PkgIdxTsSet"
                 PkgIdxTs ux = Set.findMin s
                 s' = PIS.fromSet s
             in and [ PIS.member (PkgIdxTs x) s' == Set.member (PkgIdxTs x) s
-                   | x <- [ lx - 50 .. lx + 50 ] ++ [ ux - 50 .. ux + 50 ]
+                   | x <- [ lx - 50 .. lx + 50 ] <> [ ux - 50 .. ux + 50 ]
                    ]
 
   , QC.testProperty "member2" $
@@ -57,7 +58,7 @@ qcProps1 = testGroup "PkgIdxTsSet"
                 PkgIdxTs ux = Set.findMin s
                 s' = PIS.fromSet s
             in and [ PIS.lookupIndex (PkgIdxTs x) s' == Set.lookupIndex (PkgIdxTs x) s
-                   | x <- [ lx - 50 .. lx + 50 ] ++ [ ux - 50 .. ux + 50 ]
+                   | x <- [ lx - 50 .. lx + 50 ] <> [ ux - 50 .. ux + 50 ]
                    ]
 
   , QC.testProperty "lookupIndex2" $
@@ -121,7 +122,7 @@ qcProps2 = testGroup "PkgIdxRanges"
   ]
 
 irFromList8 :: [(Word8, Word8)] -> IR.IdxRanges
-irFromList8 = IR.fromList . map f
+irFromList8 = IR.fromList . fmap f
   where
     f :: (Word8,Word8) -> (PkgIdxTs,Maybe PkgIdxTs)
     f (l,0) = (PkgIdxTs (fromIntegral l), Nothing)

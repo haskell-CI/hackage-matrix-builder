@@ -39,11 +39,7 @@ import qualified Data.Set                         as Set
 import qualified Data.Text                        as T
 import qualified Database.PostgreSQL.Simple       as PGS
 import           Database.PostgreSQL.Simple.Types (Only (..))
-import           Network.HTTP.Client              (defaultManagerSettings,
-                                                   managerResponseTimeout,
-                                                   newManager,
-                                                   responseTimeoutNone)
-import           Servant.Client
+import           Servant.Client.Core
 
 -- local modules
 import qualified Controller.Cli                   as Cli
@@ -114,10 +110,8 @@ registerPkgIds dbconn pids = do
 
 initWorkers :: PGS.Connection -> [(BaseUrl,CompilerID)] -> IO ()
 initWorkers dbconn wrks = do
-    manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-
     forM_ wrks $ \(wuri,gv) -> do
-        res <- runExceptT $ runClientM' manager wuri $ listPkgDbGlobal gv
+        res <- runExceptT $ runClientM' wuri $ listPkgDbGlobal gv
         -- (either (fail . show) pure =<< runExceptT) $ do
 
         -- gvs' <- map fromOnly <$> liftIO (PGS.query_ dbconn "SELECT compiler FROM hscompiler")

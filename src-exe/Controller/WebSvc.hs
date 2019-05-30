@@ -56,15 +56,11 @@ import qualified Data.Vector                       as V
 import qualified Database.PostgreSQL.Simple        as PGS
 import           Database.PostgreSQL.Simple.Types  (Only (..))
 import qualified Database.PostgreSQL.Simple.Vector as PGS.V
-import           Network.HTTP.Client               (defaultManagerSettings,
-                                                    managerResponseTimeout,
-                                                    newManager,
-                                                    responseTimeoutNone)
 import qualified Network.HTTP.Types.Header         as HTTP
 import qualified Network.HTTP.Types.Status         as HTTP
 import           Servant
-import           Servant.Client                    (ServantError (..))
-import qualified Servant.Client                    as Serv
+import           Servant.Client.Core               (ClientError (..))
+import qualified Servant.Client.Core               as Serv
 import           Snap.Core
 import           Snap.Http.Server                  (defaultConfig)
 import qualified Snap.Http.Server.Config           as Snap
@@ -624,19 +620,16 @@ throwServantErr0 ServantErr{..} = do
 
 getUsersIO :: IO [UserNameId]
 getUsersIO = do
-    manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-    either (fail . show) pure =<< runExceptT (runClientM' manager hackageUrl $ getUsers)
+    either (fail . show) pure =<< runExceptT (runClientM' hackageUrl $ getUsers)
 
 getUserInfoIO :: UserName -> IO (Maybe UserInfo)
 getUserInfoIO n = do
-    manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
-
-    res <- runExceptT (runClientM' manager hackageUrl $ getUserInfo n)
+    res <- runExceptT (runClientM' hackageUrl $ getUserInfo n)
 
     case res of
       Right ui -> pure (Just ui)
 
-      Left (FailureResponse (Serv.Response
+      Left (FailureResponse _ (Serv.Response
                              { responseStatusCode = HTTP.Status { statusCode = 404 }
                              , responseBody       = "User not found: Could not find user: not presently registered\n"
                              })) -> pure Nothing

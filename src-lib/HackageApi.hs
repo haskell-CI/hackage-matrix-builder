@@ -47,6 +47,7 @@ data UserNameId = UserNameId
 
 instance ToJSON   UserNameId where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON UserNameId where { parseJSON = myParseJSON }
+instance NFData   UserNameId
 
 data UserInfo = UserInfo
     { uiGroups   :: Set Text
@@ -56,6 +57,7 @@ data UserInfo = UserInfo
 
 instance ToJSON   UserInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON UserInfo where { parseJSON = myParseJSON }
+instance NFData   UserInfo
 
 ----------------------------------------------------------------------------
 

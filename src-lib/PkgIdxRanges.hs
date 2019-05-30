@@ -96,10 +96,12 @@ isBounded (IRA rs)
 -- union monoid
 instance Monoid IdxRanges where
     mempty = IRA []
+    mappend = (<>)
 
-    mappend (IRA []) y      = y
-    mappend x (IRA [])      = x
-    mappend (IRA x) (IRA y) = normalise (IRA (x++y))
+instance Semigroup IdxRanges where
+    (IRA []) <> y      = y
+    x <> (IRA [])      = x
+    (IRA x) <> (IRA y) = normalise (IRA (x++y))
 
 intersection :: IdxRanges -> IdxRanges -> IdxRanges
 intersection (IRA []) _ = mempty

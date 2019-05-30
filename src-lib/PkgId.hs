@@ -223,7 +223,7 @@ instance ToJSON PkgId where
 
 -- c.f. Cabal's UnitId
 newtype UnitID = UnitID Text -- opaque-ish identifier
-               deriving (Show,Eq,Ord,FromJSON,ToJSON,ToField,FromField,ToJSONKey,FromJSONKey)
+               deriving (Show,Eq,Ord,FromJSON,ToJSON,ToField,FromField,ToJSONKey,FromJSONKey,NFData)
 
 unUnitID :: UnitID -> Text
 unUnitID (UnitID t) = t

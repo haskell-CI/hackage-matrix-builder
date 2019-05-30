@@ -59,12 +59,15 @@ data CreateJobRes = CreateJobRes
 
 instance ToJSON   WorkerInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON WorkerInfo where { parseJSON = myParseJSON }
+instance NFData   WorkerInfo
 
 instance ToJSON   CreateJobReq where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON CreateJobReq where { parseJSON = myParseJSON }
+instance NFData   CreateJobReq
 
 instance ToJSON   CreateJobRes where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON CreateJobRes where { parseJSON = myParseJSON }
+instance NFData   CreateJobRes
 
 type JobsInfo = [JobId]
 
@@ -79,6 +82,7 @@ data JobSolve = JobSolve
 
 instance ToJSON   JobSolve where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON JobSolve where { parseJSON = myParseJSON }
+instance NFData   JobSolve
 
 data JobBuildDeps = JobBuildDeps
     { jrFetchDeps   :: Maybe JobStep
@@ -90,6 +94,7 @@ data JobBuildDeps = JobBuildDeps
 
 instance ToJSON   JobBuildDeps where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON JobBuildDeps where { parseJSON = myParseJSON }
+instance NFData   JobBuildDeps
 
 data JobBuild = JobBuild
     { jrBuild        :: Maybe JobStep
@@ -100,6 +105,7 @@ data JobBuild = JobBuild
 
 instance ToJSON   JobBuild where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON JobBuild where { parseJSON = myParseJSON }
+instance NFData   JobBuild
 
 data GPkgInfo = GPkgInfo
      { gpiPkgId   :: PkgId
@@ -109,6 +115,7 @@ data GPkgInfo = GPkgInfo
 
 instance ToJSON   GPkgInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON GPkgInfo where { parseJSON = myParseJSON }
+instance NFData   GPkgInfo
 
 data SPkgInfo = SPkgInfo
      { spiPkgId   :: PkgId
@@ -118,4 +125,5 @@ data SPkgInfo = SPkgInfo
 
 instance ToJSON   SPkgInfo where { toJSON = myToJSON; toEncoding = myToEncoding }
 instance FromJSON SPkgInfo where { parseJSON = myParseJSON }
+instance NFData   SPkgInfo
 

@@ -43,12 +43,8 @@ import qualified Data.Text                               as T
 import qualified Database.PostgreSQL.Simple              as PGS
 import qualified Database.PostgreSQL.Simple.Notification as PGS
 import           Database.PostgreSQL.Simple.Types        (Only (..))
-import           Network.HTTP.Client                     (defaultManagerSettings,
-                                                          managerResponseTimeout,
-                                                          newManager,
-                                                          responseTimeoutNone)
 import           Servant
-import           Servant.Client                          (BaseUrl (..))
+import           Servant.Client.Core                     (BaseUrl (..))
 
 import           Controller.Api
 import           Controller.Db
@@ -253,36 +249,35 @@ scheduler App{..} = do
         withResource appDbPool $ \dbconn ->
             void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'init', pname = ?, pver = ?, ptime = ?, compiler = ? WHERE wid = ?") (pname, pver, idxts, gv, wid)
 
-        manager <- newManager (defaultManagerSettings { managerResponseTimeout = responseTimeoutNone })
         CreateJobRes wjid <- either (fail . show) pure =<< runExceptT
-                             (runClientM' manager wuri $ createJob (CreateJobReq gv (Just idxts) pid))
-        pure (wjid,manager,wid,wuri)
+                             (runClientM' wuri $ createJob (CreateJobReq gv (Just idxts) pid))
+        pure (wjid,wid,wuri)
 
-    doneWJob gv (wjid,manager,wid,wuri) = do
-        NoContent <- either (fail . show) pure =<< runExceptT (runClientM' manager wuri $ destroyJob wjid)
+    doneWJob gv (wjid,wid,wuri) = do
+        NoContent <- either (fail . show) pure =<< runExceptT (runClientM' wuri $ destroyJob wjid)
 
         withResource appDbPool $ \dbconn ->
             void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'idle', pname = NULL, pver = NULL, ptime = NULL, compiler = NULL WHERE wid = ?") (Only wid)
 
-        pis <- either (fail . show) pure =<< runExceptT (runClientM' manager wuri $ listPkgDbStore gv)
+        pis <- either (fail . show) pure =<< runExceptT (runClientM' wuri $ listPkgDbStore gv)
         let pisLen = length pis
         logDebug $ mconcat ["store size[", tdisplay gv, "] = ", tshow pisLen]
 
         when (pisLen > 1000) $ do
-            NoContent <- either (fail . show) pure =<< runExceptT (runClientM' manager wuri $ destroyPkgDbStore gv)
+            NoContent <- either (fail . show) pure =<< runExceptT (runClientM' wuri $ destroyPkgDbStore gv)
             pure ()
 
     go2 :: Int -> BaseUrl -> JobSpec -> IO ()
     go2 wid0 wuri0 jspec@(JobSpec pid idxts ghcver) =
       bracket (initWJob jspec wid0 wuri0)
               (doneWJob ghcver)
-              $ \(wjid,manager,wid,wuri) -> do
+              $ \(wjid,wid,wuri) -> do
 
         withResource appDbPool $ \dbconn ->
             void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'solve' WHERE wid = ?") (Only wid)
 
         sinfo <- either (fail . show) pure =<< runExceptT
-                 (runClientM' manager wuri $ getJobSolveInfo wjid)
+                 (runClientM' wuri $ getJobSolveInfo wjid)
 
         let PkgId pidn pidv = pid
 
@@ -332,13 +327,13 @@ scheduler App{..} = do
                     void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'build-deps' WHERE wid = ?") (Only wid)
 
                   bdinfo <- either (fail . show) pure =<< runExceptT
-                            (runClientM' manager wuri $ getJobBuildDepsInfo wjid)
+                            (runClientM' wuri $ getJobBuildDepsInfo wjid)
 
                   withResource appDbPool $ \dbconn ->
                     void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'build' WHERE wid = ?") (Only wid)
 
                   binfo <- either (fail . show) pure =<< runExceptT
-                           (runClientM' manager wuri $ getJobBuildInfo wjid)
+                           (runClientM' wuri $ getJobBuildInfo wjid)
 
                   withResource appDbPool $ \dbconn ->
                     void $ PGS.execute dbconn ("UPDATE worker SET mtime = DEFAULT, wstate = 'done' WHERE wid = ?") (Only wid)

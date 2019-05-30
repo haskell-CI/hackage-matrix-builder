@@ -12,7 +12,7 @@ import           Config.Schema
 import           Data.Bits
 import qualified Data.Text      as T
 import           PkgId
-import           Servant.Client (BaseUrl (..), parseBaseUrl)
+import           Servant.Client.Core (BaseUrl (..), parseBaseUrl)
 
 data CtrlConf = CtrlConf
     { ccPort    :: Word16
