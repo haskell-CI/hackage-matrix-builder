@@ -121,8 +121,39 @@ RUN apt-get install -y \
 RUN echo 1 && apt-get update && apt-get dist-upgrade -y
 
 # 2nd iteration
-RUN apt-get install -y libalut-dev libflint-dev libdbusmenu-gtk3-dev libuv1-dev libbrotli-dev liblz-dev libgtkglext1-dev librsvg2-dev libwebkitgtk-3.0-dev r-base-core libsdl2-image-dev libarchive-dev libwebkit-dev libsdl2-mixer-dev libsox-dev \
- && apt-get autoremove -y --purge && apt-get clean
+RUN apt-get install -y \
+        libalut-dev \
+        libarchive-dev \
+        libavdevice-dev \
+        libbabl-dev \
+        libbrotli-dev \
+        libdbusmenu-gtk3-dev \
+        libfdk-aac-dev \
+        libflint-dev \
+        libglade2-dev \
+        libgsasl7-dev \
+        libgtkglext1-dev \
+        libgtksourceview-3.0-dev \
+        libgtksourceview2.0-dev \
+        libjavascriptcoregtk-4.0-dev \
+        liblz-dev \
+        libmagickwand-dev \
+        librsvg2-dev \
+        librubberband-dev \
+        libsdl2-gfx-dev \
+        libsdl2-image-dev \
+        libsdl2-mixer-dev \
+        libsdl2-net-dev \
+        libsox-dev \
+        libuv1-dev \
+        libvirt-dev \
+        libwebkit-dev \
+        libwebkit2gtk-4.0-dev \
+        libwebkitgtk-3.0-dev \
+        libwnck-3-dev \
+        portaudio19-dev \
+        r-base-core \
+    && apt-get autoremove -y --purge && apt-get clean
 
 # GHC toolchains
 RUN apt-get install -y \
