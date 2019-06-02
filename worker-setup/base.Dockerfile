@@ -118,7 +118,7 @@ RUN apt-get install -y \
     && apt-get autoremove -y --purge && apt-get clean
 
 # recheck for updated dists
-RUN echo 1 && apt-get update && apt-get dist-upgrade -y
+RUN echo 2 && apt-get update && apt-get dist-upgrade -y
 
 # 2nd iteration
 RUN apt-get install -y \
