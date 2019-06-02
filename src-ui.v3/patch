@@ -1,0 +1,171 @@
+commit f3840712e3afcc0b804390c7b3b79ef6d84a850e
+Author: Andika Demas Riyandi <andika.riyan@gmail.com>
+Date:   Tue May 28 16:19:12 2019 +0700
+
+    Adding a working tag list
+
+diff --git a/src-ui.v3/src/API.hs b/src-ui.v3/src/API.hs
+index c7a937d..b23462b 100644
+--- a/src-ui.v3/src/API.hs
++++ b/src-ui.v3/src/API.hs
+@@ -78,6 +78,12 @@ data ClientFuns t m = ClientFuns
+      , getV2PackageReports       :: Client t m (Capture "" PkgN :> Get '[JSON] (Set PkgIdxTs)) ()
+      , getV2PackageReportSummary :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> Get '[JSON] PkgIdxTsReport) ()
+      , getV2PackageReportDetail  :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> Capture "" Ver :> Capture "" CompilerID :> Get '[JSON] CellReportDetail) ()
++     -- , getV2PackageTags          :: Client t m (Capture "" PkgN :> Get '[JSON] (Vector TagN)) ()
++     , getV2TagsWithPackage      :: Client t m (QueryParam "pkgnames" Bool :> Get '[JSON] (Map PkgN TagN)) ()
++     , getV2TagsWithoutPackage   :: Client t m (QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)) ()
++     -- , getV2TagPackages          :: Client t m (Capture "" TagN :> Get '[JSON] (Vector PkgN)) ()
++     -- , putV2PackageTags          :: Client t m (Capture "" PkgN :> Capture "" TagN :> PutNoContent '[JSON] NoContent)
++     -- , deleteV2PackageTags       :: Client t m (Capture "" PkgN :> Capture "" TagN :> DeleteNoContent '[JSON] NoContent)
+ 
+      , getV2UnitInfo             :: Client t m (Capture "" UUID :> Get '[JSON] UnitIdInfo) ()
+ 
+@@ -101,6 +107,12 @@ mkClientFuns burl = ClientFuns {..}
+      :<|> getV2PackageReports
+      :<|> getV2PackageReportSummary
+      :<|> getV2PackageReportDetail
++     -- :<|> getV2PackageTags
++     :<|> getV2TagsWithPackage
++     :<|> getV2TagsWithoutPackage
++     -- :<|> getV2TagPackages
++     -- :<|> putV2PackageTags
++     -- :<|> deleteV2PackageTags
+      :<|> getV2UnitInfo
+      :<|> getV2Workers
+      :<|> getV2WorkersPkg
+@@ -119,7 +131,12 @@ type API =       "v2" :> "info"      :> Get '[JSON] ControllerInfo -- static met
+             :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
+             :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
+             :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
+-
++            -- :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "tags" :> Get '[JSON] (Vector TagN)
++            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Map PkgN TagN)
++            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)
++            -- :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Get '[JSON] (Vector PkgN)
++            -- :<|> "v2" :> "tags"      :> Capture "pkgname" PkgN :> Capture "tagname" TagN :> PutNoContent '[JSON] NoContent
++            -- :<|> "v2" :> "tags"      :> Capture "pkgname" PkgN :> Capture "tagname" TagN :> DeleteNoContent '[JSON] NoContent
+             :<|> "v2" :> "units" :> Capture "unitid" UUID :> Get '[JSON] UnitIdInfo
+ 
+             :<|> "v2" :> "workers"   :> Get '[JSON] (Vector WorkerRow)
+diff --git a/src-ui.v3/src/Main.hs b/src-ui.v3/src/Main.hs
+index 4996817..0569113 100644
+--- a/src-ui.v3/src/Main.hs
++++ b/src-ui.v3/src/Main.hs
+@@ -41,8 +41,10 @@ import           Reflex.Dom.Contrib.Router (route)
+ import           Reflex.Dom.Location
+ -- import           Reflex.Dom.Routing.Nested
+ import           Control.Lens
++import           Control.Monad.Fix
+ import           Reflex.Dom.Widget.Basic
+ import           Reflex.Time
++import           Reflex.Class
+ import           Servant.API
+ import           Servant.Reflex
+ 
+@@ -264,7 +266,13 @@ bodyElement4 = do
+ 
+       RoutePackages -> pure $ do
+           el "h1" $ text "Packages"
+-          packagesPageWidget dynPackages0
++          evPB <- getPostBuild
++          evTagsOnly <- fmapMaybe reqSuccess <$> getV2TagsWithoutPackage (constDyn $ QParamSome False) evPB
++          dynTagsOnly <- holdDyn mempty evTagsOnly
++          evPkgsTags <- fmapMaybe reqSuccess <$> getV2TagsWithPackage (constDyn $ QParamSome True) evPB
++          dynPkgsTags <- holdDyn Map.empty evPkgsTags
++
++          packagesPageWidget dynPackages0 dynTagsOnly dynPkgsTags
+ 
+       RoutePackage pn -> pure $ do
+           el "h2" $ text (unPkgN pn)
+@@ -275,7 +283,7 @@ bodyElement4 = do
+ 
+           -- single-shot requests
+ 
+-          evReports <- fmapMaybe reqSuccess <$> getV2PackageReports  (constDyn $ Right pn) evPB
++          evReports <- fmapMaybe reqSuccess <$> getV2PackageReports (constDyn $ Right pn) evPB
+           dynReports <- holdDyn mempty evReports
+ 
+           evInfo <- fmapMaybe reqSuccess <$> getV2Info evPB
+@@ -363,6 +371,8 @@ bodyElement4 = do
+ 
+     unPkgN (PkgN x) = x
+ 
++    unTagN (TagN x) = x
++
+     pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (unPkgN <$> pn')
+ 
+     pkgHref (PkgN pn')
+@@ -405,10 +415,26 @@ decodeFrag frag = case frag of
+ 
+ 
+ -- | Renders alpha-tabbed package index
+-packagesPageWidget :: (MonadHold t m, PostBuild t m, DomBuilder t m) => Dynamic t (Vector PkgN) -> m ()
+-packagesPageWidget dynPackages = do
++packagesPageWidget :: (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
++                   => Dynamic t (Vector PkgN) 
++                   -> Dynamic t (Vector TagN) 
++                   -> Dynamic t (Map.Map PkgN TagN)
++                   -> m ()
++packagesPageWidget dynPackages dynTags dynPkgsTags = do
+     display (V.length <$> dynPackages)
+ 
++    dynTags' <- dyn $ do
++      v <- dynTags
++      let v' = V.toList v 
++      pure $ do 
++        dynTagSet <- elClass "ol" "tag-filter clearfix" $ do 
++          forM_ v' $ \(TagN tn) -> do
++            el "li" $
++              elAttr "a" ("class" =: "tag-item") $ text tn
++          pure $ leftmost $ fmap (\x -> x <$ never) v'
++        foldDyn mkTagSet Set.empty dynTagSet
++    --text dynTags'
++
+     dynPF <- el "div" $ do
+       text "[ "
+       eButton0 <- button "0-9"
+@@ -418,12 +444,12 @@ packagesPageWidget dynPackages = do
+         button (T.singleton c)
+ 
+       text " ]"
+-
+       holdDyn 'A' (leftmost [ e $> c | (e,c) <- zip (eButton0:eButtons) ('*':['A'..'Z']) ])
+-
++        
+     -- this is faster than simpleList
+     _ <- dyn $ do v <- dynPackages
+                   pf <- dynPF
++                  --tf <- dynTags'
+                   let v' = V.toList . evalPkgFilter pf $ v
+ 
+                   pure $ do
+@@ -617,7 +643,8 @@ applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
+ applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
+ applyLR _ _ _                 = error "applyLR"
+ 
+-
++mkTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
++mkTagSet tn st = if Set.member tn st then Set.insert tn st else Set.delete tn st
+ 
+ joinE :: forall t m a . (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
+ joinE = fmap switch . hold never
+diff --git a/src-ui.v3/src/PkgId.hs b/src-ui.v3/src/PkgId.hs
+index 2c768b3..479d687 100644
+--- a/src-ui.v3/src/PkgId.hs
++++ b/src-ui.v3/src/PkgId.hs
+@@ -6,6 +6,7 @@
+ --
+ module PkgId
+     ( PkgN(..)
++    , TagN(..)
+     , pkgNFromText
+ 
+     , Ver
+@@ -141,3 +142,6 @@ verToText (Ver x) = T.pack . Ver.showVersion . Ver.makeVersion $ x
+ --     go (_ : xs) = go xs
+ --     go _        = fail "could not parse Version"
+ 
++----------------------------------------------------------------------------
++newtype TagN = TagN { tagNToText :: Text }
++  deriving (Eq,Ord,FromJSON,ToJSON,ToJSONKey,FromJSONKey,FromHttpApiData,ToHttpApiData)

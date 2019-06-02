@@ -6,6 +6,7 @@
 --
 module PkgId
     ( PkgN(..)
+    , TagN(..)
     , pkgNFromText
 
     , Ver
@@ -141,3 +142,6 @@ verToText (Ver x) = T.pack . Ver.showVersion . Ver.makeVersion $ x
 --     go (_ : xs) = go xs
 --     go _        = fail "could not parse Version"
 
+----------------------------------------------------------------------------
+newtype TagN = TagN { tagNToText :: Text }
+  deriving (Eq,Ord,FromJSON,ToJSON,ToJSONKey,FromJSONKey,FromHttpApiData,ToHttpApiData)

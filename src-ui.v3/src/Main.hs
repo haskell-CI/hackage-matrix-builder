@@ -8,6 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 {-# OPTIONS_GHC -Wall -Wno-unused-imports #-}
 
@@ -20,7 +21,9 @@ module Main (main) where
 import           Data.Aeson                (FromJSON)
 import qualified Data.Aeson                as J
 import qualified Data.Aeson.Types          as J
+import           Data.Bool                 (not)
 import qualified Data.Char                 as C
+import qualified Data.List                 as List
 import qualified Data.Map.Strict           as Map
 import           Data.Proxy
 import qualified Data.Set                  as Set
@@ -41,8 +44,10 @@ import           Reflex.Dom.Contrib.Router (route)
 import           Reflex.Dom.Location
 -- import           Reflex.Dom.Routing.Nested
 import           Control.Lens
+import           Control.Monad.Fix
 import           Reflex.Dom.Widget.Basic
 import           Reflex.Time
+import           Reflex.Class
 import           Servant.API
 import           Servant.Reflex
 
@@ -264,7 +269,13 @@ bodyElement4 = do
 
       RoutePackages -> pure $ do
           el "h1" $ text "Packages"
-          packagesPageWidget dynPackages0
+          evPB <- getPostBuild
+          evTags <- fmapMaybe reqSuccess <$> getV2TagsWithoutPackage (constDyn $ QParamSome False) evPB
+          dynTags <- holdDyn mempty evTags
+          evTagPkgs <- fmapMaybe reqSuccess <$> getV2TagsWithPackage (constDyn $ QParamSome True) evPB
+          dynTagPkgs <- holdDyn Map.empty evTagPkgs
+          let dynPkgTags = pkgTagList <$> dynTagPkgs
+          packagesPageWidget dynPackages0 dynTags dynPkgTags
 
       RoutePackage pn -> pure $ do
           el "h2" $ text (unPkgN pn)
@@ -275,7 +286,7 @@ bodyElement4 = do
 
           -- single-shot requests
 
-          evReports <- fmapMaybe reqSuccess <$> getV2PackageReports  (constDyn $ Right pn) evPB
+          evReports <- fmapMaybe reqSuccess <$> getV2PackageReports (constDyn $ Right pn) evPB
           dynReports <- holdDyn mempty evReports
 
           evInfo <- fmapMaybe reqSuccess <$> getV2Info evPB
@@ -283,6 +294,9 @@ bodyElement4 = do
 
           evHist  <- fmapMaybe reqSuccess <$> getV2PackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
           dynHist <- holdDyn mempty evHist
+
+          evPkgTags <- fmapMaybe reqSuccess <$> getV2PackageTags (constDyn $ Right pn) evPB
+          dynPkgTags <- holdDyn mempty evPkgTags
 
           -- other requests
 
@@ -317,7 +331,33 @@ bodyElement4 = do
             _ <- putV2Queue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
 
             pure tmp
-
+          
+          evTagging <- dyn $ do
+            v <- dynPkgTags
+            let v' = V.toList v
+                inputAttr = ("class" =: "tag-name") <> ("placeholder" =: "insert tag")
+                cfg = TextInputConfig "tag-name" "" never (constDyn inputAttr)
+            pure $ do
+              rmTag <- elClass "p" "tagging" $ do
+                clickTag  <- elClass "ul" "tags" $ do
+                  forM v' $ \(tn) -> do
+                    (ev1, _) <- el "li" $ do
+                                  el "span" $ text (tagNToText tn)
+                                  elAttr' "a" ("class" =: "remove") $ do
+                                    text "X "
+                    pure $ tn <$ (domEvent Click ev1)
+                pure $ leftmost clickTag
+              rmTagN <- holdDyn (TagN "") rmTag
+              _ <- deleteV2PackageTags (Right <$> rmTagN) (constDyn $ Right pn) (() <$ rmTag)
+              addTag <- elClass "form" "form" $ do
+                el "p" $ text "Tag : "
+                tagName <- textInput cfg
+                tagButton <- button "Add Tag"
+                pure $ (tagPromptlyDyn (_textInput_value tagName) tagButton)
+              addTagN <- holdDyn "" addTag
+              _ <- putV2PackageTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) evPB
+              pure ()
+          
           let evReports' = updated (_dropdown_value ddReports)
               dynIdxSt   = ddReports ^. dropdown_value
 
@@ -363,6 +403,8 @@ bodyElement4 = do
 
     unPkgN (PkgN x) = x
 
+    unTagN (TagN x) = x
+
     pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (unPkgN <$> pn')
 
     pkgHref (PkgN pn')
@@ -405,9 +447,28 @@ decodeFrag frag = case frag of
 
 
 -- | Renders alpha-tabbed package index
-packagesPageWidget :: (MonadHold t m, PostBuild t m, DomBuilder t m) => Dynamic t (Vector PkgN) -> m ()
-packagesPageWidget dynPackages = do
+packagesPageWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
+                   => Dynamic t (Vector PkgN) 
+                   -> Dynamic t (Vector TagN) 
+                   -> Dynamic t (Map.Map PkgN [TagN])
+                   -> m ()
+packagesPageWidget dynPackages dynTags dynPkgTags = do
     display (V.length <$> dynPackages)
+
+    dynTags' <- dyn $ do           
+      v <- dynTags
+      let v' = V.toList v 
+      pure $ do 
+        dynTagSet <- elClass "ol" "tag-filter clearfix" $ do
+            result <- forM v' $ \(tn) -> do
+                (ev1, _) <- el "li" $
+                             elAttr' "a" ("class" =: "tag-item") $ do
+                                text (tagNToText tn)
+                pure $ tn <$ (domEvent Click ev1)
+            pure $ leftmost result
+        foldDyn toggleTagSet Set.empty dynTagSet
+    dynSet' <- holdDyn (constDyn Set.empty) dynTags'
+    let dynSet = join dynSet'
 
     dynPF <- el "div" $ do
       text "[ "
@@ -418,17 +479,23 @@ packagesPageWidget dynPackages = do
         button (T.singleton c)
 
       text " ]"
-
       holdDyn 'A' (leftmost [ e $> c | (e,c) <- zip (eButton0:eButtons) ('*':['A'..'Z']) ])
 
     -- this is faster than simpleList
     _ <- dyn $ do v <- dynPackages
                   pf <- dynPF
-                  let v' = V.toList . evalPkgFilter pf $ v
+                  st <- dynSet
+                  dpt <- dynPkgTags
+                  let v' = V.toList . (evalTagFilter st dpt) . evalPkgFilter pf $ v
 
                   pure $ do
-                    el "ol" $ forM_ v' $ \(PkgN pn) -> do
-                      el "li" $ elAttr "a" ("href" =: ("#/package/" <> pn)) $ text pn
+
+                    el "ol" $ forM_ v' $ \(pn) -> do
+                      el "li" $ elAttr "a" ("href" =: ("#/package/" <> (pkgNToText pn))) $ do
+                        text ((pkgNToText pn) <> " : ")
+                        case Map.lookup pn dpt of
+                          Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (tagNToText tag0))) $ text (tagNToText tag0)
+                          Nothing   -> pure ([])
 
     pure ()
   where
@@ -436,6 +503,8 @@ packagesPageWidget dynPackages = do
     evalPkgFilter c   = V.takeWhile f . V.dropWhile (not . f)
       where
         f (PkgN x) = let c' = T.head x in c' == c || c' == (C.toLower c)
+    evalTagFilter st dpt pkg =
+      V.filter (tagContained st dpt) pkg
 
 
 reportTableWidget :: forall t m . (MonadWidget t m, MonadHold t m, PostBuild t m, DomBuilder t m)
@@ -617,7 +686,36 @@ applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
 applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
 applyLR _ _ _                 = error "applyLR"
 
+toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
+toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st
 
+tagButton :: forall t m. (DomBuilder t m, PostBuild t m)
+          => TagN
+          -> m (Event t TagN)
+tagButton tn = do
+  (ev1,_) <- el "li" $
+                elAttr' "a" (("class" =: "tag-item") <> ("data-tag-item" =: (tagNToText tn))) $ do
+                  text (tagNToText tn)
+  pure $ tn <$ (domEvent Click ev1)
+
+tagContained :: Set.Set TagN -> Map.Map PkgN [TagN] -> PkgN -> Bool
+tagContained st pkgTags pkg
+  | Set.null st = True
+  | otherwise    =
+    let 
+      tags = 
+        case Map.lookup pkg pkgTags of
+          Just a  -> a 
+          Nothing -> []
+        in not $ Set.null (Set.fromList tags `Set.intersection` st)
+
+
+pkgTagList :: (Map.Map TagN (Vector PkgN))
+           -> (Map.Map PkgN [TagN])
+pkgTagList m = Map.fromListWith (List.++) $ do
+  (k, vs) <- Map.toList m
+  v <- (V.toList vs)
+  pure $ (v, [k])
 
 joinE :: forall t m a . (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
 joinE = fmap switch . hold never
