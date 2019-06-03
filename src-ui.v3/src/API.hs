@@ -93,6 +93,9 @@ data ClientFuns t m = ClientFuns
      , getV2Info                 :: Client t m (Get '[JSON] ControllerInfo) ()
      }
 
+tweakRequest = ClientOptions $ \r -> do
+  return $ r & withCredentials .~ True
+
 mkClientFuns :: forall t m . (HasClient t m API (), Reflex t) => BaseUrl -> ClientFuns t m
 mkClientFuns burl = ClientFuns {..}
   where
@@ -117,7 +120,7 @@ mkClientFuns burl = ClientFuns {..}
      :<|> getV2Workers
      :<|> getV2WorkersPkg
      :<|> getV2User
-     ) = (client (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burl)) :: Client t m API ()
+     ) = (clientWithOpts (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burl) tweakRequest) :: Client t m API ()
 
 -- subset taken from "Controller.Api"
 type API =       "v2" :> "info"      :> Get '[JSON] ControllerInfo -- static meta-information

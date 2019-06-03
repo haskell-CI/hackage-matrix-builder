@@ -320,44 +320,48 @@ bodyElement4 = do
           let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
               x0 = (\s -> if Set.null s then PkgIdxTs 0 else Set.findMax s) <$> dynReports
 
-          let cfg = DropdownConfig (updated x0) (constDyn mempty)
+          let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
+
+          let inputAttr = ("class" =: "tag-name") <> ("placeholder" =: "insert tag")
+              iCfg = TextInputConfig "tag-name" "" never (constDyn inputAttr)
 
           ddReports <- el "p" $ do
             evQButton <- button "Queue a build"
             text " for the index-state "
-            tmp <- dropdown (PkgIdxTs 0) xs cfg
+            tmp <- dropdown (PkgIdxTs 0) xs ddCfg
             text " shown below"
 
             _ <- putV2Queue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
 
             pure tmp
           
-          evTagging <- dyn $ do
+          rmTag <- elClass "p" "tagging" $ dyn $ do
             v <- dynPkgTags
             let v' = V.toList v
-                inputAttr = ("class" =: "tag-name") <> ("placeholder" =: "insert tag")
-                cfg = TextInputConfig "tag-name" "" never (constDyn inputAttr)
             pure $ do
-              rmTag <- elClass "p" "tagging" $ do
-                clickTag  <- elClass "ul" "tags" $ do
-                  forM v' $ \(tn) -> do
-                    (ev1, _) <- el "li" $ do
-                                  el "span" $ text (tagNToText tn)
-                                  elAttr' "a" ("class" =: "remove") $ do
-                                    text "X "
-                    pure $ tn <$ (domEvent Click ev1)
-                pure $ leftmost clickTag
-              rmTagN <- holdDyn (TagN "") rmTag
-              _ <- deleteV2PackageTags (Right <$> rmTagN) (constDyn $ Right pn) (() <$ rmTag)
-              addTag <- elClass "form" "form" $ do
-                el "p" $ text "Tag : "
-                tagName <- textInput cfg
-                tagButton <- button "Add Tag"
-                pure $ (tagPromptlyDyn (_textInput_value tagName) tagButton)
-              addTagN <- holdDyn "" addTag
-              _ <- putV2PackageTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) evPB
-              pure ()
-          
+              clickTag  <- elClass "ul" "tags" $ do
+                forM v' $ \(tn) -> do
+                  (ev1, _) <- el "li" $ do
+                                el "span" $ text (tagNToText tn)
+                                elAttr' "a" ("class" =: "remove") $ do
+                                  text " X "
+                  pure $ tn <$ (domEvent Click ev1)
+              let evTag = leftmost clickTag
+              rmTagN <- holdDyn (TagN "") evTag
+
+              _ <- deleteV2PackageTags (Right <$> rmTagN) (constDyn $ Right pn) (() <$ evTag)
+              pure $ rmTagN
+
+          addTag <- elClass "form" "form" $ do
+            el "p" $ text "Tag : "
+            tagName <- textInput iCfg
+            tagButton <- button "Add Tag"
+            let evAdd = (tagPromptlyDyn (_textInput_value tagName) tagButton)
+            addTagN <- holdDyn "" evAdd
+
+            _ <- putV2PackageTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
+            pure $ addTagN
+              
           let evReports' = updated (_dropdown_value ddReports)
               dynIdxSt   = ddReports ^. dropdown_value
 
