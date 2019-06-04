@@ -141,9 +141,51 @@ bodyElement4 = do
 
     _ <- dyn $ dynFrag >>= \case
       RouteHome -> pure $ do
-        el "p" $ text "Welcome, this is HOME!"
-        -- evPB <- delay 5 =<< getPostBuild
-        -- route (evPB $> ("#fooo"))
+        elAttr "div" (("id" =: "page-home") <> ("class" =: "page")) $ do
+          divClass "leftcol" $ do
+            elAttr "h2" ("class" =: "main-header") $ text "Welcome"
+            el "h3" $ text "Documents"
+            el "ul" $ do
+              el "li" $ 
+                elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/blob/master/policy.md") $ 
+                  text "Hackage trustee policy and procedures"
+              el "li" $
+                elAttr "a" ("href" =: "https://wiki.haskell.org/Taking_over_a_package") $
+                  text "Wiki: Taking over a package"
+              el "li" $
+                elAttr "a" ("href" =: "https://wiki.haskell.org/Hackage_trustees") $
+                  text "Wiki: Hackage Trustee"
+            el "h3" $ text "Trustee Tools"
+            el "ul" $ do
+              el "li" $ 
+                elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/issues") $ 
+                  text "Issue Tracker"
+              el "li" $
+                elAttr "a" ("href" =: "https://www.github.com/haskell-CI/hackage-matrix-builder") $
+                  text "hackage-matrix-builder source"
+              el "li" $
+                elAttr "a" ("href" =: "https://www.github.com/haskell-CI/hackage-cli") $
+                  text "hackage-cli"
+              el "li" $
+                elAttr "a" ("href" =: "https://github.com/hackage-trustees") $
+                  text "GitHub organization"
+              el "li" $
+                elAttr "a" ("href" =: "http://hackage.haskell.org/packages/recent/revisions.html") $
+                  text "Recent Revisions"                
+            el "h3" $ text "References"
+            el "ul" $ do
+              el "li" $ 
+                elAttr "a" ("href" =: "https://ghc.haskell.org/trac/ghc/wiki/Commentary/Libraries/VersionHistory") $ 
+                  text "GHC Boot Library Version History"
+              el "li" $
+                elAttr "a" ("href" =: "https://ghc.haskell.org/trac/ghc/wiki/LanguagePragmaHistory") $
+                  text "Language Pragma History"
+              el "li" $
+                elAttr "a" ("href" =: "https://github.com/haskell/cabal/blob/641e854ae663e2b34f34ecc11ba663ac3a9bdc19/Cabal/Distribution/PackageDescription/Check.hs#L911-L1091") $
+                  text "Required cabal-version"
+              el "li" $
+                elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/blob/master/cookbook.md") $
+                  text "Cookbook for common build failures"
 
         pure ()
 
