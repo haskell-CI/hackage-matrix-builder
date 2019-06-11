@@ -78,6 +78,12 @@ data ClientFuns t m = ClientFuns
      , getV2PackageReports       :: Client t m (Capture "" PkgN :> Get '[JSON] (Set PkgIdxTs)) ()
      , getV2PackageReportSummary :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> Get '[JSON] PkgIdxTsReport) ()
      , getV2PackageReportDetail  :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> Capture "" Ver :> Capture "" CompilerID :> Get '[JSON] CellReportDetail) ()
+     , getV2PackageTags          :: Client t m (Capture "" PkgN :> Get '[JSON] (Vector TagN)) ()
+     , getV2TagsWithPackage      :: Client t m (QueryParam "pkgnames" Bool :> Get '[JSON] (Map TagN (Vector PkgN))) ()
+     , getV2TagsWithoutPackage   :: Client t m (QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)) ()
+     -- , getV2TagPackages          :: Client t m (Capture "" TagN :> Get '[JSON] (Vector PkgN)) ()
+     , putV2PackageTags          :: Client t m (Capture "" TagN :> Capture "" PkgN :> PutNoContent '[JSON] NoContent) ()
+     , deleteV2PackageTags       :: Client t m (Capture "" TagN :> Capture "" PkgN :> DeleteNoContent '[JSON] NoContent) ()
 
      , getV2UnitInfo             :: Client t m (Capture "" UUID :> Get '[JSON] UnitIdInfo) ()
 
@@ -86,6 +92,9 @@ data ClientFuns t m = ClientFuns
      , getV2User                 :: Client t m (Capture "" UserName :> Get '[JSON] UserPkgs) ()
      , getV2Info                 :: Client t m (Get '[JSON] ControllerInfo) ()
      }
+
+tweakRequest = ClientOptions $ \r -> do
+  return $ r & withCredentials .~ True
 
 mkClientFuns :: forall t m . (HasClient t m API (), Reflex t) => BaseUrl -> ClientFuns t m
 mkClientFuns burl = ClientFuns {..}
@@ -101,11 +110,17 @@ mkClientFuns burl = ClientFuns {..}
      :<|> getV2PackageReports
      :<|> getV2PackageReportSummary
      :<|> getV2PackageReportDetail
+     :<|> getV2PackageTags
+     :<|> getV2TagsWithPackage
+     :<|> getV2TagsWithoutPackage
+     -- :<|> getV2TagPackages
+     :<|> putV2PackageTags
+     :<|> deleteV2PackageTags
      :<|> getV2UnitInfo
      :<|> getV2Workers
      :<|> getV2WorkersPkg
      :<|> getV2User
-     ) = (client (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burl)) :: Client t m API ()
+     ) = (clientWithOpts (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burl) tweakRequest) :: Client t m API ()
 
 -- subset taken from "Controller.Api"
 type API =       "v2" :> "info"      :> Get '[JSON] ControllerInfo -- static meta-information
@@ -119,7 +134,12 @@ type API =       "v2" :> "info"      :> Get '[JSON] ControllerInfo -- static met
             :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
             :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
             :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
-
+            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "tags" :> Get '[JSON] (Vector TagN)
+            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Map TagN (Vector PkgN))
+            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)
+            -- :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Get '[JSON] (Vector PkgN)
+            :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Capture "pkgname" PkgN :> Put '[JSON] NoContent
+            :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Capture "pkgname" PkgN :> Delete '[JSON] NoContent
             :<|> "v2" :> "units" :> Capture "unitid" UUID :> Get '[JSON] UnitIdInfo
 
             :<|> "v2" :> "workers"   :> Get '[JSON] (Vector WorkerRow)
