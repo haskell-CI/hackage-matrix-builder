@@ -30,6 +30,7 @@ module PkgId
     , PkgRev
 
     , UserName
+    , unTagN
     ) where
 
 import           Control.Monad                (fail)
@@ -145,3 +146,6 @@ verToText (Ver x) = T.pack . Ver.showVersion . Ver.makeVersion $ x
 ----------------------------------------------------------------------------
 newtype TagN = TagN { tagNToText :: Text }
   deriving (Eq,Ord,FromJSON,ToJSON,ToJSONKey,FromJSONKey,FromHttpApiData,ToHttpApiData)
+
+unTagN :: TagN -> Text
+unTagN (TagN x) = x
