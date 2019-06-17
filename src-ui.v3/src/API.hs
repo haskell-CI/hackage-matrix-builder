@@ -351,64 +351,64 @@ wireClientRes :: (Reflex t, MonadHold t m) => Event t (ReqResult () a) -> m (Eve
 wireClientRes resE = pure $ fmapMaybe reqSuccess resE
 
 getIdxStates :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (PkgIdxTs))
-getIdxStates evSubmit = join $ wireClientRes <$> getV2IdxStates evSubmit
+getIdxStates evSubmit = wireClientRes =<< getV2IdxStates evSubmit
   
 getInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (ControllerInfo))
-getInfo evSubmit = join $ wireClientRes <$> getV2Info evSubmit
+getInfo evSubmit = wireClientRes =<< getV2Info evSubmit
 
 getPackages :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector PkgN))
-getPackages evSubmit = join $ wireClientRes <$> getV2Packages evSubmit
+getPackages evSubmit = wireClientRes =<< getV2Packages evSubmit
 
 getPackagesHistory :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (QParam PkgIdxTs)  -> Dynamic t (QParam PkgIdxTs) -> Event t () -> m (Event t (Vector IdxHistoryEntry))
-getPackagesHistory minDyn maxDyn evSubmit = join $ wireClientRes <$> getV2PackagesHistory minDyn maxDyn evSubmit
+getPackagesHistory minDyn maxDyn evSubmit = wireClientRes =<< getV2PackagesHistory minDyn maxDyn evSubmit
 
 getPackageHistory :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)=> Dynamic t (Either Text PkgN)-> Event t ()-> m (Event t (Vector PkgHistoryEntry))
-getPackageHistory pkgNDyn evSubmit = join $ wireClientRes <$> getV2PackageHistory pkgNDyn evSubmit
+getPackageHistory pkgNDyn evSubmit = wireClientRes =<< getV2PackageHistory pkgNDyn evSubmit
 
 getPackageReports :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Set PkgIdxTs))
-getPackageReports pkgNDyn evSubmit = join $ wireClientRes <$> (getV2PackageReports pkgNDyn evSubmit)
+getPackageReports pkgNDyn evSubmit = wireClientRes =<< getV2PackageReports pkgNDyn evSubmit
        
 getPackageReportSummary :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Event t () -> m (Event t PkgIdxTsReport)
-getPackageReportSummary pkgNDyn pkgIdxDyn evSubmit = join $ wireClientRes <$> (getV2PackageReportSummary pkgNDyn pkgIdxDyn evSubmit)
+getPackageReportSummary pkgNDyn pkgIdxDyn evSubmit = wireClientRes =<< getV2PackageReportSummary pkgNDyn pkgIdxDyn evSubmit
 
 getPackageReportDetail :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text Ver) -> Dynamic t (Either Text CompilerID) -> Event t () -> m (Event t CellReportDetail)
-getPackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit = join $ wireClientRes <$> (getV2PackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit)
+getPackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit = wireClientRes =<< getV2PackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit
 
 getPackageTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Vector TagN))
-getPackageTags pkgNDyn evSubmit = join $ wireClientRes <$> (getV2PackageTags pkgNDyn evSubmit)
+getPackageTags pkgNDyn evSubmit = wireClientRes =<< getV2PackageTags pkgNDyn evSubmit
 
 getQueue :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector QEntryRow))
-getQueue evSubmit = join $ wireClientRes <$> (getV2Queue evSubmit)
+getQueue evSubmit = wireClientRes =<< getV2Queue evSubmit
 
 getQueuePkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Vector QEntryRow))
-getQueuePkg pkgNDyn evSubmit = join $ wireClientRes <$> (getV2QueuePkg pkgNDyn evSubmit)
+getQueuePkg pkgNDyn evSubmit = wireClientRes =<< getV2QueuePkg pkgNDyn evSubmit
 
 putQueue :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text QEntryUpd) -> Event t () -> m (Event t (QEntryRow))
-putQueue pkgNDyn pkgIdxDyn qEntryDyn evSubmit = join $ wireClientRes <$> (putV2Queue pkgNDyn pkgIdxDyn qEntryDyn evSubmit)
+putQueue pkgNDyn pkgIdxDyn qEntryDyn evSubmit = wireClientRes =<< putV2Queue pkgNDyn pkgIdxDyn qEntryDyn evSubmit
 
 getTagsPkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (QParam Bool) -> Event t () -> m (Event t (Map TagN (Vector PkgN)))
-getTagsPkg dynBool evSubmit = join $ wireClientRes <$> (getV2TagsWithPackage dynBool evSubmit)
+getTagsPkg dynBool evSubmit = wireClientRes =<< getV2TagsWithPackage dynBool evSubmit
 
 getTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (QParam Bool) -> Event t () -> m (Event t (Vector TagN))
-getTags dynBool evSubmit = join $ wireClientRes <$> (getV2TagsWithoutPackage dynBool evSubmit)
+getTags dynBool evSubmit = wireClientRes =<< getV2TagsWithoutPackage dynBool evSubmit
 
 putTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t NoContent)
-putTags tagNDyn pkgNDyn evSubmit = join $ wireClientRes <$> (putV2PackageTags tagNDyn pkgNDyn evSubmit)
+putTags tagNDyn pkgNDyn evSubmit = wireClientRes =<< putV2PackageTags tagNDyn pkgNDyn evSubmit
 
 deleteTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t NoContent)
-deleteTags tagNDyn pkgNDyn evSubmit = join $ wireClientRes <$> (deleteV2PackageTags tagNDyn pkgNDyn evSubmit)
+deleteTags tagNDyn pkgNDyn evSubmit = wireClientRes =<< deleteV2PackageTags tagNDyn pkgNDyn evSubmit
 
 getUnitInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text UUID) -> Event t () -> m (Event t (UnitIdInfo))
-getUnitInfo uuidDyn evSubmit = join $ wireClientRes <$> (getV2UnitInfo uuidDyn evSubmit)
+getUnitInfo uuidDyn evSubmit = wireClientRes =<< getV2UnitInfo uuidDyn evSubmit
 
 getUser :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text UserName) -> Event t () -> m (Event t UserPkgs)
-getUser usrNDyn evSubmit = join $ wireClientRes <$> (getV2User usrNDyn evSubmit)
+getUser usrNDyn evSubmit = wireClientRes =<< getV2User usrNDyn evSubmit
 
 getWorkers :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector WorkerRow))
-getWorkers evSubmit = join $ wireClientRes <$> (getV2Workers evSubmit)
+getWorkers evSubmit = wireClientRes =<< getV2Workers evSubmit
 
 getWorkersPkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Vector WorkerRow))
-getWorkersPkg pkgNDyn evSubmit = join $ wireClientRes <$> (getV2WorkersPkg pkgNDyn evSubmit)
+getWorkersPkg pkgNDyn evSubmit = wireClientRes =<< getV2WorkersPkg pkgNDyn evSubmit
 ----------------------------------------------------------------------------
 burlNew :: BaseUrl
 burlNew | True      = BaseFullUrl Https "matrix.hackage.haskell.org" 443 "/api"
