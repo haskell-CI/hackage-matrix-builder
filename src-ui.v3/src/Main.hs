@@ -219,9 +219,7 @@ bodyElement4 = do
                 el "td" $ dynText (maybe "" verToText . wrPkgversion <$> wr)
                 el "td" $ dynText (maybe "" compilerIdToText . wrHcversion <$> wr)
                 el "td" $ dynText (maybe mempty pkgIdxTsToText . wrIdxState <$> wr)
-
             pure ()
-
           pure ()
 
         el "h1" $ text "Queue"
@@ -252,7 +250,6 @@ bodyElement4 = do
                   el "td" $ dynText ((pkgIdxTsToText . qrIdxstate) <$> qr)
                   el "td" $ dynText ((\x -> if x == 0 then "" else tshow x) <$> wcnt)
                   el "td" $ display (qrModified  <$> qr)
-
               pure ()
 
         el "h1" $ text "Recent Uploads"
@@ -303,7 +300,6 @@ bodyElement4 = do
                         el "td" $ elAttr "a" ("href" =: ("#/user/" <> unam)) (text unam)
 
               pure ()
-
           pure ()
 
       RoutePackages -> pure $ do
@@ -432,13 +428,11 @@ bodyElement4 = do
 
     pure ()
   where
-
     pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (pkgNToText <$> pn')
 
     pkgHref (PkgN pn')
       | T.null pn' = mempty
       | otherwise  = ("href" =: ("#/package/" <> pn'))
-
 
     mergeCellId :: PkgN -> Maybe (Ver, CompilerID) -> PkgIdxTs -> Maybe (PkgN,Ver,CompilerID,PkgIdxTs)
     mergeCellId _ Nothing _           = Nothing
@@ -452,7 +446,6 @@ bodyElement4 = do
         pure $ domEvent Click ev1
       delResult <- deleteTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
       pure $ (TagN tId) <$ delResult
-
 
 data FragRoute = RouteHome
                | RouteQueue
