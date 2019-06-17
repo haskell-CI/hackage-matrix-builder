@@ -115,10 +115,10 @@ bodyElement4 = do
         ticker8 = ffilter ((==0) . flip rem 4 . _tickInfo_n) ticker2
 
     -- we can use this
-    (evIdxStLast, _, _) <- getIdxStates (leftmost [ticker8 $> (), evPB0 $> ()])
+    evIdxStLast <- getIdxStates (leftmost [ticker8 $> (), evPB0 $> ()])
     dynIdxStLast <- holdUniqDyn =<< holdDyn (PkgIdxTs 0) evIdxStLast
 
-    (evPackages0, _, _) <- getPackages (updated dynIdxStLast $> ())
+    evPackages0 <- getPackages (updated dynIdxStLast $> ())
     dynPackages0 <- holdDyn mempty evPackages0
 
     -- pseudo navbar
@@ -192,7 +192,7 @@ bodyElement4 = do
 
         let dynUnixTime = utc2unix <$> dynUTCTime
 
-        (evWorkers, _, _) <- getWorkers (leftmost [ticker2 $> (), evPB])
+        evWorkers <- getWorkers (leftmost [ticker2 $> (), evPB])
         dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
         let dynWorkers2 = fmap mkWorkerStat dynWorkers
 
@@ -227,7 +227,7 @@ bodyElement4 = do
         el "h1" $ text "Queue"
         el "div" $ do
           -- aButton <- el "div" $ button "Refresh Queue"
-          (evQRows, _, _) <- getQueue (leftmost [ticker4 $> (), evPB])
+          evQRows <- getQueue (leftmost [ticker4 $> (), evPB])
           dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
 
           el "table" $ do
@@ -259,7 +259,7 @@ bodyElement4 = do
         el "div" $ do
           let lb = (\(PkgIdxTs t) -> PkgIdxTs (t - (24*60*60))) <$> dynIdxStLast
 
-          (evHistRows, _, _) <- getPackagesHistory (QParamSome <$> lb) (QParamSome <$> dynIdxStLast) (leftmost [updated dynIdxStLast $> (), evPB])
+          evHistRows <- getPackagesHistory (QParamSome <$> lb) (QParamSome <$> dynIdxStLast) (leftmost [updated dynIdxStLast $> (), evPB])
           dynHistRows <- holdDyn mempty evHistRows
 
           dynShowRevs <- el "div" $ do
@@ -309,37 +309,37 @@ bodyElement4 = do
       RoutePackages -> pure $ do
           el "h1" $ text "Packages"
           evPB <- getPostBuild
-          (evTags, _, _) <- getTags (constDyn $ QParamSome False) evPB
+          evTags<- getTags (constDyn $ QParamSome False) evPB
           dynTags <- holdDyn mempty evTags
-          (evTagPkgs, _, _) <- getTagsPkg (constDyn $ QParamSome True) evPB
+          evTagPkgs<- getTagsPkg (constDyn $ QParamSome True) evPB
           dynTagPkgs <- holdDyn Map.empty evTagPkgs
           let dynPkgTags = pkgTagList <$> dynTagPkgs
           packagesPageWidget dynPackages0 dynTags dynPkgTags
 
       RoutePackage pn -> pure $ do
-          el "h2" $ text (unPkgN pn)
-          el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> unPkgN pn)) $
+          el "h2" $ text (pkgNToText pn)
+          el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
             do text "(view on Hackage)"
 
           evPB <- getPostBuild
 
           -- single-shot requests
-          (evReports, _, _) <- getPackageReports (constDyn $ Right pn) evPB
+          evReports <- getPackageReports (constDyn $ Right pn) evPB
           dynReports <- holdDyn mempty evReports
 
-          (evInfo, _, _) <- getInfo evPB
+          evInfo <- getInfo evPB
           dynInfo <- holdDyn (ControllerInfo mempty) evInfo
 
-          (evHist, _, _)  <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
+          evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
           dynHist <- holdDyn mempty evHist
 
-          (evPkgTags, _, _) <- getPackageTags (constDyn $ Right pn) evPB
+          evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
 
           -- other requests
-          (evQRows, _, _) <- getQueuePkg (constDyn $ Right pn) (leftmost [ticker4 $> (), evPB])
+          evQRows <- getQueuePkg (constDyn $ Right pn) (leftmost [ticker4 $> (), evPB])
           dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
 
-          (evWorkers, _, _) <- getWorkersPkg (constDyn $ Right pn) (leftmost [ticker2 $> (), evPB])
+          evWorkers <- getWorkersPkg (constDyn $ Right pn) (leftmost [ticker2 $> (), evPB])
           dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
 
 
@@ -370,7 +370,7 @@ bodyElement4 = do
             pure tmp
           
           elClass "p" "tagging" $ mdo
-            let evMapTags = Map.fromList . (fmap (\t -> (t,t))) . (fmap unTagN) . V.toList <$> evPkgTags
+            let evMapTags = Map.fromList . (fmap (\t -> (t,t))) . (fmap tagNToText) . V.toList <$> evPkgTags
             result <- foldDyn appEndo Map.empty $ fold
               [ Endo . const <$> evMapTags
               , (\nTag -> Endo $ Map.insert nTag nTag) <$> addTag0
@@ -380,7 +380,7 @@ bodyElement4 = do
               el "li" $ do
                 el "span" $ text tId
                 delEv <- rmTagButton_ tId pn
-                pure $ unTagN <$> delEv
+                pure $ tagNToText <$> delEv
 
             addTag0 <- elClass "form" "form" $ do
               el "p" $ text "Tag : "
@@ -389,14 +389,14 @@ bodyElement4 = do
               let tVal = _textInput_value tagName
                   evAdd = (tagPromptlyDyn tVal tagButton)
               addTagN <- holdDyn "" evAdd
-              (addResult, _, _) <- putTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
+              addResult <- putTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
               pure $ tagPromptlyDyn tVal addResult
             pure ()
          
           let evReports' = updated (_dropdown_value ddReports)
               dynIdxSt   = ddReports ^. dropdown_value
 
-          (evRepSum, _, _) <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
+          evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
           dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
 
           el "hr" blank
@@ -418,7 +418,7 @@ bodyElement4 = do
 
           evPB <- getPostBuild
 
-          (evUserInfo, _, _) <- getUser (constDyn $ Right u) evPB
+          evUserInfo <- getUser (constDyn $ Right u) evPB
           dynUserInfo <- holdDyn (UserPkgs u mempty) evUserInfo
 
           _ <- el "ol" $ simpleList ((V.toList . upPackages) <$> dynUserInfo) $ \pn -> do
@@ -432,9 +432,8 @@ bodyElement4 = do
 
     pure ()
   where
-    unPkgN (PkgN x) = x
 
-    pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (unPkgN <$> pn')
+    pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (pkgNToText <$> pn')
 
     pkgHref (PkgN pn')
       | T.null pn' = mempty
@@ -451,7 +450,7 @@ bodyElement4 = do
         (ev1,_) <- elAttr' "a" ("class" =: "remove") $ do
                      text " X "
         pure $ domEvent Click ev1
-      (delResult, _, _) <- deleteTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
+      delResult <- deleteTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
       pure $ (TagN tId) <$ delResult
 
 
@@ -501,7 +500,7 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
             result <- forM v' $ \(tn) -> do
                 (ev1, _) <- el "li" $
                              elAttr' "a" ("class" =: "tag-item") $ do
-                                text (unTagN tn)
+                                text (tagNToText tn)
                 pure $ tn <$ (domEvent Click ev1)
             pure $ leftmost result
         foldDyn toggleTagSet Set.empty dynTagSet
@@ -532,7 +531,7 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
                       el "li" $ elAttr "a" ("href" =: ("#/package/" <> (pkgNToText pn))) $ do
                         text ((pkgNToText pn) <> " : ")
                         case Map.lookup pn dpt of
-                          Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (unTagN tag0))) $ text (unTagN tag0)
+                          Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (tagNToText tag0))) $ text (tagNToText tag0)
                           Nothing   -> pure ([])
 
     pure ()
@@ -625,7 +624,7 @@ reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo = joinE =<< go
 reportDetailWidget :: (SupportsServantReflex t m, MonadFix m, PostBuild t m, DomBuilder t m, Reflex t, MonadHold t m, Adjustable t m) => Dynamic t (Maybe (PkgN,Ver,CompilerID,PkgIdxTs)) -> m ()
 reportDetailWidget dynCellId = do
 
-    (evDetails, _, _) <- getPackageReportDetail (maybe (Left "") (Right . (^. _1)) <$> dynCellId)
+    evDetails <- getPackageReportDetail (maybe (Left "") (Right . (^. _1)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _4)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _2)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _3)) <$> dynCellId)
@@ -659,7 +658,7 @@ reportDetailWidget dynCellId = do
               dynText (maybe "?" (T.drop 2 . tshow) . snd <$> dynY)
               text "]"
 
-          (evInfo, _, _) <- getUnitInfo (Right . fst <$> dynY) evUpd
+          evInfo <- getUnitInfo (Right . fst <$> dynY) evUpd
 
           dynLogmsg <- holdDyn "-" ((fromMaybe "" . uiiLogmsg) <$> evInfo)
 

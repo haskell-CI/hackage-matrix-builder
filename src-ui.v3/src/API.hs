@@ -7,13 +7,14 @@
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
--- {-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE NoMonomorphismRestriction   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE TemplateHaskell     #-}
+
 
 -- |
 -- Copyright: © 2018 Herbert Valerio Riedel
@@ -45,7 +46,7 @@ module API
 
     , ControllerInfo(..)
     , CompilerInfo(..)
-        , getIdxStates
+    , getIdxStates
     , getInfo
     , getPackages
     , getPackagesHistory
@@ -70,7 +71,6 @@ module API
 import           PkgId
 
 import           Control.Monad    (fail)
-import           Control.Lens
 import           Data.Aeson       (FromJSON, ToJSON, decode)
 import qualified Data.Aeson       as J
 import qualified Data.Aeson.Types as J
@@ -304,147 +304,105 @@ type API =       "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
             :<|> "v2" :> "workers"   :> Capture "pkgname" PkgN     :> Get '[JSON] (Vector WorkerRow)
 
 --- The following Type API is heavily inspired by QFPL's reflex-realworld-example: https://github.com/qfpl/reflex-realworld-example
-data ClientFuns t m = ClientFuns
-  { _getV2IdxStates :: Event t () -> m (Event t (ReqResult () PkgIdxTs))
-  , _getV2Info :: Event t () -> m (Event t (ReqResult () ControllerInfo))
-  , _getV2Packages :: Event t () -> m (Event t (ReqResult () (Vector PkgN)))
-  , _getV2PackagesHistory :: Dynamic t (QParam PkgIdxTs) -> Dynamic t (QParam PkgIdxTs) -> Event t () -> m (Event t (ReqResult () (Vector IdxHistoryEntry)))
-  , _getV2PackageHistory :: Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector PkgHistoryEntry)))
-  , _getV2PackageReports :: Dynamic t (Either Text PkgN)  -> Event t () -> m (Event t (ReqResult () (Set PkgIdxTs)))
-  , _getV2PackageReportSummary :: Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Event t () -> m (Event t (ReqResult () PkgIdxTsReport))
-  , _getV2PackageReportDetail :: Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text Ver) -> Dynamic t (Either Text CompilerID) -> Event t () -> m (Event t (ReqResult () CellReportDetail))
-  , _getV2PackageTags :: Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector TagN)))
-  , _getV2Queue :: Event t () -> m (Event t (ReqResult () (Vector QEntryRow)))
-  , _getV2QueuePkg :: Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector QEntryRow)))
-  , _putV2Queue :: Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text QEntryUpd) -> Event t () -> m (Event t (ReqResult () (QEntryRow)))
-  , _getV2TagsWithPackage :: Dynamic t (QParam Bool) -> Event t () -> m (Event t (ReqResult () (Map TagN (Vector PkgN))))
-  , _getV2TagsWithoutPackage :: Dynamic t (QParam Bool)  -> Event t () -> m (Event t (ReqResult () (Vector TagN)))
-  , _putV2PackageTags :: Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () NoContent))
-  , _deleteV2PackageTags :: Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () NoContent))  
-  , _getV2UnitInfo :: Dynamic t (Either Text UUID) -> Event t () -> m (Event t (ReqResult () UnitIdInfo))
-  , _getV2User :: Dynamic t (Either Text UserName) -> Event t () -> m (Event t (ReqResult () UserPkgs))
-  , _getV2Workers :: Event t () -> m (Event t (ReqResult () (Vector WorkerRow)))
-  , _getV2WorkersPkg :: Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector WorkerRow)))
-  }
-makeLenses ''ClientFuns
+getV2IdxStates :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () PkgIdxTs))
+getV2Info :: SupportsServantReflex t m =>  Event t () -> m (Event t (ReqResult () ControllerInfo))
+getV2Packages :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () (Vector PkgN)))
+getV2PackagesHistory :: SupportsServantReflex t m => Dynamic t (QParam PkgIdxTs) -> Dynamic t (QParam PkgIdxTs) -> Event t () -> m (Event t (ReqResult () (Vector IdxHistoryEntry)))
+getV2PackageHistory :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector PkgHistoryEntry)))
+getV2PackageReports :: SupportsServantReflex t m => Dynamic t (Either Text PkgN)  -> Event t () -> m (Event t (ReqResult () (Set PkgIdxTs)))
+getV2PackageReportSummary :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Event t () -> m (Event t (ReqResult () PkgIdxTsReport))
+getV2PackageReportDetail :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text Ver) -> Dynamic t (Either Text CompilerID) -> Event t () -> m (Event t (ReqResult () CellReportDetail))
+getV2PackageTags :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector TagN)))
+getV2Queue :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () (Vector QEntryRow)))
+getV2QueuePkg :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector QEntryRow)))
+putV2Queue :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text QEntryUpd) -> Event t () -> m (Event t (ReqResult () (QEntryRow)))
+getV2TagsWithPackage :: SupportsServantReflex t m => Dynamic t (QParam Bool) -> Event t () -> m (Event t (ReqResult () (Map TagN (Vector PkgN))))
+getV2TagsWithoutPackage :: SupportsServantReflex t m => Dynamic t (QParam Bool)  -> Event t () -> m (Event t (ReqResult () (Vector TagN)))
+putV2PackageTags :: SupportsServantReflex t m => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () NoContent))
+deleteV2PackageTags :: SupportsServantReflex t m => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () NoContent))  
+getV2UnitInfo :: SupportsServantReflex t m => Dynamic t (Either Text UUID) -> Event t () -> m (Event t (ReqResult () UnitIdInfo))
+getV2User :: SupportsServantReflex t m => Dynamic t (Either Text UserName) -> Event t () -> m (Event t (ReqResult () UserPkgs))
+getV2Workers :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () (Vector WorkerRow)))
+getV2WorkersPkg :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector WorkerRow)))
 
-getClient :: forall t m. (SupportsServantReflex t m) 
-  => ClientFuns t m 
-getClient = mkClientFuns'' burlNew
-  where 
-    mkClientFuns'' bp = ClientFuns { .. }
-      where
-        (      _getV2IdxStates 
-          :<|> _getV2Info
-          :<|> _getV2Packages
-          :<|> _getV2PackagesHistory
-          :<|> _getV2PackageHistory
-          :<|> _getV2PackageReports
-          :<|> _getV2PackageReportSummary
-          :<|> _getV2PackageReportDetail
-          :<|> _getV2PackageTags
-          :<|> _getV2Queue
-          :<|> _getV2QueuePkg
-          :<|> _putV2Queue
-          :<|> _getV2TagsWithPackage
-          :<|> _getV2TagsWithoutPackage
-          :<|> _putV2PackageTags
-          :<|> _deleteV2PackageTags
-          :<|> _getV2UnitInfo
-          :<|> _getV2User
-          :<|> _getV2Workers
-          :<|> _getV2WorkersPkg ) = (clientWithOpts (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn bp) tweakRequest) :: Client t m API ()
-
-type ValidationErrors = Map Text [Text]
-type ClientRes t a = (Event t a, Event t ClientError, Dynamic t Bool)
-  
-data ClientError
-  =   Forbidden
-  | NotFound
-  | Unauthorised
-  | FailedValidation (Maybe (ErrorBody ValidationErrors))
-  | OtherError Word Text
-  deriving (Show)
-  
-data ErrorBody errors = ErrorBody
-  { message :: Text
-  , errors  :: Maybe errors
-  } deriving (Generic, Show)
-        
-deriving instance ToJSON errors   => ToJSON (ErrorBody errors)
-deriving instance FromJSON errors => FromJSON (ErrorBody errors)
+getV2IdxStates 
+  :<|> getV2Info
+  :<|> getV2Packages
+  :<|> getV2PackagesHistory
+  :<|> getV2PackageHistory
+  :<|> getV2PackageReports
+  :<|> getV2PackageReportSummary
+  :<|> getV2PackageReportDetail
+  :<|> getV2PackageTags
+  :<|> getV2Queue
+  :<|> getV2QueuePkg
+  :<|> putV2Queue
+  :<|> getV2TagsWithPackage
+  :<|> getV2TagsWithoutPackage
+  :<|> putV2PackageTags
+  :<|> deleteV2PackageTags
+  :<|> getV2UnitInfo
+  :<|> getV2User
+  :<|> getV2Workers
+  :<|> getV2WorkersPkg  = 
+  clientWithOpts (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burlNew) tweakRequest
 
 wireClientRes
   :: (Reflex t, MonadHold t m)
-  => Event t b
-  -> Event t (ReqResult () a)
-  -> m (ClientRes t a)
-wireClientRes evSubmit resE = do
+  => Event t (ReqResult () a)
+  -> m (Event t a)
+wireClientRes resE = do
   let evSuccess = fmapMaybe reqSuccess resE
-  let evError   = fmapMaybe reqClientError resE
-  submittingDyn <- holdDyn False $ leftmost [True <$ evSubmit, False <$ evError, False <$ evSuccess]
-  pure (evSuccess, evError, submittingDyn)
+  pure evSuccess
 
-reqClientError :: ReqResult tag a -> Maybe ClientError
-reqClientError (ResponseFailure _ msg xhrR) = Just $ case view xhrResponse_status xhrR of
-  401 -> Unauthorised
-  403 -> Forbidden
-  404 -> NotFound
-  422 -> FailedValidation (xhrR ^? xhrResponse_responseText . _Just . to fromStrict . to encodeUtf8 . to decode . _Just)
-  w   -> OtherError w msg
-reqClientError _                              = Nothing
-
-fill :: a -> Getting f (a -> b) b
-fill a = to ($ a)
-
-getIdxStates :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (ClientRes t (PkgIdxTs))
+getIdxStates :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (PkgIdxTs))
 getIdxStates evSubmit = do
-  evResult <- getClient ^. getV2IdxStates . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2IdxStates evSubmit
+  wireClientRes evResult
 
-getInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (ClientRes t (ControllerInfo))
+getInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (ControllerInfo))
 getInfo evSubmit = do
-  evResult <- getClient ^. getV2Info . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2Info evSubmit
+  wireClientRes evResult
 
-getPackages :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (ClientRes t (Vector PkgN))
+getPackages :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector PkgN))
 getPackages evSubmit = do
-  evResult <- getClient ^. getV2Packages . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2Packages evSubmit
+  wireClientRes evResult
 
 getPackagesHistory :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) 
                    => Dynamic t (QParam PkgIdxTs) 
                    -> Dynamic t (QParam PkgIdxTs) 
                    -> Event t () 
-                   -> m (ClientRes t (Vector IdxHistoryEntry))
+                   -> m (Event t (Vector IdxHistoryEntry))
 getPackagesHistory minDyn maxDyn evSubmit = do
-  evResult <- getClient ^. getV2PackagesHistory . fill minDyn . fill maxDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2PackagesHistory minDyn maxDyn evSubmit
+  wireClientRes evResult
 
 getPackageHistory :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
                   => Dynamic t (Either Text PkgN)
                   -> Event t ()
-                  -> m (ClientRes t (Vector PkgHistoryEntry))
+                  -> m (Event t (Vector PkgHistoryEntry))
 getPackageHistory pkgNDyn evSubmit = do
-  evResult <- getClient ^. getV2PackageHistory . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2PackageHistory pkgNDyn evSubmit
+  wireClientRes evResult
 
 getPackageReports :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
                   => Dynamic t (Either Text PkgN) 
                   -> Event t () 
-                  -> m (ClientRes t (Set PkgIdxTs))
+                  -> m (Event t (Set PkgIdxTs))
 getPackageReports pkgNDyn evSubmit = do
-  evResult <- getClient ^. getV2PackageReports . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2PackageReports pkgNDyn evSubmit
+  wireClientRes evResult
        
 getPackageReportSummary :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
                         => Dynamic t (Either Text PkgN)
                         -> Dynamic t (Either Text PkgIdxTs)
                         -> Event t ()
-                        -> m (ClientRes t PkgIdxTsReport)
+                        -> m (Event t PkgIdxTsReport)
 getPackageReportSummary pkgNDyn pkgIdxDyn evSubmit = do
-  evResult <- getClient ^. getV2PackageReportSummary . fill pkgNDyn . fill pkgIdxDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2PackageReportSummary pkgNDyn pkgIdxDyn evSubmit
+  wireClientRes evResult
 
 getPackageReportDetail :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
                        => Dynamic t (Either Text PkgN)
@@ -452,108 +410,108 @@ getPackageReportDetail :: forall t m. (Reflex t, SupportsServantReflex t m, Mona
                        -> Dynamic t (Either Text Ver)
                        -> Dynamic t (Either Text CompilerID)
                        -> Event t ()
-                       -> m (ClientRes t CellReportDetail)
+                       -> m (Event t CellReportDetail)
 getPackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit = do
-  evResult <- getClient ^. getV2PackageReportDetail . fill pkgNDyn . fill pkgIdxDyn . fill verDyn . fill compilerDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2PackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit
+  wireClientRes evResult
 
 getPackageTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
                => Dynamic t (Either Text PkgN) 
                -> Event t () 
-               -> m (ClientRes t (Vector TagN))
+               -> m (Event t (Vector TagN))
 getPackageTags pkgNDyn evSubmit = do
-  evResult <- getClient ^. getV2PackageTags . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult 
+  evResult <- getV2PackageTags pkgNDyn evSubmit
+  wireClientRes evResult 
 
 getQueue :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
          => Event t ()
-         -> m (ClientRes t (Vector QEntryRow))
+         -> m (Event t (Vector QEntryRow))
 getQueue evSubmit = do
-  evResult <- getClient ^. getV2Queue . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2Queue evSubmit
+  wireClientRes evResult
 
 getQueuePkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) 
             => Dynamic t (Either Text PkgN)
             -> Event t ()
-            -> m (ClientRes t (Vector QEntryRow))
+            -> m (Event t (Vector QEntryRow))
 getQueuePkg pkgNDyn evSubmit = do
-  evResult <- getClient ^. getV2QueuePkg . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult 
+  evResult <- getV2QueuePkg pkgNDyn evSubmit
+  wireClientRes evResult 
 
 putQueue :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) 
          => Dynamic t (Either Text PkgN)
          -> Dynamic t (Either Text PkgIdxTs)
          -> Dynamic t (Either Text QEntryUpd)
          -> Event t ()
-         -> m (ClientRes t (QEntryRow))
+         -> m (Event t (QEntryRow))
 putQueue pkgNDyn pkgIdxDyn qEntryDyn evSubmit = do
-  evResult <- getClient ^. putV2Queue . fill pkgNDyn . fill pkgIdxDyn . fill qEntryDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- putV2Queue pkgNDyn pkgIdxDyn qEntryDyn evSubmit
+  wireClientRes evResult
 
 getTagsPkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) 
            => Dynamic t (QParam Bool) 
            -> Event t () 
-           -> m (ClientRes t (Map TagN (Vector PkgN)))
+           -> m (Event t (Map TagN (Vector PkgN)))
 getTagsPkg dynBool evSubmit = do
-  evResult <- getClient ^. getV2TagsWithPackage . fill dynBool . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2TagsWithPackage dynBool evSubmit
+  wireClientRes evResult
 
 getTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
         => Dynamic t (QParam Bool) 
         -> Event t () 
-        -> m (ClientRes t (Vector TagN))
+        -> m (Event t (Vector TagN))
 getTags dynBool evSubmit = do
-  evResult <- getClient ^. getV2TagsWithoutPackage . fill dynBool . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2TagsWithoutPackage dynBool evSubmit
+  wireClientRes evResult
 
 putTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
         => Dynamic t (Either Text TagN) 
         -> Dynamic t (Either Text PkgN) 
         -> Event t () 
-        -> m (ClientRes t NoContent)
+        -> m (Event t NoContent)
 putTags tagNDyn pkgNDyn evSubmit = do
-  evResult <- getClient ^. putV2PackageTags . fill tagNDyn . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- putV2PackageTags tagNDyn pkgNDyn evSubmit
+  wireClientRes evResult
 
 deleteTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
            => Dynamic t (Either Text TagN) 
            -> Dynamic t (Either Text PkgN) 
            -> Event t () 
-           -> m (ClientRes t NoContent)
+           -> m (Event t NoContent)
 deleteTags tagNDyn pkgNDyn evSubmit = do
-  evResult <- getClient ^. deleteV2PackageTags . fill tagNDyn . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult 
+  evResult <- deleteV2PackageTags tagNDyn pkgNDyn evSubmit
+  wireClientRes evResult 
 
 getUnitInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
             => Dynamic t (Either Text UUID) 
             -> Event t () 
-            -> m (ClientRes t (UnitIdInfo))
+            -> m (Event t (UnitIdInfo))
 getUnitInfo uuidDyn evSubmit = do
-  evResult <- getClient ^. getV2UnitInfo . fill uuidDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2UnitInfo uuidDyn evSubmit
+  wireClientRes evResult
 
 getUser :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
         => Dynamic t (Either Text UserName)
         -> Event t ()
-        -> m (ClientRes t UserPkgs)
+        -> m (Event t UserPkgs)
 getUser usrNDyn evSubmit = do
-  evResult <- getClient ^. getV2User . fill usrNDyn . fill evSubmit
-  wireClientRes evSubmit evResult
+  evResult <- getV2User usrNDyn evSubmit
+  wireClientRes evResult
 
 getWorkers :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)
            => Event t ()
-           -> m (ClientRes t (Vector WorkerRow))
+           -> m (Event t (Vector WorkerRow))
 getWorkers evSubmit = do
-  evResult <- getClient ^. getV2Workers . fill evSubmit
-  wireClientRes evSubmit evResult 
+  evResult <- getV2Workers evSubmit
+  wireClientRes evResult 
 
 getWorkersPkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) 
               => Dynamic t (Either Text PkgN)
               -> Event t ()
-              -> m (ClientRes t (Vector WorkerRow))
+              -> m (Event t (Vector WorkerRow))
 getWorkersPkg pkgNDyn evSubmit = do
-  evResult <- getClient ^. getV2WorkersPkg . fill pkgNDyn . fill evSubmit
-  wireClientRes evSubmit evResult 
+  evResult <- getV2WorkersPkg pkgNDyn evSubmit
+  wireClientRes evResult 
 ----------------------------------------------------------------------------
 burlNew :: BaseUrl
 burlNew | True      = BaseFullUrl Https "matrix.hackage.haskell.org" 443 "/api"
