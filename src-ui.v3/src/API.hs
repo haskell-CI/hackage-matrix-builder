@@ -1,26 +1,27 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE DeriveAnyClass      #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE GADTs               #-}
 {-# LANGUAGE KindSignatures      #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
--- {-# LANGUAGE PolyKinds         #-}
+{-# LANGUAGE NoMonomorphismRestriction   #-}
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeOperators       #-}
+{-# LANGUAGE TemplateHaskell     #-}
+
 
 -- |
 -- Copyright: © 2018 Herbert Valerio Riedel
 -- SPDX-License-Identifier: GPL-3.0-or-later
 --
 module API
-    ( ClientFuns(..)
-    , mkClientFuns
-
-    , PkgIdxTs
+    ( PkgIdxTs
     , PkgN
     , Ver, verToText
     , UserName
@@ -45,12 +46,32 @@ module API
 
     , ControllerInfo(..)
     , CompilerInfo(..)
+    , getIdxStates
+    , getInfo
+    , getPackages
+    , getPackagesHistory
+    , getPackageHistory
+    , getPackageReports
+    , getPackageReportSummary
+    , getPackageReportDetail
+    , getPackageTags
+    , getQueue
+    , getQueuePkg
+    , putQueue
+    , getTagsPkg
+    , getTags
+    , putTags
+    , deleteTags
+    , getUnitInfo
+    , getUser
+    , getWorkers
+    , getWorkersPkg
     ) where
 
 import           PkgId
 
 import           Control.Monad    (fail)
-import           Data.Aeson       (FromJSON)
+import           Data.Aeson       (FromJSON, ToJSON, decode)
 import qualified Data.Aeson       as J
 import qualified Data.Aeson.Types as J
 import qualified Data.Char        as C
@@ -59,94 +80,16 @@ import           Data.Proxy
 import           Data.Set         (Set)
 import           Data.Text        (Text)
 import qualified Data.Text        as T
+import           Data.Text.Lazy   (fromStrict)
+import           Data.Text.Lazy.Encoding (encodeUtf8)
 import           Data.Time        (UTCTime)
 import           Data.UUID.Types  (UUID)
 import           Data.Vector      (Vector)
 import           GHC.Generics     (Rep)
-import           Reflex.Dom hiding (Client)
+import           Reflex
+import           Reflex.Dom
 import           Servant.API
 import           Servant.Reflex
-
-data ClientFuns t m = ClientFuns
-     { getV2IdxStatesLatest      :: Client t m (Get '[JSON] PkgIdxTs) ()
-     , getV2Queue                :: Client t m (Get '[JSON] (Vector QEntryRow)) ()
-     , getV2QueuePkg             :: Client t m (Capture "" PkgN :> Get '[JSON] (Vector QEntryRow)) ()
-     , putV2Queue                :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow) ()
-     , getV2Packages             :: Client t m (Get '[JSON] (Vector PkgN)) ()
-     , getV2PackagesHistory      :: Client t m (QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] (Vector IdxHistoryEntry)) ()
-     , getV2PackageHistory       :: Client t m (Capture "" PkgN :> Get '[JSON] (Vector PkgHistoryEntry)) ()
-     , getV2PackageReports       :: Client t m (Capture "" PkgN :> Get '[JSON] (Set PkgIdxTs)) ()
-     , getV2PackageReportSummary :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> Get '[JSON] PkgIdxTsReport) ()
-     , getV2PackageReportDetail  :: Client t m (Capture "" PkgN :> Capture "" PkgIdxTs :> Capture "" Ver :> Capture "" CompilerID :> Get '[JSON] CellReportDetail) ()
-     , getV2PackageTags          :: Client t m (Capture "" PkgN :> Get '[JSON] (Vector TagN)) ()
-     , getV2TagsWithPackage      :: Client t m (QueryParam "pkgnames" Bool :> Get '[JSON] (Map TagN (Vector PkgN))) ()
-     , getV2TagsWithoutPackage   :: Client t m (QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)) ()
-     -- , getV2TagPackages          :: Client t m (Capture "" TagN :> Get '[JSON] (Vector PkgN)) ()
-     , putV2PackageTags          :: Client t m (Capture "" TagN :> Capture "" PkgN :> PutNoContent '[JSON] NoContent) ()
-     , deleteV2PackageTags       :: Client t m (Capture "" TagN :> Capture "" PkgN :> DeleteNoContent '[JSON] NoContent) ()
-
-     , getV2UnitInfo             :: Client t m (Capture "" UUID :> Get '[JSON] UnitIdInfo) ()
-
-     , getV2Workers              :: Client t m (Get '[JSON] (Vector WorkerRow)) ()
-     , getV2WorkersPkg           :: Client t m (Capture "" PkgN :> Get '[JSON] (Vector WorkerRow)) ()
-     , getV2User                 :: Client t m (Capture "" UserName :> Get '[JSON] UserPkgs) ()
-     , getV2Info                 :: Client t m (Get '[JSON] ControllerInfo) ()
-     }
-
-tweakRequest = ClientOptions $ \r -> do
-  return $ r & withCredentials .~ True
-
-mkClientFuns :: forall t m . (HasClient t m API (), Reflex t) => BaseUrl -> ClientFuns t m
-mkClientFuns burl = ClientFuns {..}
-  where
-    (     getV2Info
-     :<|> getV2IdxStatesLatest
-     :<|> getV2Queue
-     :<|> getV2QueuePkg
-     :<|> putV2Queue
-     :<|> getV2Packages
-     :<|> getV2PackagesHistory
-     :<|> getV2PackageHistory
-     :<|> getV2PackageReports
-     :<|> getV2PackageReportSummary
-     :<|> getV2PackageReportDetail
-     :<|> getV2PackageTags
-     :<|> getV2TagsWithPackage
-     :<|> getV2TagsWithoutPackage
-     -- :<|> getV2TagPackages
-     :<|> putV2PackageTags
-     :<|> deleteV2PackageTags
-     :<|> getV2UnitInfo
-     :<|> getV2Workers
-     :<|> getV2WorkersPkg
-     :<|> getV2User
-     ) = (clientWithOpts (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burl) tweakRequest) :: Client t m API ()
-
--- subset taken from "Controller.Api"
-type API =       "v2" :> "info"      :> Get '[JSON] ControllerInfo -- static meta-information
-            :<|> "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
-            :<|> "v2" :> "queue"     :>                           Get '[JSON] (Vector QEntryRow)
-            :<|> "v2" :> "queue"     :> Capture "pkgname" PkgN :> Get '[JSON] (Vector QEntryRow)
-            :<|> "v2" :> "queue"     :> Capture "pkgname" PkgN :> Capture "idxstate" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow
-            :<|> "v2" :> "packages"  :> Get '[JSON] (Vector PkgN)
-            :<|> "v2" :> "packages"  :> "*"                    :> "history" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] (Vector IdxHistoryEntry)
-            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
-            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Get '[JSON] (Set PkgIdxTs)
-            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
-            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
-            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "tags" :> Get '[JSON] (Vector TagN)
-            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Map TagN (Vector PkgN))
-            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)
-            -- :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Get '[JSON] (Vector PkgN)
-            :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Capture "pkgname" PkgN :> Put '[JSON] NoContent
-            :<|> "v2" :> "tags"      :> Capture "tagname" TagN :> Capture "pkgname" PkgN :> Delete '[JSON] NoContent
-            :<|> "v2" :> "units" :> Capture "unitid" UUID :> Get '[JSON] UnitIdInfo
-
-            :<|> "v2" :> "workers"   :> Get '[JSON] (Vector WorkerRow)
-            :<|> "v2" :> "workers"   :> Capture "pkgname" PkgN :> Get '[JSON] (Vector WorkerRow)
-            :<|> "v2" :> "users" :> "name" :> Capture "username" UserName :> Get '[JSON] UserPkgs
-
-----------------------------------------------------------------------------
 
 data ControllerInfo = ControllerInfo
     { ciCompilers :: Map CompilerID CompilerInfo
@@ -162,8 +105,6 @@ data CompilerInfo = CompilerInfo
 instance FromJSON CompilerInfo where { parseJSON = myParseJSON }
 
 ----------------------------------------------------------------------------
-
-
 data QEntryRow = QEntryRow
     { qrPriority :: Int
     , qrModified :: UTCTime
@@ -180,7 +121,6 @@ data QEntryUpd = QEntryUpd
 
 instance J.ToJSON   QEntryUpd where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 -- instance FromJSON QEntryUpd where { parseJSON = myParseJSONCml }
-
 ----------------------------------------------------------------------------
 
 data PkgIdxTsReport = PkgIdxTsReport
@@ -248,7 +188,6 @@ fmtCRS CellReportSummary{..} = (T.unwords
                  | Just _ <- crsBdfail  -> ("FAIL (deps)", "stat-fail-deps")
                  | otherwise            -> ("FAIL", "stat-fail")
 
-
 instance J.FromJSON IPStatus where
     parseJSON o = do
         x <- J.parseJSON o
@@ -264,13 +203,6 @@ instance J.FromJSON CellReportType where { parseJSON = myParseJSON }
 instance J.FromJSON CellReportSummary where { parseJSON = myParseJSON }
 instance J.FromJSON CellReportDetail where { parseJSON = myParseJSON }
 
-
-
-
-
-
-
-
 data PkgHistoryEntry = PkgHistoryEntry !PkgIdxTs !Ver !PkgRev !UserName
                      deriving (Generic,Eq,Ord,Show)
 
@@ -280,8 +212,6 @@ data IdxHistoryEntry = IdxHistoryEntry !PkgIdxTs !PkgN !Ver !PkgRev !UserName
                      deriving (Generic,Eq,Ord)
 
 instance J.FromJSON IdxHistoryEntry where { parseJSON = myParseJSON }
-
-
 
 data UnitIdInfo = UnitIdInfo
     { uiiId      :: UUID
@@ -293,13 +223,11 @@ data UnitIdInfo = UnitIdInfo
     , uiiStatus  :: Maybe IPStatus
     , uiiLogmsg  :: Maybe Text
 --    , uiiDt
-
     , uiiLibDeps :: Map Text (Set UUID)
     , uiiExeDeps :: Maybe (Map Text (Set UUID))
     } deriving (Generic,Show)
 
 instance FromJSON UnitIdInfo where { parseJSON = myParseJSON }
-
 
 data WState = WSidle
             | WSinit
@@ -326,15 +254,12 @@ data WorkerRow = WorkerRow
 -- instance ToJSON   WorkerRow where { toJSON = myToJSONCml; toEncoding = myToEncodingCml }
 instance FromJSON WorkerRow where { parseJSON = myParseJSONCml }
 
-
-
 data UserPkgs = UserPkgs
   { upName     :: UserName
   , upPackages :: Vector PkgN
   } deriving (Eq, Generic, Show)
 
 instance FromJSON UserPkgs where { parseJSON = myParseJSONCml }
-
 ----------------------------------------------------------------------------
 
 myParseJSON, myParseJSONCml :: (Generic a, J.GFromJSON J.Zero (Rep a)) => J.Value -> J.Parser a
@@ -349,7 +274,6 @@ myToEncoding, myToEncodingCml :: (Generic a, J.GToEncoding J.Zero (Rep a)) => a 
 myToEncoding = J.genericToEncoding (J.defaultOptions { J.omitNothingFields = True, J.fieldLabelModifier = labelMod, J.constructorTagModifier = tagMod })
 myToEncodingCml = J.genericToEncoding (J.defaultOptions { J.omitNothingFields = True, J.fieldLabelModifier = labelModCml })
 
-
 labelMod, tagMod, labelModCml :: String -> String
 labelMod    = J.camelTo2 '_' . dropWhile (not . C.isUpper)
 tagMod    = J.camelTo2 '_' . dropWhile C.isUpper
@@ -358,3 +282,138 @@ labelModCml = uncap        . dropWhile (not . C.isUpper)
     uncap []     = []
     uncap (c:cs) = C.toLower c : cs
 
+type API =       "v2" :> "idxstates" :> "latest" :> Get '[JSON] PkgIdxTs
+            :<|> "v2" :> "info"      :> Get '[JSON] ControllerInfo -- static meta-information
+            :<|> "v2" :> "packages"  :> Get '[JSON] (Vector PkgN)
+            :<|> "v2" :> "packages"  :> "*"                        :> "history" :> QueryParam "min" PkgIdxTs :> QueryParam "max" PkgIdxTs :> Get '[JSON] (Vector IdxHistoryEntry)
+            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "history" :> Get '[JSON] (Vector PkgHistoryEntry)
+            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "reports" :> Get '[JSON] (Set PkgIdxTs)
+            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "reports" :> Capture "idxstate" PkgIdxTs :> Get '[JSON] PkgIdxTsReport
+            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "reports" :> Capture "idxstate" PkgIdxTs :> Capture "pkgver" Ver :> Capture "hcver" CompilerID :> Get '[JSON] CellReportDetail
+            :<|> "v2" :> "packages"  :> Capture "pkgname" PkgN     :> "tags"    :> Get '[JSON] (Vector TagN)
+            :<|> "v2" :> "queue"     :>                               Get '[JSON] (Vector QEntryRow)
+            :<|> "v2" :> "queue"     :> Capture "pkgname" PkgN     :> Get '[JSON] (Vector QEntryRow)
+            :<|> "v2" :> "queue"     :> Capture "pkgname" PkgN     :> Capture "idxstate" PkgIdxTs :> ReqBody '[JSON] QEntryUpd :> Put '[JSON] QEntryRow
+            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Map TagN (Vector PkgN))
+            :<|> "v2" :> "tags"      :> QueryParam "pkgnames" Bool :> Get '[JSON] (Vector TagN)
+            :<|> "v2" :> "tags"      :> Capture "tagname" TagN     :> Capture "pkgname" PkgN :> Put '[JSON] NoContent
+            :<|> "v2" :> "tags"      :> Capture "tagname" TagN     :> Capture "pkgname" PkgN :> Delete '[JSON] NoContent
+            :<|> "v2" :> "units"     :> Capture "unitid" UUID      :> Get '[JSON] UnitIdInfo
+            :<|> "v2" :> "users"     :> "name"                     :> Capture "username" UserName :> Get '[JSON] UserPkgs
+            :<|> "v2" :> "workers"   :> Get '[JSON] (Vector WorkerRow)
+            :<|> "v2" :> "workers"   :> Capture "pkgname" PkgN     :> Get '[JSON] (Vector WorkerRow)
+
+--- The following Type API is heavily inspired by QFPL's reflex-realworld-example: https://github.com/qfpl/reflex-realworld-example
+getV2IdxStates :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () PkgIdxTs))
+getV2Info :: SupportsServantReflex t m =>  Event t () -> m (Event t (ReqResult () ControllerInfo))
+getV2Packages :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () (Vector PkgN)))
+getV2PackagesHistory :: SupportsServantReflex t m => Dynamic t (QParam PkgIdxTs) -> Dynamic t (QParam PkgIdxTs) -> Event t () -> m (Event t (ReqResult () (Vector IdxHistoryEntry)))
+getV2PackageHistory :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector PkgHistoryEntry)))
+getV2PackageReports :: SupportsServantReflex t m => Dynamic t (Either Text PkgN)  -> Event t () -> m (Event t (ReqResult () (Set PkgIdxTs)))
+getV2PackageReportSummary :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Event t () -> m (Event t (ReqResult () PkgIdxTsReport))
+getV2PackageReportDetail :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text Ver) -> Dynamic t (Either Text CompilerID) -> Event t () -> m (Event t (ReqResult () CellReportDetail))
+getV2PackageTags :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector TagN)))
+getV2Queue :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () (Vector QEntryRow)))
+getV2QueuePkg :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector QEntryRow)))
+putV2Queue :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text QEntryUpd) -> Event t () -> m (Event t (ReqResult () (QEntryRow)))
+getV2TagsWithPackage :: SupportsServantReflex t m => Dynamic t (QParam Bool) -> Event t () -> m (Event t (ReqResult () (Map TagN (Vector PkgN))))
+getV2TagsWithoutPackage :: SupportsServantReflex t m => Dynamic t (QParam Bool)  -> Event t () -> m (Event t (ReqResult () (Vector TagN)))
+putV2PackageTags :: SupportsServantReflex t m => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () NoContent))
+deleteV2PackageTags :: SupportsServantReflex t m => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () NoContent))  
+getV2UnitInfo :: SupportsServantReflex t m => Dynamic t (Either Text UUID) -> Event t () -> m (Event t (ReqResult () UnitIdInfo))
+getV2User :: SupportsServantReflex t m => Dynamic t (Either Text UserName) -> Event t () -> m (Event t (ReqResult () UserPkgs))
+getV2Workers :: SupportsServantReflex t m => Event t () -> m (Event t (ReqResult () (Vector WorkerRow)))
+getV2WorkersPkg :: SupportsServantReflex t m => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (ReqResult () (Vector WorkerRow)))
+
+getV2IdxStates 
+  :<|> getV2Info
+  :<|> getV2Packages
+  :<|> getV2PackagesHistory
+  :<|> getV2PackageHistory
+  :<|> getV2PackageReports
+  :<|> getV2PackageReportSummary
+  :<|> getV2PackageReportDetail
+  :<|> getV2PackageTags
+  :<|> getV2Queue
+  :<|> getV2QueuePkg
+  :<|> putV2Queue
+  :<|> getV2TagsWithPackage
+  :<|> getV2TagsWithoutPackage
+  :<|> putV2PackageTags
+  :<|> deleteV2PackageTags
+  :<|> getV2UnitInfo
+  :<|> getV2User
+  :<|> getV2Workers
+  :<|> getV2WorkersPkg  = 
+  clientWithOpts (Proxy :: Proxy API) Proxy (Proxy :: Proxy ()) (constDyn burlNew) tweakRequest
+
+wireClientRes :: (Reflex t, MonadHold t m) => Event t (ReqResult () a) -> m (Event t a)
+wireClientRes resE = pure $ fmapMaybe reqSuccess resE
+
+getIdxStates :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (PkgIdxTs))
+getIdxStates evSubmit = wireClientRes =<< getV2IdxStates evSubmit
+  
+getInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (ControllerInfo))
+getInfo evSubmit = wireClientRes =<< getV2Info evSubmit
+
+getPackages :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector PkgN))
+getPackages evSubmit = wireClientRes =<< getV2Packages evSubmit
+
+getPackagesHistory :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (QParam PkgIdxTs)  -> Dynamic t (QParam PkgIdxTs) -> Event t () -> m (Event t (Vector IdxHistoryEntry))
+getPackagesHistory minDyn maxDyn evSubmit = wireClientRes =<< getV2PackagesHistory minDyn maxDyn evSubmit
+
+getPackageHistory :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m)=> Dynamic t (Either Text PkgN)-> Event t ()-> m (Event t (Vector PkgHistoryEntry))
+getPackageHistory pkgNDyn evSubmit = wireClientRes =<< getV2PackageHistory pkgNDyn evSubmit
+
+getPackageReports :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Set PkgIdxTs))
+getPackageReports pkgNDyn evSubmit = wireClientRes =<< getV2PackageReports pkgNDyn evSubmit
+       
+getPackageReportSummary :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Event t () -> m (Event t PkgIdxTsReport)
+getPackageReportSummary pkgNDyn pkgIdxDyn evSubmit = wireClientRes =<< getV2PackageReportSummary pkgNDyn pkgIdxDyn evSubmit
+
+getPackageReportDetail :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text Ver) -> Dynamic t (Either Text CompilerID) -> Event t () -> m (Event t CellReportDetail)
+getPackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit = wireClientRes =<< getV2PackageReportDetail pkgNDyn pkgIdxDyn verDyn compilerDyn evSubmit
+
+getPackageTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Vector TagN))
+getPackageTags pkgNDyn evSubmit = wireClientRes =<< getV2PackageTags pkgNDyn evSubmit
+
+getQueue :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector QEntryRow))
+getQueue evSubmit = wireClientRes =<< getV2Queue evSubmit
+
+getQueuePkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Vector QEntryRow))
+getQueuePkg pkgNDyn evSubmit = wireClientRes =<< getV2QueuePkg pkgNDyn evSubmit
+
+putQueue :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Dynamic t (Either Text PkgIdxTs) -> Dynamic t (Either Text QEntryUpd) -> Event t () -> m (Event t (QEntryRow))
+putQueue pkgNDyn pkgIdxDyn qEntryDyn evSubmit = wireClientRes =<< putV2Queue pkgNDyn pkgIdxDyn qEntryDyn evSubmit
+
+getTagsPkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (QParam Bool) -> Event t () -> m (Event t (Map TagN (Vector PkgN)))
+getTagsPkg dynBool evSubmit = wireClientRes =<< getV2TagsWithPackage dynBool evSubmit
+
+getTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (QParam Bool) -> Event t () -> m (Event t (Vector TagN))
+getTags dynBool evSubmit = wireClientRes =<< getV2TagsWithoutPackage dynBool evSubmit
+
+putTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t NoContent)
+putTags tagNDyn pkgNDyn evSubmit = wireClientRes =<< putV2PackageTags tagNDyn pkgNDyn evSubmit
+
+deleteTags :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text TagN) -> Dynamic t (Either Text PkgN) -> Event t () -> m (Event t NoContent)
+deleteTags tagNDyn pkgNDyn evSubmit = wireClientRes =<< deleteV2PackageTags tagNDyn pkgNDyn evSubmit
+
+getUnitInfo :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text UUID) -> Event t () -> m (Event t (UnitIdInfo))
+getUnitInfo uuidDyn evSubmit = wireClientRes =<< getV2UnitInfo uuidDyn evSubmit
+
+getUser :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text UserName) -> Event t () -> m (Event t UserPkgs)
+getUser usrNDyn evSubmit = wireClientRes =<< getV2User usrNDyn evSubmit
+
+getWorkers :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Event t () -> m (Event t (Vector WorkerRow))
+getWorkers evSubmit = wireClientRes =<< getV2Workers evSubmit
+
+getWorkersPkg :: forall t m. (Reflex t, SupportsServantReflex t m, MonadHold t m) => Dynamic t (Either Text PkgN) -> Event t () -> m (Event t (Vector WorkerRow))
+getWorkersPkg pkgNDyn evSubmit = wireClientRes =<< getV2WorkersPkg pkgNDyn evSubmit
+----------------------------------------------------------------------------
+burlNew :: BaseUrl
+burlNew | True      = BaseFullUrl Https "matrix.hackage.haskell.org" 443 "/api"
+        | otherwise = BasePath "/api"
+
+tweakRequest :: ClientOptions
+tweakRequest = ClientOptions $ \r -> do
+  return $ r & withCredentials .~ True

@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 {-# OPTIONS_GHC -Wall -Wno-unused-imports #-}
 
@@ -60,10 +61,6 @@ import           PkgId
 main :: IO ()
 main = mainWidget bodyElement4
 
-burl :: BaseUrl
-burl | True      = BaseFullUrl Https "matrix.hackage.haskell.org" 443 "/api"
-     | otherwise = BasePath "/api"
-
 -- WARNING: the code that follows will make you cry;
 --          a safety pig is provided below for your benefit.
 --
@@ -97,7 +94,7 @@ bodyElement2 = runRouteWithPathInFragment $ do
 utc2unix :: UTCTime -> Int
 utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
-bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadWidget t m) => m ()
+bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
 bodyElement4 = do
     dynLoc <- browserHistoryWith getLocationUri
     let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
@@ -118,10 +115,10 @@ bodyElement4 = do
         ticker8 = ffilter ((==0) . flip rem 4 . _tickInfo_n) ticker2
 
     -- we can use this
-    evIdxStLast <- fmapMaybe reqSuccess <$> getV2IdxStatesLatest (leftmost [ticker8 $> (), evPB0 $> ()])
+    evIdxStLast <- getIdxStates (leftmost [ticker8 $> (), evPB0 $> ()])
     dynIdxStLast <- holdUniqDyn =<< holdDyn (PkgIdxTs 0) evIdxStLast
 
-    evPackages0 <- fmapMaybe reqSuccess <$> getV2Packages (updated dynIdxStLast $> ())
+    evPackages0 <- getPackages (updated dynIdxStLast $> ())
     dynPackages0 <- holdDyn mempty evPackages0
 
     -- pseudo navbar
@@ -195,7 +192,7 @@ bodyElement4 = do
 
         let dynUnixTime = utc2unix <$> dynUTCTime
 
-        evWorkers <- fmapMaybe reqSuccess <$> getV2Workers (leftmost [ticker2 $> (), evPB])
+        evWorkers <- getWorkers (leftmost [ticker2 $> (), evPB])
         dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
         let dynWorkers2 = fmap mkWorkerStat dynWorkers
 
@@ -222,15 +219,13 @@ bodyElement4 = do
                 el "td" $ dynText (maybe "" verToText . wrPkgversion <$> wr)
                 el "td" $ dynText (maybe "" compilerIdToText . wrHcversion <$> wr)
                 el "td" $ dynText (maybe mempty pkgIdxTsToText . wrIdxState <$> wr)
-
             pure ()
-
           pure ()
 
         el "h1" $ text "Queue"
         el "div" $ do
           -- aButton <- el "div" $ button "Refresh Queue"
-          evQRows <- fmapMaybe reqSuccess <$> getV2Queue (leftmost [ticker4 $> (), evPB])
+          evQRows <- getQueue (leftmost [ticker4 $> (), evPB])
           dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
 
           el "table" $ do
@@ -255,14 +250,13 @@ bodyElement4 = do
                   el "td" $ dynText ((pkgIdxTsToText . qrIdxstate) <$> qr)
                   el "td" $ dynText ((\x -> if x == 0 then "" else tshow x) <$> wcnt)
                   el "td" $ display (qrModified  <$> qr)
-
               pure ()
 
         el "h1" $ text "Recent Uploads"
         el "div" $ do
           let lb = (\(PkgIdxTs t) -> PkgIdxTs (t - (24*60*60))) <$> dynIdxStLast
 
-          evHistRows <- fmapMaybe reqSuccess <$> getV2PackagesHistory (QParamSome <$> lb) (QParamSome <$> dynIdxStLast) (leftmost [updated dynIdxStLast $> (), evPB])
+          evHistRows <- getPackagesHistory (QParamSome <$> lb) (QParamSome <$> dynIdxStLast) (leftmost [updated dynIdxStLast $> (), evPB])
           dynHistRows <- holdDyn mempty evHistRows
 
           dynShowRevs <- el "div" $ do
@@ -306,49 +300,42 @@ bodyElement4 = do
                         el "td" $ elAttr "a" ("href" =: ("#/user/" <> unam)) (text unam)
 
               pure ()
-
-
           pure ()
 
       RoutePackages -> pure $ do
           el "h1" $ text "Packages"
           evPB <- getPostBuild
-          evTags <- fmapMaybe reqSuccess <$> getV2TagsWithoutPackage (constDyn $ QParamSome False) evPB
+          evTags<- getTags (constDyn $ QParamSome False) evPB
           dynTags <- holdDyn mempty evTags
-          evTagPkgs <- fmapMaybe reqSuccess <$> getV2TagsWithPackage (constDyn $ QParamSome True) evPB
+          evTagPkgs<- getTagsPkg (constDyn $ QParamSome True) evPB
           dynTagPkgs <- holdDyn Map.empty evTagPkgs
           let dynPkgTags = pkgTagList <$> dynTagPkgs
           packagesPageWidget dynPackages0 dynTags dynPkgTags
 
       RoutePackage pn -> pure $ do
-          el "h2" $ text (unPkgN pn)
-          el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> unPkgN pn)) $
+          el "h2" $ text (pkgNToText pn)
+          el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
             do text "(view on Hackage)"
 
           evPB <- getPostBuild
 
           -- single-shot requests
-
-          evReports <- fmapMaybe reqSuccess <$> getV2PackageReports (constDyn $ Right pn) evPB
+          evReports <- getPackageReports (constDyn $ Right pn) evPB
           dynReports <- holdDyn mempty evReports
 
-          evInfo <- fmapMaybe reqSuccess <$> getV2Info evPB
+          evInfo <- getInfo evPB
           dynInfo <- holdDyn (ControllerInfo mempty) evInfo
 
-          evHist  <- fmapMaybe reqSuccess <$> getV2PackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
+          evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
           dynHist <- holdDyn mempty evHist
 
-          evPkgTags <- fmapMaybe reqSuccess <$> getV2PackageTags (constDyn $ Right pn) evPB
-          dynPkgTags <- holdDyn mempty evPkgTags
+          evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
 
           -- other requests
-
-          evQRows <- (fmapMaybe reqSuccess) <$>
-                     getV2QueuePkg (constDyn $ Right pn) (leftmost [ticker4 $> (), evPB])
+          evQRows <- getQueuePkg (constDyn $ Right pn) (leftmost [ticker4 $> (), evPB])
           dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
 
-          evWorkers <- (fmapMaybe reqSuccess) <$>
-                       getV2WorkersPkg (constDyn $ Right pn) (leftmost [ticker2 $> (), evPB])
+          evWorkers <- getWorkersPkg (constDyn $ Right pn) (leftmost [ticker2 $> (), evPB])
           dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
 
 
@@ -357,7 +344,7 @@ bodyElement4 = do
             text " for latest index-state "
             dynText (pkgIdxTsToText <$> dynIdxStLast)
 
-            putV2Queue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
+            putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
 
 
           let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
@@ -374,11 +361,11 @@ bodyElement4 = do
             tmp <- dropdown (PkgIdxTs 0) xs ddCfg
             text " shown below"
 
-            _ <- putV2Queue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
+            _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
 
             pure tmp
           
-          tagsMapDyn <- elClass "p" "tagging" $ mdo
+          elClass "p" "tagging" $ mdo
             let evMapTags = Map.fromList . (fmap (\t -> (t,t))) . (fmap tagNToText) . V.toList <$> evPkgTags
             result <- foldDyn appEndo Map.empty $ fold
               [ Endo . const <$> evMapTags
@@ -398,15 +385,14 @@ bodyElement4 = do
               let tVal = _textInput_value tagName
                   evAdd = (tagPromptlyDyn tVal tagButton)
               addTagN <- holdDyn "" evAdd
-              addResult <- fmapMaybe reqSuccess <$> putV2PackageTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
+              addResult <- putTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
               pure $ tagPromptlyDyn tVal addResult
             pure ()
          
           let evReports' = updated (_dropdown_value ddReports)
               dynIdxSt   = ddReports ^. dropdown_value
 
-          evRepSum <- fmapMaybe reqSuccess <$> getV2PackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
-
+          evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
           dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
 
           el "hr" blank
@@ -428,7 +414,7 @@ bodyElement4 = do
 
           evPB <- getPostBuild
 
-          evUserInfo <- fmapMaybe reqSuccess <$> getV2User (constDyn $ Right u) evPB
+          evUserInfo <- getUser (constDyn $ Right u) evPB
           dynUserInfo <- holdDyn (UserPkgs u mempty) evUserInfo
 
           _ <- el "ol" $ simpleList ((V.toList . upPackages) <$> dynUserInfo) $ \pn -> do
@@ -442,18 +428,11 @@ bodyElement4 = do
 
     pure ()
   where
-    ClientFuns{..} = mkClientFuns burl
-
-    unPkgN (PkgN x) = x
-
-    unTagN (TagN x) = x
-
-    pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (unPkgN <$> pn')
+    pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (pkgNToText <$> pn')
 
     pkgHref (PkgN pn')
       | T.null pn' = mempty
       | otherwise  = ("href" =: ("#/package/" <> pn'))
-
 
     mergeCellId :: PkgN -> Maybe (Ver, CompilerID) -> PkgIdxTs -> Maybe (PkgN,Ver,CompilerID,PkgIdxTs)
     mergeCellId _ Nothing _           = Nothing
@@ -465,9 +444,8 @@ bodyElement4 = do
         (ev1,_) <- elAttr' "a" ("class" =: "remove") $ do
                      text " X "
         pure $ domEvent Click ev1
-      delResult <- fmapMaybe reqSuccess <$> deleteV2PackageTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
+      delResult <- deleteTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
       pure $ (TagN tId) <$ delResult
-
 
 data FragRoute = RouteHome
                | RouteQueue
@@ -559,7 +537,7 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
       V.filter (tagContained st dpt) pkg
 
 
-reportTableWidget :: forall t m . (MonadWidget t m, MonadHold t m, PostBuild t m, DomBuilder t m)
+reportTableWidget :: forall t m . (MonadHold t m, PostBuild t m, DomBuilder t m, Reflex t)
                   => Dynamic t PkgIdxTsReport
                   -> Dynamic t (Vector QEntryRow)
                   -> Dynamic t (Vector WorkerRow)
@@ -636,17 +614,14 @@ reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo = joinE =<< go
                 pure (leftmost evsRow1)
             pure (leftmost evsRows) -- main "return" value
 
-
-
-
-reportDetailWidget :: (SupportsServantReflex t m, MonadWidget t m) => Dynamic t (Maybe (PkgN,Ver,CompilerID,PkgIdxTs)) -> m ()
+reportDetailWidget :: (SupportsServantReflex t m, MonadFix m, PostBuild t m, DomBuilder t m, Reflex t, MonadHold t m, Adjustable t m) => Dynamic t (Maybe (PkgN,Ver,CompilerID,PkgIdxTs)) -> m ()
 reportDetailWidget dynCellId = do
 
-    evDetails <- fmapMaybe reqSuccess <$> getV2PackageReportDetail (maybe (Left "") (Right . (^. _1)) <$> dynCellId)
-                                                                   (maybe (Left "") (Right . (^. _4)) <$> dynCellId)
-                                                                   (maybe (Left "") (Right . (^. _2)) <$> dynCellId)
-                                                                   (maybe (Left "") (Right . (^. _3)) <$> dynCellId)
-                                                                   (updated dynCellId $> ())
+    evDetails <- getPackageReportDetail (maybe (Left "") (Right . (^. _1)) <$> dynCellId)
+                                                (maybe (Left "") (Right . (^. _4)) <$> dynCellId)
+                                                (maybe (Left "") (Right . (^. _2)) <$> dynCellId)
+                                                (maybe (Left "") (Right . (^. _3)) <$> dynCellId)
+                                                (updated dynCellId $> ())
 
     dynRepTy <- holdDyn CRTna (crdType <$> evDetails)
     dynSErr  <- holdDyn "" ((fromMaybe "" . crdSolverErr) <$> evDetails)
@@ -676,7 +651,7 @@ reportDetailWidget dynCellId = do
               dynText (maybe "?" (T.drop 2 . tshow) . snd <$> dynY)
               text "]"
 
-          evInfo <- fmapMaybe reqSuccess <$> getV2UnitInfo (Right . fst <$> dynY) evUpd
+          evInfo <- getUnitInfo (Right . fst <$> dynY) evUpd
 
           dynLogmsg <- holdDyn "-" ((fromMaybe "" . uiiLogmsg) <$> evInfo)
 
@@ -689,9 +664,6 @@ reportDetailWidget dynCellId = do
     st2attr (Just IPOk)            = mempty
     st2attr (Just IPBuildFail)     = ("style" =: "background-color: #ffdddd;")
     st2attr (Just IPBuildDepsFail) = mempty
-
-    ClientFuns{..} = mkClientFuns burl
-
 
     -- el "h2" (dynText $ ((maybe "No cell selected" (\(pv,hcv) -> "Details for " <> pn' <> "-" <> verToText pv <> " with " <> compilerIdToText hcv)) <$> dynCell))
 
@@ -710,11 +682,8 @@ mkButton s alt' = do
 
 -}
 
-
-
 mkWorkerStat :: (Vector WorkerRow) -> (PkgN -> PkgIdxTs -> Int)
 mkWorkerStat ws = \x1 x2 -> Map.findWithDefault 0 (x1,x2) (Map.fromListWith (+) [ ((pn,is),1) | WorkerRow { wrPkgname = Just pn, wrIdxState = Just is } <- V.toList ws ])
-
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
@@ -752,7 +721,6 @@ tagContained st pkgTags pkg
           Nothing -> []
         in not $ Set.null (Set.fromList tags `Set.intersection` st)
 
-
 pkgTagList :: (Map.Map TagN (Vector PkgN))
            -> (Map.Map PkgN [TagN])
 pkgTagList m = Map.fromListWith (List.++) $ do
@@ -760,10 +728,10 @@ pkgTagList m = Map.fromListWith (List.++) $ do
   v <- (V.toList vs)
   pure $ (v, [k])
 
-joinE :: forall t m a . (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
+joinE :: forall t m a. (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
 joinE = fmap switch . hold never
 
-button_ :: forall t m a. (DomBuilder t m, PostBuild t m) => T.Text -> m (Event t ())
+button_ :: forall t m. (DomBuilder t m, PostBuild t m) => T.Text -> m (Event t ())
 button_ t = do
   let cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
         & elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Click (\_ -> preventDefault)
