@@ -136,6 +136,30 @@ bodyElement4 = do
       display (V.length <$> dynPackages0)
       text ")"
 
+    -- search box
+    sVal <- elAttr "div" ("class" =: "item search right clearfix") $ mdo
+              let searchAttr = ("class" =: "input-search") <> ("placeholder" =: "search...")
+                  sCfg = TextInputConfig "text" "" never (constDyn searchAttr)
+                  sVal0 = _textInput_value searchPkg
+              divClass "text" $ text "Package Search"
+              searchPkg <- textInput sCfg
+              pure sVal0
+            
+    let sDynPkg = ffor2 sVal dynPackages0 (V.filter . packageContained) -- Dynamic t (Vector pkgN)
+        sDynMap = Map.fromList . (fmap (\p -> (pkgNToText p,p))) . V.toList <$> sDynPkg
+        dynAttrBool = demuxed (demux sVal) T.empty 
+    _ <- dyn $ sVal >>= (\val -> 
+           case "" == val of
+            True -> constDyn $ elAttr "ul" ("display" =: "none") $ text ""
+            False -> 
+              constDyn $ elDynAttr "ul" (fmap (\t -> if t then "display" =: "none" else "display" =: "list-item") dynAttrBool) $ do
+                           _ <- listWithKey sDynMap $ \pId _ -> do -- m (Dynamic (Map k a))
+                                 el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId
+                           pure ()
+  
+      )
+    
+
     el "hr" blank
 
     _ <- dyn $ dynFrag >>= \case
@@ -706,6 +730,9 @@ applyLR (LR:xs) (l:ls) (_:rs) = l : applyLR xs ls rs
 applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
 applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
 applyLR _ _ _                 = error "applyLR"
+
+packageContained :: T.Text -> PkgN -> Bool
+packageContained textS (PkgN pkgN) = T.isInfixOf textS pkgN
 
 toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
 toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st
