@@ -24,6 +24,8 @@ import qualified Data.Aeson                as J
 import qualified Data.Aeson.Types          as J
 import           Data.Bool                 (not)
 import qualified Data.Char                 as C
+import qualified Data.JSString             as JSS
+import qualified Data.JSString.Text        as JSS
 import qualified Data.List                 as List
 import qualified Data.Map.Strict           as Map
 import           Data.Monoid               (Endo (Endo), appEndo)
@@ -137,28 +139,25 @@ bodyElement4 = do
       text ")"
 
     -- search box
-    sVal <- elAttr "div" ("class" =: "item search right clearfix") $ mdo
-              let searchAttr = ("class" =: "input-search") <> ("placeholder" =: "search...")
-                  sCfg = TextInputConfig "text" "" never (constDyn searchAttr)
-                  sVal0 = _textInput_value searchPkg
+    searchInputE <- elAttr "div" ("class" =: "item search right clearfix") $ do
               divClass "text" $ text "Package Search"
-              searchPkg <- textInput sCfg
-              pure sVal0
+              sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold
+                ["class" =: "input-search","placeholder" =: "search..."]
+              debounce 0.1 $ _inputElement_input sVal0
             
-    let sDynPkg = ffor2 sVal dynPackages0 (V.filter . packageContained) -- Dynamic t (Vector pkgN)
-        sDynMap = Map.fromList . (fmap (\p -> (pkgNToText p,p))) . V.toList <$> sDynPkg
-        dynAttrBool = demuxed (demux sVal) T.empty 
-    _ <- dyn $ sVal >>= (\val -> 
-           case "" == val of
-            True -> constDyn $ elAttr "ul" ("display" =: "none") $ text ""
-            False -> 
-              constDyn $ elDynAttr "ul" (fmap (\t -> if t then "display" =: "none" else "display" =: "list-item") dynAttrBool) $ do
-                           _ <- listWithKey sDynMap $ \pId _ -> do -- m (Dynamic (Map k a))
-                                 el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId
-                           pure ()
-  
-      )
-    
+    let
+      textToJSString = JSS.pack . T.unpack
+      jsStringToText = T.pack . JSS.unpack
+      dynPackagesJss = V.toList . fmap (textToJSString . pkgNToText) <$> dynPackages0
+      calcMatches pkgs sJss =
+        if JSS.length sJss < 3
+        then []
+        else filter (JSS.isInfixOf sJss) pkgs
+      matchesE = calcMatches <$> current dynPackagesJss <@> (textToJSString <$> searchInputE)
+      matchesMapE = Map.fromList . fmap (\p -> (jsStringToText p,())) <$> matchesE
+    matchesMapDyn <- holdDyn Map.empty matchesMapE
+    _ <- el "ul" $ listWithKey matchesMapDyn $ \pId _ -> do
+           el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId  
 
     el "hr" blank
 
@@ -730,9 +729,6 @@ applyLR (LR:xs) (l:ls) (_:rs) = l : applyLR xs ls rs
 applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
 applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
 applyLR _ _ _                 = error "applyLR"
-
-packageContained :: T.Text -> PkgN -> Bool
-packageContained textS (PkgN pkgN) = T.isInfixOf textS pkgN
 
 toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
 toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st
