@@ -98,358 +98,356 @@ utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
 bodyElement4 = do
-    dynLoc <- browserHistoryWith getLocationUri
-    let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
+  dynLoc <- browserHistoryWith getLocationUri
+  let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
 
-    -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
+  -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
 --    ticker1cnt <- count ticker1
 
-    -- top-level PB event
-    evPB0 <- getPostBuild
+  -- top-level PB event
+  evPB0 <- getPostBuild
 
-    t0 <- liftIO getCurrentTime
+  t0 <- liftIO getCurrentTime
 
-    dynClock <- clockLossy 1 t0
-    let dynUTCTime = _tickInfo_lastUTC <$> dynClock
+  dynClock <- clockLossy 1 t0
+  let dynUTCTime = _tickInfo_lastUTC <$> dynClock
 
-    ticker2 <- tickLossy 2 t0
-    let ticker4 = ffilter ((==0) . flip rem 2 . _tickInfo_n) ticker2
-        ticker8 = ffilter ((==0) . flip rem 4 . _tickInfo_n) ticker2
+  ticker2 <- tickLossy 2 t0
+  let ticker4 = ffilter ((==0) . flip rem 2 . _tickInfo_n) ticker2
+      ticker8 = ffilter ((==0) . flip rem 4 . _tickInfo_n) ticker2
 
-    -- we can use this
-    evIdxStLast <- getIdxStates (leftmost [ticker8 $> (), evPB0 $> ()])
-    dynIdxStLast <- holdUniqDyn =<< holdDyn (PkgIdxTs 0) evIdxStLast
+  -- we can use this
+  evIdxStLast <- getIdxStates (leftmost [ticker8 $> (), evPB0 $> ()])
+  dynIdxStLast <- holdUniqDyn =<< holdDyn (PkgIdxTs 0) evIdxStLast
 
-    evPackages0 <- getPackages (updated dynIdxStLast $> ())
-    dynPackages0 <- holdDyn mempty evPackages0
+  evPackages0 <- getPackages (updated dynIdxStLast $> ())
+  dynPackages0 <- holdDyn mempty evPackages0
 
-    -- pseudo navbar
-    el "nav" $ do
-      text "[ "
-      elAttr "a" ("href" =: "#/") $ text "HOME"
-      text " | "
-      elAttr "a" ("href" =: "#/queue") $ text "Build Queue"
-      text " | "
-      elAttr "a" ("href" =: "#/packages") $ text "Packages"
-      text " ]"
-      text "    (current index-state: "
-      dynText (pkgIdxTsToText <$> dynIdxStLast)
-      text " ; package count: "
-      display (V.length <$> dynPackages0)
-      text ")"
+  -- pseudo navbar
+  el "nav" $ do
+    text "[ "
+    elAttr "a" ("href" =: "#/") $ text "HOME"
+    text " | "
+    elAttr "a" ("href" =: "#/queue") $ text "Build Queue"
+    text " | "
+    elAttr "a" ("href" =: "#/packages") $ text "Packages"
+    text " ]"
+    text "    (current index-state: "
+    dynText (pkgIdxTsToText <$> dynIdxStLast)
+    text " ; package count: "
+    display (V.length <$> dynPackages0)
+    text ")"
 
-    -- search box
-    searchInputE <- elAttr "div" ("class" =: "item search right clearfix") $ do
-              divClass "text" $ text "Package Search"
-              sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold
-                ["class" =: "input-search","placeholder" =: "search..."]
-              debounce 0.1 $ _inputElement_input sVal0
-            
-    let
-      textToJSString = JSS.pack . T.unpack
-      jsStringToText = T.pack . JSS.unpack
-      dynPackagesJss = V.toList . fmap (textToJSString . pkgNToText) <$> dynPackages0
-      calcMatches pkgs sJss =
-        if JSS.length sJss < 3
-        then []
-        else filter (JSS.isInfixOf sJss) pkgs
-      matchesE = calcMatches <$> current dynPackagesJss <@> (textToJSString <$> searchInputE)
-      matchesMapE = Map.fromList . fmap (\p -> (jsStringToText p,())) <$> matchesE
-    matchesMapDyn <- holdDyn Map.empty matchesMapE
-    _ <- el "ul" $ listWithKey matchesMapDyn $ \pId _ -> do
-           el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId  
+  -- search box
+  searchInputE <- elAttr "div" ("class" =: "item search right clearfix") $ do
+            divClass "text" $ text "Package Search"
+            sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold
+              ["class" =: "input-search","placeholder" =: "search..."]
+            debounce 0.2 $ _inputElement_input sVal0
+          
+  let
+    dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPackages0
+    calcMatches pkgs sJss =
+      if JSS.length sJss < 3
+      then []
+      else filter (JSS.isInfixOf sJss) pkgs
+    matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
+    matchesMapE = Map.fromList . fmap (\p -> (JSS.textFromJSString p,())) <$> matchesE
+  matchesMapDyn <- holdDyn Map.empty matchesMapE
+  _ <- el "ul" $ listWithKey matchesMapDyn $ \pId _ -> do
+          el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId  
 
-    el "hr" blank
+  el "hr" blank
 
-    _ <- dyn $ dynFrag >>= \case
-      RouteHome -> pure $ do
-        elAttr "div" (("id" =: "page-home") <> ("class" =: "page")) $ do
-          divClass "leftcol" $ do
-            elAttr "h2" ("class" =: "main-header") $ text "Welcome"
-            el "h3" $ text "Documents"
-            el "ul" $ do
-              el "li" $ 
-                elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/blob/master/policy.md") $ 
-                  text "Hackage trustee policy and procedures"
-              el "li" $
-                elAttr "a" ("href" =: "https://wiki.haskell.org/Taking_over_a_package") $
-                  text "Wiki: Taking over a package"
-              el "li" $
-                elAttr "a" ("href" =: "https://wiki.haskell.org/Hackage_trustees") $
-                  text "Wiki: Hackage Trustee"
-            el "h3" $ text "Trustee Tools"
-            el "ul" $ do
-              el "li" $ 
-                elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/issues") $ 
-                  text "Issue Tracker"
-              el "li" $
-                elAttr "a" ("href" =: "https://www.github.com/haskell-CI/hackage-matrix-builder") $
-                  text "hackage-matrix-builder source"
-              el "li" $
-                elAttr "a" ("href" =: "https://www.github.com/haskell-CI/hackage-cli") $
-                  text "hackage-cli"
-              el "li" $
-                elAttr "a" ("href" =: "https://github.com/hackage-trustees") $
-                  text "GitHub organization"
-              el "li" $
-                elAttr "a" ("href" =: "http://hackage.haskell.org/packages/recent/revisions.html") $
-                  text "Recent Revisions"                
-            el "h3" $ text "References"
-            el "ul" $ do
-              el "li" $ 
-                elAttr "a" ("href" =: "https://ghc.haskell.org/trac/ghc/wiki/Commentary/Libraries/VersionHistory") $ 
-                  text "GHC Boot Library Version History"
-              el "li" $
-                elAttr "a" ("href" =: "https://ghc.haskell.org/trac/ghc/wiki/LanguagePragmaHistory") $
-                  text "Language Pragma History"
-              el "li" $
-                elAttr "a" ("href" =: "https://github.com/haskell/cabal/blob/641e854ae663e2b34f34ecc11ba663ac3a9bdc19/Cabal/Distribution/PackageDescription/Check.hs#L911-L1091") $
-                  text "Required cabal-version"
-              el "li" $
-                elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/blob/master/cookbook.md") $
-                  text "Cookbook for common build failures"
+  _ <- dyn $ dynFrag >>= \case
+    RouteHome -> pure $ do
+      elAttr "div" (("id" =: "page-home") <> ("class" =: "page")) $ do
+        divClass "leftcol" $ do
+          elAttr "h2" ("class" =: "main-header") $ text "Welcome"
+          el "h3" $ text "Documents"
+          el "ul" $ do
+            el "li" $ 
+              elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/blob/master/policy.md") $ 
+                text "Hackage trustee policy and procedures"
+            el "li" $
+              elAttr "a" ("href" =: "https://wiki.haskell.org/Taking_over_a_package") $
+                text "Wiki: Taking over a package"
+            el "li" $
+              elAttr "a" ("href" =: "https://wiki.haskell.org/Hackage_trustees") $
+                text "Wiki: Hackage Trustee"
+          el "h3" $ text "Trustee Tools"
+          el "ul" $ do
+            el "li" $ 
+              elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/issues") $ 
+                text "Issue Tracker"
+            el "li" $
+              elAttr "a" ("href" =: "https://www.github.com/haskell-CI/hackage-matrix-builder") $
+                text "hackage-matrix-builder source"
+            el "li" $
+              elAttr "a" ("href" =: "https://www.github.com/haskell-CI/hackage-cli") $
+                text "hackage-cli"
+            el "li" $
+              elAttr "a" ("href" =: "https://github.com/hackage-trustees") $
+                text "GitHub organization"
+            el "li" $
+              elAttr "a" ("href" =: "http://hackage.haskell.org/packages/recent/revisions.html") $
+                text "Recent Revisions"                
+          el "h3" $ text "References"
+          el "ul" $ do
+            el "li" $ 
+              elAttr "a" ("href" =: "https://ghc.haskell.org/trac/ghc/wiki/Commentary/Libraries/VersionHistory") $ 
+                text "GHC Boot Library Version History"
+            el "li" $
+              elAttr "a" ("href" =: "https://ghc.haskell.org/trac/ghc/wiki/LanguagePragmaHistory") $
+                text "Language Pragma History"
+            el "li" $
+              elAttr "a" ("href" =: "https://github.com/haskell/cabal/blob/641e854ae663e2b34f34ecc11ba663ac3a9bdc19/Cabal/Distribution/PackageDescription/Check.hs#L911-L1091") $
+                text "Required cabal-version"
+            el "li" $
+              elAttr "a" ("href" =: "https://github.com/haskell-infra/hackage-trustees/blob/master/cookbook.md") $
+                text "Cookbook for common build failures"
+      pure ()
+
+    RouteQueue -> pure $ do
+      evPB <- getPostBuild
+
+      let dynUnixTime = utc2unix <$> dynUTCTime
+
+      evWorkers <- getWorkers (leftmost [ticker2 $> (), evPB])
+      dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
+      let dynWorkers2 = fmap mkWorkerStat dynWorkers
+
+      el "h1" $ text "Workers"
+      el "div" $ do
+        el "table" $ do
+          el "thead" $ do
+            el "tr" $ do
+              el "th" $ text "age"
+              el "th" $ text "phase"
+              el "th" $ text "pkg-name"
+              el "th" $ text "pkg-ver"
+              el "th" $ text "compiler"
+              el "th" $ text "index-state"
+
+          _ <- el "tbody" $ do
+            simpleList (V.toList <$> dynWorkers) $ \wr -> el "tr" $ do
+
+              el "td" $ display ((-) <$> dynUnixTime <*> (wrModified <$> wr))
+              el "td" $ dynText ((T.pack . drop 2 . show . wrState) <$> wr)
+              -- maybes
+              let pn = fromMaybe (PkgN "") . wrPkgname <$> wr -- FIXME
+              el "td" $ pkgLink pn
+              el "td" $ dynText (maybe "" verToText . wrPkgversion <$> wr)
+              el "td" $ dynText (maybe "" compilerIdToText . wrHcversion <$> wr)
+              el "td" $ dynText (maybe mempty pkgIdxTsToText . wrIdxState <$> wr)
+          pure ()
         pure ()
 
-      RouteQueue -> pure $ do
+      el "h1" $ text "Queue"
+      el "div" $ do
+        -- aButton <- el "div" $ button "Refresh Queue"
+        evQRows <- getQueue (leftmost [ticker4 $> (), evPB])
+        dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
+
+        el "table" $ do
+          el "thead" $ do
+            el "tr" $ do
+              el "th" $ text "qprio"
+              el "th" $ text "pkg-name"
+              el "th" $ text "index-state"
+              el "th" $ text "workers"
+              el "th" $ text "mtime(queue-entry)"
+
+          el "tbody" $ do
+            _ <- simpleList (V.toList <$> dynQRows) $ \qr -> do
+              let -- pn :: Dynamic t PkgN
+                  pn = qrPkgname   <$> qr
+                  -- wcnt :: Dynamic t Int
+                  wcnt = dynWorkers2 <*> pn <*> (qrIdxstate <$> qr)
+
+              elDynAttr "tr" ((\x -> if x==0 then mempty else ("style" =: "background-color: #ffffd0")) <$> wcnt) $ do
+                el "td" $ display (qrPriority  <$> qr)
+                el "td" $ pkgLink pn
+                el "td" $ dynText ((pkgIdxTsToText . qrIdxstate) <$> qr)
+                el "td" $ dynText ((\x -> if x == 0 then "" else tshow x) <$> wcnt)
+                el "td" $ display (qrModified  <$> qr)
+            pure ()
+
+      el "h1" $ text "Recent Uploads"
+      el "div" $ do
+        let lb = (\(PkgIdxTs t) -> PkgIdxTs (t - (24*60*60))) <$> dynIdxStLast
+
+        evHistRows <- getPackagesHistory (QParamSome <$> lb) (QParamSome <$> dynIdxStLast) (leftmost [updated dynIdxStLast $> (), evPB])
+        dynHistRows <- holdDyn mempty evHistRows
+
+        dynShowRevs <- el "div" $ do
+          tmp <- _checkbox_value <$> checkbox True (CheckboxConfig never mempty)
+          text "show revisions"
+          pure tmp
+
+        dynShowRels <- el "div" $ do
+          tmp <- _checkbox_value <$> checkbox True (CheckboxConfig never mempty)
+          text "show releases"
+          pure tmp
+
+        let attrHideRevs = bool ("hidden" =: "") mempty <$> dynShowRevs
+            attrHideRels = bool ("hidden" =: "") mempty <$> dynShowRels
+
+        el "table" $ do
+          el "thead" $ do
+            el "tr" $ do
+              el "th" $ text "index-state"
+              el "th" $ text "pkg-name"
+              el "th" $ text "pkg-ver"
+              el "th" $ text "rev"
+              el "th" $ text "uploader"
+
+          el "tbody" $ do
+            _ <- dyn $ do
+              rows <- V.toList . V.reverse <$> dynHistRows
+              pure $ do
+                forM_ rows $ \(IdxHistoryEntry is pn pv rv unam) -> do
+                  let wcnt = dynWorkers2 <*> pure pn <*> pure is
+                      isRev = rv > 0
+                      rowAttr1 = (\x -> if x==0 then mempty else ("style" =: "background-color: #ffffd0")) <$> wcnt
+                      rowAttr2 | isRev = attrHideRevs
+                                | otherwise = attrHideRels
+
+                  elDynAttr "tr" (rowAttr1 <> rowAttr2) $ do
+                      el "td" $ text (pkgIdxTsToText is)
+                      el "td" $ pkgLink (pure pn)
+                      el "td" $ text (verToText pv)
+                      el "td" $ text (if rv > 0 then "-r"<>tshow rv else "")
+                      el "td" $ elAttr "a" ("href" =: ("#/user/" <> unam)) (text unam)
+
+            pure ()
+        pure ()
+
+    RoutePackages -> pure $ do
+        el "h1" $ text "Packages"
+        evPB <- getPostBuild
+        evTags<- getTags (constDyn $ QParamSome False) evPB
+        dynTags <- holdDyn mempty evTags
+        evTagPkgs<- getTagsPkg (constDyn $ QParamSome True) evPB
+        dynTagPkgs <- holdDyn Map.empty evTagPkgs
+        let dynPkgTags = pkgTagList <$> dynTagPkgs
+        packagesPageWidget dynPackages0 dynTags dynPkgTags
+
+    RoutePackage pn -> pure $ do
+        el "h2" $ text (pkgNToText pn)
+        el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
+          do text "(view on Hackage)"
+
         evPB <- getPostBuild
 
-        let dynUnixTime = utc2unix <$> dynUTCTime
+        -- single-shot requests
+        evReports <- getPackageReports (constDyn $ Right pn) evPB
+        dynReports <- holdDyn mempty evReports
 
-        evWorkers <- getWorkers (leftmost [ticker2 $> (), evPB])
+        evInfo <- getInfo evPB
+        dynInfo <- holdDyn (ControllerInfo mempty) evInfo
+
+        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
+        dynHist <- holdDyn mempty evHist
+
+        evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
+
+        -- other requests
+        evQRows <- getQueuePkg (constDyn $ Right pn) (leftmost [ticker4 $> (), evPB])
+        dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
+
+        evWorkers <- getWorkersPkg (constDyn $ Right pn) (leftmost [ticker2 $> (), evPB])
         dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
-        let dynWorkers2 = fmap mkWorkerStat dynWorkers
 
-        el "h1" $ text "Workers"
-        el "div" $ do
-          el "table" $ do
-            el "thead" $ do
-              el "tr" $ do
-                el "th" $ text "age"
-                el "th" $ text "phase"
-                el "th" $ text "pkg-name"
-                el "th" $ text "pkg-ver"
-                el "th" $ text "compiler"
-                el "th" $ text "index-state"
 
-            _ <- el "tbody" $ do
-              simpleList (V.toList <$> dynWorkers) $ \wr -> el "tr" $ do
+        _ <- el "p" $ do
+          evQButton <- button "Queue a build"
+          text " for latest index-state "
+          dynText (pkgIdxTsToText <$> dynIdxStLast)
 
-                el "td" $ display ((-) <$> dynUnixTime <*> (wrModified <$> wr))
-                el "td" $ dynText ((T.pack . drop 2 . show . wrState) <$> wr)
-                -- maybes
-                let pn = fromMaybe (PkgN "") . wrPkgname <$> wr -- FIXME
-                el "td" $ pkgLink pn
-                el "td" $ dynText (maybe "" verToText . wrPkgversion <$> wr)
-                el "td" $ dynText (maybe "" compilerIdToText . wrHcversion <$> wr)
-                el "td" $ dynText (maybe mempty pkgIdxTsToText . wrIdxState <$> wr)
-            pure ()
+          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
+
+
+        let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
+            x0 = (\s -> if Set.null s then PkgIdxTs 0 else Set.findMax s) <$> dynReports
+
+        let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
+
+        let inputAttr = ("class" =: "tag-name") <> ("placeholder" =: "insert tag")
+            iCfg = TextInputConfig "tag-name" "" never (constDyn inputAttr)
+
+        ddReports <- el "p" $ do
+          evQButton <- button "Queue a build"
+          text " for the index-state "
+          tmp <- dropdown (PkgIdxTs 0) xs ddCfg
+          text " shown below"
+
+          _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
+
+          pure tmp
+        
+        elClass "p" "tagging" $ mdo
+          let evMapTags = Map.fromList . (fmap (\t -> (t,t))) . (fmap tagNToText) . V.toList <$> evPkgTags
+          result <- foldDyn appEndo Map.empty $ fold
+            [ Endo . const <$> evMapTags
+            , (\nTag -> Endo $ Map.insert nTag nTag) <$> addTag0
+            , (foldMap (Endo . Map.delete) . Map.keys) <$> deleteTag0
+            ]
+          deleteTag0 :: Event t (Map.Map T.Text T.Text) <- listViewWithKey result $ \tId _ -> do
+            el "li" $ do
+              el "span" $ text tId
+              delEv <- rmTagButton_ tId pn
+              pure $ tagNToText <$> delEv
+
+          addTag0 <- elClass "form" "form" $ do
+            el "p" $ text "Tag : "
+            tagName <- textInput iCfg
+            tagButton <- button_ "Add Tag"
+            let tVal = _textInput_value tagName
+                evAdd = (tagPromptlyDyn tVal tagButton)
+            addTagN <- holdDyn "" evAdd
+            addResult <- putTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
+            pure $ tagPromptlyDyn tVal addResult
           pure ()
+        
+        let evReports' = updated (_dropdown_value ddReports)
+            dynIdxSt   = ddReports ^. dropdown_value
 
-        el "h1" $ text "Queue"
-        el "div" $ do
-          -- aButton <- el "div" $ button "Refresh Queue"
-          evQRows <- getQueue (leftmost [ticker4 $> (), evPB])
-          dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
+        evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
+        dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
 
-          el "table" $ do
-            el "thead" $ do
-              el "tr" $ do
-                el "th" $ text "qprio"
-                el "th" $ text "pkg-name"
-                el "th" $ text "index-state"
-                el "th" $ text "workers"
-                el "th" $ text "mtime(queue-entry)"
+        el "hr" blank
 
-            el "tbody" $ do
-              _ <- simpleList (V.toList <$> dynQRows) $ \qr -> do
-                let -- pn :: Dynamic t PkgN
-                    pn = qrPkgname   <$> qr
-                    -- wcnt :: Dynamic t Int
-                    wcnt = dynWorkers2 <*> pn <*> (qrIdxstate <$> qr)
+        evCellClick <- reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo
 
-                elDynAttr "tr" ((\x -> if x==0 then mempty else ("style" =: "background-color: #ffffd0")) <$> wcnt) $ do
-                  el "td" $ display (qrPriority  <$> qr)
-                  el "td" $ pkgLink pn
-                  el "td" $ dynText ((pkgIdxTsToText . qrIdxstate) <$> qr)
-                  el "td" $ dynText ((\x -> if x == 0 then "" else tshow x) <$> wcnt)
-                  el "td" $ display (qrModified  <$> qr)
-              pure ()
+        dynCellClick <- holdDyn Nothing (Just <$> evCellClick)
 
-        el "h1" $ text "Recent Uploads"
-        el "div" $ do
-          let lb = (\(PkgIdxTs t) -> PkgIdxTs (t - (24*60*60))) <$> dynIdxStLast
+        let dynCell' = mergeCellId pn <$> dynCellClick <*> dynIdxSt
 
-          evHistRows <- getPackagesHistory (QParamSome <$> lb) (QParamSome <$> dynIdxStLast) (leftmost [updated dynIdxStLast $> (), evPB])
-          dynHistRows <- holdDyn mempty evHistRows
+        el "h2" (dynText $ ((maybe "No cell selected" (\(pn',pv,hcv,is) -> "Details for " <> pkgNToText pn' <> "-" <> verToText pv <> " / " <> compilerIdToText hcv <> " @ " <> pkgIdxTsToText is)) <$> dynCell'))
 
-          dynShowRevs <- el "div" $ do
-            tmp <- _checkbox_value <$> checkbox True (CheckboxConfig never mempty)
-            text "show revisions"
-            pure tmp
+        reportDetailWidget dynCell'
 
-          dynShowRels <- el "div" $ do
-            tmp <- _checkbox_value <$> checkbox True (CheckboxConfig never mempty)
-            text "show releases"
-            pure tmp
+        pure ()
 
-          let attrHideRevs = bool ("hidden" =: "") mempty <$> dynShowRevs
-              attrHideRels = bool ("hidden" =: "") mempty <$> dynShowRels
+    RouteUser u -> pure $ do
+        el "h1" (text u)
 
-          el "table" $ do
-            el "thead" $ do
-              el "tr" $ do
-                el "th" $ text "index-state"
-                el "th" $ text "pkg-name"
-                el "th" $ text "pkg-ver"
-                el "th" $ text "rev"
-                el "th" $ text "uploader"
+        evPB <- getPostBuild
 
-            el "tbody" $ do
-              _ <- dyn $ do
-                rows <- V.toList . V.reverse <$> dynHistRows
-                pure $ do
-                  forM_ rows $ \(IdxHistoryEntry is pn pv rv unam) -> do
-                    let wcnt = dynWorkers2 <*> pure pn <*> pure is
-                        isRev = rv > 0
-                        rowAttr1 = (\x -> if x==0 then mempty else ("style" =: "background-color: #ffffd0")) <$> wcnt
-                        rowAttr2 | isRev = attrHideRevs
-                                 | otherwise = attrHideRels
+        evUserInfo <- getUser (constDyn $ Right u) evPB
+        dynUserInfo <- holdDyn (UserPkgs u mempty) evUserInfo
 
-                    elDynAttr "tr" (rowAttr1 <> rowAttr2) $ do
-                        el "td" $ text (pkgIdxTsToText is)
-                        el "td" $ pkgLink (pure pn)
-                        el "td" $ text (verToText pv)
-                        el "td" $ text (if rv > 0 then "-r"<>tshow rv else "")
-                        el "td" $ elAttr "a" ("href" =: ("#/user/" <> unam)) (text unam)
+        _ <- el "ol" $ simpleList ((V.toList . upPackages) <$> dynUserInfo) $ \pn -> do
+          el "li" $ pkgLink pn
 
-              pure ()
-          pure ()
+        pure ()
 
-      RoutePackages -> pure $ do
-          el "h1" $ text "Packages"
-          evPB <- getPostBuild
-          evTags<- getTags (constDyn $ QParamSome False) evPB
-          dynTags <- holdDyn mempty evTags
-          evTagPkgs<- getTagsPkg (constDyn $ QParamSome True) evPB
-          dynTagPkgs <- holdDyn Map.empty evTagPkgs
-          let dynPkgTags = pkgTagList <$> dynTagPkgs
-          packagesPageWidget dynPackages0 dynTags dynPkgTags
+    RouteUnknown frag -> pure $ do
+        el "p" $ text ("No handler found for " <> T.pack (show frag))
+        pure ()
 
-      RoutePackage pn -> pure $ do
-          el "h2" $ text (pkgNToText pn)
-          el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
-            do text "(view on Hackage)"
-
-          evPB <- getPostBuild
-
-          -- single-shot requests
-          evReports <- getPackageReports (constDyn $ Right pn) evPB
-          dynReports <- holdDyn mempty evReports
-
-          evInfo <- getInfo evPB
-          dynInfo <- holdDyn (ControllerInfo mempty) evInfo
-
-          evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
-          dynHist <- holdDyn mempty evHist
-
-          evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
-
-          -- other requests
-          evQRows <- getQueuePkg (constDyn $ Right pn) (leftmost [ticker4 $> (), evPB])
-          dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
-
-          evWorkers <- getWorkersPkg (constDyn $ Right pn) (leftmost [ticker2 $> (), evPB])
-          dynWorkers <- holdUniqDyn =<< holdDyn mempty evWorkers
-
-
-          _ <- el "p" $ do
-            evQButton <- button "Queue a build"
-            text " for latest index-state "
-            dynText (pkgIdxTsToText <$> dynIdxStLast)
-
-            putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
-
-
-          let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
-              x0 = (\s -> if Set.null s then PkgIdxTs 0 else Set.findMax s) <$> dynReports
-
-          let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
-
-          let inputAttr = ("class" =: "tag-name") <> ("placeholder" =: "insert tag")
-              iCfg = TextInputConfig "tag-name" "" never (constDyn inputAttr)
-
-          ddReports <- el "p" $ do
-            evQButton <- button "Queue a build"
-            text " for the index-state "
-            tmp <- dropdown (PkgIdxTs 0) xs ddCfg
-            text " shown below"
-
-            _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
-
-            pure tmp
-          
-          elClass "p" "tagging" $ mdo
-            let evMapTags = Map.fromList . (fmap (\t -> (t,t))) . (fmap tagNToText) . V.toList <$> evPkgTags
-            result <- foldDyn appEndo Map.empty $ fold
-              [ Endo . const <$> evMapTags
-              , (\nTag -> Endo $ Map.insert nTag nTag) <$> addTag0
-              , (foldMap (Endo . Map.delete) . Map.keys) <$> deleteTag0
-              ]
-            deleteTag0 :: Event t (Map.Map T.Text T.Text) <- listViewWithKey result $ \tId _ -> do
-              el "li" $ do
-                el "span" $ text tId
-                delEv <- rmTagButton_ tId pn
-                pure $ tagNToText <$> delEv
-
-            addTag0 <- elClass "form" "form" $ do
-              el "p" $ text "Tag : "
-              tagName <- textInput iCfg
-              tagButton <- button_ "Add Tag"
-              let tVal = _textInput_value tagName
-                  evAdd = (tagPromptlyDyn tVal tagButton)
-              addTagN <- holdDyn "" evAdd
-              addResult <- putTags ((Right . TagN) <$> addTagN) (constDyn $ Right pn) (() <$ evAdd)
-              pure $ tagPromptlyDyn tVal addResult
-            pure ()
-         
-          let evReports' = updated (_dropdown_value ddReports)
-              dynIdxSt   = ddReports ^. dropdown_value
-
-          evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
-          dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
-
-          el "hr" blank
-
-          evCellClick <- reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo
-
-          dynCellClick <- holdDyn Nothing (Just <$> evCellClick)
-
-          let dynCell' = mergeCellId pn <$> dynCellClick <*> dynIdxSt
-
-          el "h2" (dynText $ ((maybe "No cell selected" (\(pn',pv,hcv,is) -> "Details for " <> pkgNToText pn' <> "-" <> verToText pv <> " / " <> compilerIdToText hcv <> " @ " <> pkgIdxTsToText is)) <$> dynCell'))
-
-          reportDetailWidget dynCell'
-
-          pure ()
-
-      RouteUser u -> pure $ do
-          el "h1" (text u)
-
-          evPB <- getPostBuild
-
-          evUserInfo <- getUser (constDyn $ Right u) evPB
-          dynUserInfo <- holdDyn (UserPkgs u mempty) evUserInfo
-
-          _ <- el "ol" $ simpleList ((V.toList . upPackages) <$> dynUserInfo) $ \pn -> do
-            el "li" $ pkgLink pn
-
-          pure ()
-
-      RouteUnknown frag -> pure $ do
-          el "p" $ text ("No handler found for " <> T.pack (show frag))
-          pure ()
-
-    pure ()
+  pure ()
   where
     pkgLink pn' = elDynAttr "a" (pkgHref <$> pn') $ dynText (pkgNToText <$> pn')
 
