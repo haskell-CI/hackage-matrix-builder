@@ -143,18 +143,32 @@ bodyElement4 = do
             divClass "text" $ text "Package Search"
             sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold
               ["class" =: "input-search","placeholder" =: "search..."]
-            debounce 0.2 $ _inputElement_input sVal0
+            debounce 0.1 $ _inputElement_input sVal0
           
   let
     dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPackages0
     calcMatches pkgs sJss =
       if JSS.length sJss < 3
       then []
-      else filter (JSS.isInfixOf sJss) pkgs
+      else matches' pkgs sJss
+     where 
+      matches' p sJ
+        | JSS.isInfixOf "^" sJ = filter (JSS.isPrefixOf (JSS.dropWhile (=='^') sJ)) p
+        | JSS.isInfixOf "$" sJ = filter (JSS.isSuffixOf (JSS.dropWhileEnd (=='$') sJ)) p
+        | otherwise            = filter (JSS.isInfixOf sJ) p
+    exactMatches pkgs' sJss = List.partition (==sJss) pkgs'
     matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
-    matchesMapE = Map.fromList . fmap (\p -> (JSS.textFromJSString p,())) <$> matchesE
-  matchesMapDyn <- holdDyn Map.empty matchesMapE
-  _ <- el "ul" $ listWithKey matchesMapDyn $ \pId _ -> do
+  dynMatches <- holdDyn [] matchesE
+  dynSearch  <- holdDyn "" (JSS.textToJSString <$> searchInputE)
+  let
+    exactDyn = splitDynPure $ zipDynWith exactMatches dynMatches dynSearch
+    matchesMapDyn = Map.fromList . fmap (\p -> (JSS.textFromJSString p,())) <$> (snd exactDyn)
+    exactMapDyn   = Map.fromList . fmap (\p -> (JSS.textFromJSString p,())) <$> (fst exactDyn)
+  --matchesMapDyn <- holdDyn Map.empty matchesMapE
+  _ <- el "ul" $ do
+        listWithKey exactMapDyn $ \eId _ ->
+          el "li" $ elAttr "a" ("href" =: ("#/package/" <> eId)) $ text eId  
+        listWithKey matchesMapDyn $ \pId _ ->
           el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId  
 
   el "hr" blank
