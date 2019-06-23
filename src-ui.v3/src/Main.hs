@@ -167,9 +167,20 @@ bodyElement4 = do
   --matchesMapDyn <- holdDyn Map.empty matchesMapE
   _ <- el "ul" $ do
         listWithKey exactMapDyn $ \eId _ ->
-          el "li" $ elAttr "a" ("href" =: ("#/package/" <> eId)) $ text eId  
+          el "li" $ elAttr "a" ("href" =: ("#/package/" <> eId)) $ el "strong" $ text eId
         listWithKey matchesMapDyn $ \pId _ ->
-          el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ text pId  
+          el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ do
+            let 
+              tbFront txt txtS = T.breakOn txtS txt
+              tbEnd txt txtS   = T.breakOnEnd txtS txt
+              breakText = tbFront pId . JSS.textFromJSString <$> dynSearch
+              (dynFirstT,dynSndT) = splitDynPure breakText
+              breakSndText = zipDynWith tbEnd dynSndT (JSS.textFromJSString <$> dynSearch)
+              (dynMidT,dynEndT) = splitDynPure breakSndText
+            dynText dynFirstT
+            el "strong" $ dynText dynMidT
+            dynText dynEndT
+
 
   el "hr" blank
 
