@@ -156,7 +156,7 @@ bodyElement4 = do
         | JSS.isInfixOf "^" sJ = filter (JSS.isPrefixOf (JSS.dropWhile (=='^') sJ)) p
         | JSS.isInfixOf "$" sJ = filter (JSS.isSuffixOf (JSS.dropWhileEnd (=='$') sJ)) p
         | otherwise            = filter (JSS.isInfixOf sJ) p
-    exactMatches pkgs' sJss = List.partition (==sJss) pkgs'
+    exactMatches pkgs' sJss = List.partition (==(JSS.dropWhileEnd (=='$') sJss)) pkgs'
     matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
   dynMatches <- holdDyn [] matchesE
   dynSearch  <- holdDyn "" (JSS.textToJSString <$> searchInputE)
