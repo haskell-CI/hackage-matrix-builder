@@ -7,6 +7,8 @@
 module PkgId
     ( PkgN(..)
     , TagN(..)
+    , Matches(..)
+    , matchesEmpty
     , pkgNFromText
 
     , Ver
@@ -38,6 +40,7 @@ import           Data.Aeson                   (FromJSON (..), FromJSONKey (..),
 import qualified Data.Aeson                   as J
 import qualified Data.Aeson.Types             as J
 import qualified Data.Char                    as C
+import qualified Data.Map                     as Map
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
 import           Data.Time.Clock.POSIX        (POSIXTime, posixSecondsToUTCTime)
@@ -145,3 +148,15 @@ verToText (Ver x) = T.pack . Ver.showVersion . Ver.makeVersion $ x
 ----------------------------------------------------------------------------
 newtype TagN = TagN { tagNToText :: Text }
   deriving (Eq,Ord,FromJSON,ToJSON,ToJSONKey,FromJSONKey,FromHttpApiData,ToHttpApiData)
+
+data Matches = Matches 
+  { matchesInput :: Text
+  , matchesExact :: Map.Map Text ()
+  , matchesInfix :: Map.Map Text (Text,Text,Text)
+  }
+  deriving (Eq,Ord)
+
+matchesEmpty :: Matches
+matchesEmpty = Matches { matchesInput = T.empty :: T.Text, matchesExact = Map.empty, matchesInfix = Map.empty} 
+
+  

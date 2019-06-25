@@ -28,6 +28,7 @@ import qualified Data.JSString             as JSS
 import qualified Data.JSString.Text        as JSS
 import qualified Data.List                 as List
 import qualified Data.Map.Strict           as Map
+import qualified Data.Maybe                as M
 import           Data.Monoid               (Endo (Endo), appEndo)
 import           Data.Proxy
 import qualified Data.Set                  as Set
@@ -97,7 +98,7 @@ utc2unix :: UTCTime -> Int
 utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
-bodyElement4 = do
+bodyElement4 = mdo
   dynLoc <- browserHistoryWith getLocationUri
   let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
 
@@ -139,49 +140,7 @@ bodyElement4 = do
     text ")"
 
   -- search box
-  searchInputE <- elAttr "div" ("class" =: "item search right clearfix") $ do
-            divClass "text" $ text "Package Search"
-            sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold
-              ["class" =: "input-search","placeholder" =: "search..."]
-            debounce 0.1 $ _inputElement_input sVal0
-          
-  let
-    dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPackages0
-    calcMatches pkgs sJss =
-      if JSS.length sJss < 3
-      then []
-      else matches' pkgs sJss
-     where 
-      matches' p sJ
-        | JSS.isInfixOf "^" sJ = filter (JSS.isPrefixOf (JSS.dropWhile (=='^') sJ)) p
-        | JSS.isInfixOf "$" sJ = filter (JSS.isSuffixOf (JSS.dropWhileEnd (=='$') sJ)) p
-        | otherwise            = filter (JSS.isInfixOf sJ) p
-    exactMatches pkgs' sJss = List.partition (==(JSS.dropWhileEnd (=='$') sJss)) pkgs'
-    matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
-  dynMatches <- holdDyn [] matchesE
-  dynSearch  <- holdDyn "" (JSS.textToJSString <$> searchInputE)
-  let
-    exactDyn = splitDynPure $ zipDynWith exactMatches dynMatches dynSearch
-    matchesMapDyn = Map.fromList . fmap (\p -> (JSS.textFromJSString p,())) <$> (snd exactDyn)
-    exactMapDyn   = Map.fromList . fmap (\p -> (JSS.textFromJSString p,())) <$> (fst exactDyn)
-  --matchesMapDyn <- holdDyn Map.empty matchesMapE
-  _ <- el "ul" $ do
-        listWithKey exactMapDyn $ \eId _ ->
-          el "li" $ elAttr "a" ("href" =: ("#/package/" <> eId)) $ el "strong" $ text eId
-        listWithKey matchesMapDyn $ \pId _ ->
-          el "li" $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ do
-            let 
-              tbFront txt txtS = T.breakOn txtS txt
-              tbEnd txt txtS   = T.breakOnEnd txtS txt
-              breakText = tbFront pId . JSS.textFromJSString <$> dynSearch
-              (dynFirstT,dynSndT) = splitDynPure breakText
-              breakSndText = zipDynWith tbEnd dynSndT (JSS.textFromJSString <$> dynSearch)
-              (dynMidT,dynEndT) = splitDynPure breakSndText
-            dynText dynFirstT
-            el "strong" $ dynText dynMidT
-            dynText dynEndT
-
-
+  _ <- searchBoxWidget dynPackages0
   el "hr" blank
 
   _ <- dyn $ dynFrag >>= \case
@@ -427,7 +386,7 @@ bodyElement4 = do
           addTag0 <- elClass "form" "form" $ do
             el "p" $ text "Tag : "
             tagName <- textInput iCfg
-            tagButton <- button_ "Add Tag"
+            tagButton <- clickElement_ "button" "Add Tag"
             let tVal = _textInput_value tagName
                 evAdd = (tagPromptlyDyn tVal tagButton)
             addTagN <- holdDyn "" evAdd
@@ -777,11 +736,72 @@ pkgTagList m = Map.fromListWith (List.++) $ do
 joinE :: forall t m a. (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
 joinE = fmap switch . hold never
 
-button_ :: forall t m. (DomBuilder t m, PostBuild t m) => T.Text -> m (Event t ())
-button_ t = do
+clickElement_ :: forall t m. (DomBuilder t m, PostBuild t m) => T.Text -> T.Text -> m (Event t ())
+clickElement_ elm t = do
   let cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
         & elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Click (\_ -> preventDefault)
-  (e, _) <- element "button" cfg $ text t
+  (e, _) <- element elm cfg $ text t
   pure $ domEvent Click e
 
+stripSearch :: JSS.JSString -> JSS.JSString
+stripSearch sJ
+  | Just sJ'  <- JSS.stripPrefix "^" sJ = sJ'
+  | Just sJ' <- JSS.stripSuffix "$" sJ  = sJ'
+  | otherwise                           = sJ
 
+filterBySearchBox :: [JSS.JSString] -> JSS.JSString -> [JSS.JSString]
+filterBySearchBox pkgs sJ
+  | JSS.isInfixOf "^" sJ = filter (JSS.isPrefixOf (stripSearch sJ)) pkgs
+  | JSS.isInfixOf "$" sJ = filter (JSS.isSuffixOf (stripSearch sJ)) pkgs
+  | otherwise            = filter (JSS.isInfixOf (stripSearch sJ))pkgs
+
+splitInfixPkg :: JSS.JSString -> JSS.JSString -> (T.Text, T.Text, T.Text)
+splitInfixPkg stripSJ pkg = (frontT, midT, backT)
+  where
+    textS               = JSS.textFromJSString stripSJ
+    (frontT, reminderT) = T.breakOn textS (JSS.textFromJSString pkg)
+    (midT, backT)       = T.breakOnEnd textS reminderT
+
+calcMatchesNew :: [JSS.JSString] -> JSS.JSString -> Matches
+calcMatchesNew pkgs sJss = 
+  if JSS.length sJss < 3 
+  then matchesEmpty
+  else Matches { matchesInput = textS, matchesExact = exactMap, matchesInfix = othersMap}
+  where
+    textS                = JSS.textFromJSString sJss
+    stripSJ              = stripSearch sJss
+    (exactPkg, infixPkg) = List.partition (== stripSJ) pkgs
+    exactMap             = (Map.fromList . fmap (\p -> (JSS.textFromJSString p,()))) exactPkg
+    othersMap            = (Map.fromList . fmap (\p -> (JSS.textFromJSString p, splitInfixPkg stripSJ p))) (filterBySearchBox infixPkg sJss)
+
+searchBoxWidget :: forall t m. (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace)
+                => Dynamic t (Vector PkgN) 
+                -> m ()  
+searchBoxWidget dynPkgs0 = mdo
+  searchInputE <- elAttr "div" ("class" =: "item search right clearfix") $ do
+    divClass "text" $ text "Package Search"
+    sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold ["class" =: "input-search","placeholder" =: "search..."]
+                                & inputElementConfig_setValue .~ clickPkgE
+    debounce 0.1 $ leftmost [clickPkgE, (_inputElement_input sVal0)]
+  let
+    dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPkgs0
+    matchesE = calcMatchesNew <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
+  matchesDyn <- holdDyn matchesEmpty matchesE
+  clickPkgE <- searchResultWidget matchesDyn
+  pure ()
+
+searchResultWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
+                   => Dynamic t Matches 
+                   -> m (Event t T.Text)
+searchResultWidget mDyn =
+  el "ul" $ do
+    exactE <- listViewWithKey (matchesExact <$> mDyn) $ \eId _ -> do
+                (e, _) <- element "li" def $ elAttr "a" ("href" =: ("#/package/" <> eId)) $ el "strong" $ text eId
+                pure $ domEvent Click e
+    otherE <- listViewWithKey (matchesInfix <$> mDyn) $ \pId txt -> do
+                (e, _) <- element "li" def $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ do
+                            dynText . fmap (^. _1) $ txt
+                            el "strong" $ dynText . fmap (^. _2) $ txt
+                            dynText . fmap (^. _3) $ txt
+                pure $ domEvent Click e
+    pure $ "" <$ leftmost [exactE, otherE]

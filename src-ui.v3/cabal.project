@@ -1,6 +1,6 @@
 with-compiler: /opt/ghcjs/8.4/bin/ghcjs
 compiler: ghcjs
-
+--with-compiler: ghc-8.4.4
 packages: .
 
 ----------------------------------------------------------------------------
