@@ -24,6 +24,7 @@ import qualified Data.Aeson                as J
 import qualified Data.Aeson.Types          as J
 import           Data.Bool                 (not)
 import qualified Data.Char                 as C
+import qualified Data.Foldable             as F
 import qualified Data.JSString             as JSS
 import qualified Data.JSString.Text        as JSS
 import qualified Data.List                 as List
@@ -749,12 +750,6 @@ stripSearch sJ
   | Just sJ' <- JSS.stripSuffix "$" sJ  = sJ'
   | otherwise                           = sJ
 
-filterBySearchBox :: [JSS.JSString] -> JSS.JSString -> [JSS.JSString]
-filterBySearchBox pkgs sJ
-  | JSS.isInfixOf "^" sJ = filter (JSS.isPrefixOf (stripSearch sJ)) pkgs
-  | JSS.isInfixOf "$" sJ = filter (JSS.isSuffixOf (stripSearch sJ)) pkgs
-  | otherwise            = filter (JSS.isInfixOf (stripSearch sJ))pkgs
-
 splitInfixPkg :: JSS.JSString -> JSS.JSString -> (T.Text, T.Text, T.Text)
 splitInfixPkg stripSJ pkg = (frontT, midT, backT)
   where
@@ -762,17 +757,34 @@ splitInfixPkg stripSJ pkg = (frontT, midT, backT)
     (frontT, reminderT) = T.breakOn textS (JSS.textFromJSString pkg)
     (midT, backT)       = T.breakOnEnd textS reminderT
 
-calcMatchesNew :: [JSS.JSString] -> JSS.JSString -> Matches
-calcMatchesNew pkgs sJss = 
+calcMatch :: JSS.JSString  -> JSS.JSString -> (Map.Map T.Text (), Map.Map T.Text (T.Text,T.Text,T.Text))
+calcMatch sJss pkg =
+  let stripSJ = stripSearch sJss
+  in 
+    case stripSJ == pkg of
+      True  -> (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
+      False -> filterPkgSearch stripSJ pkg
+
+filterPkgSearch :: JSS.JSString -> JSS.JSString -> (Map.Map T.Text (), Map.Map T.Text (T.Text,T.Text,T.Text))
+filterPkgSearch sJss pkg
+  | Just sJ' <- JSS.stripPrefix "^" sJss = if JSS.isPrefixOf sJ' pkg 
+                                           then (Map.empty, Map.singleton (JSS.textFromJSString pkg) (splitInfixPkg sJ' pkg))
+                                           else (Map.empty, Map.empty)
+  | Just sJ' <- JSS.stripSuffix "$" sJss = if JSS.isSuffixOf sJ' pkg 
+                                           then (Map.empty, Map.singleton (JSS.textFromJSString pkg) (splitInfixPkg sJ' pkg))
+                                           else (Map.empty, Map.empty)
+  | otherwise                            = if JSS.isInfixOf sJss pkg
+                                           then (Map.empty, Map.singleton (JSS.textFromJSString pkg) (splitInfixPkg sJss pkg))
+                                           else (Map.empty, Map.empty)
+
+calcMatches :: [JSS.JSString] -> JSS.JSString -> Matches
+calcMatches pkgs sJss = 
   if JSS.length sJss < 3 
   then matchesEmpty
   else Matches { matchesInput = textS, matchesExact = exactMap, matchesInfix = othersMap}
   where
     textS                = JSS.textFromJSString sJss
-    stripSJ              = stripSearch sJss
-    (exactPkg, infixPkg) = List.partition (== stripSJ) pkgs
-    exactMap             = (Map.fromList . fmap (\p -> (JSS.textFromJSString p,()))) exactPkg
-    othersMap            = (Map.fromList . fmap (\p -> (JSS.textFromJSString p, splitInfixPkg stripSJ p))) (filterBySearchBox infixPkg sJss)
+    (exactMap,othersMap) = F.foldMap (calcMatch sJss) pkgs
 
 searchBoxWidget :: forall t m. (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace)
                 => Dynamic t (Vector PkgN) 
@@ -785,7 +797,7 @@ searchBoxWidget dynPkgs0 = mdo
     debounce 0.1 $ leftmost [clickPkgE, (_inputElement_input sVal0)]
   let
     dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPkgs0
-    matchesE = calcMatchesNew <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
+    matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
   matchesDyn <- holdDyn matchesEmpty matchesE
   clickPkgE <- searchResultWidget matchesDyn
   pure ()
