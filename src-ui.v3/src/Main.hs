@@ -761,7 +761,7 @@ splitInfixPkg stripSJ pkg = (frontT, midT, backT)
 calcMatch :: JSS.JSString  -> JSS.JSString -> (Map.Map Text (), Map.Map Text (Text,Text,Text))
 calcMatch sJss pkg
   | stripSJ == pkg = (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
-  | otherwise      = filterPkgSearch stripSJ pkg
+  | otherwise      = filterPkgSearch sJss pkg
   where
     stripSJ = stripSearch sJss
 
@@ -793,7 +793,7 @@ searchBoxWidget dynPkgs0 = mdo
     divClass "text" $ text "Package Search"
     sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold ["class" =: "input-search","placeholder" =: "search..."]
                                 & inputElementConfig_setValue .~ clickPkgE
-    debounce 0.1 $ leftmost [clickPkgE, (_inputElement_input sVal0)]
+    debounce 0.3 $ leftmost [clickPkgE, (_inputElement_input sVal0)]
   let
     dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPkgs0
     matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)
