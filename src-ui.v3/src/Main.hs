@@ -319,7 +319,7 @@ bodyElement4 = mdo
         let dynPkgTags = pkgTagList <$> dynTagPkgs
         packagesPageWidget dynPackages0 dynTags dynPkgTags
 
-    RoutePackage pn -> pure $ do
+    RoutePackage (pn, idxSt) -> pure $ do
         el "h2" $ text (pkgNToText pn)
         el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
           do text "(view on Hackage)"
@@ -457,7 +457,7 @@ bodyElement4 = mdo
 data FragRoute = RouteHome
                | RouteQueue
                | RoutePackages
-               | RoutePackage PkgN
+               | RoutePackage (PkgN, Maybe Int)
                | RouteUser UserName
                | RouteUnknown T.Text
                deriving (Eq)
@@ -472,8 +472,8 @@ decodeFrag frag = case frag of
 
     _ | Just sfx <- T.stripPrefix "#/package/" frag
       , not (T.null frag)
-      , Just pn <- pkgNFromText sfx
-        -> RoutePackage pn
+      , (Just pn, idx) <- pkgNFromText sfx
+        -> RoutePackage (pn , idx)
 
       | Just sfx <- T.stripPrefix "#/user/" frag
       , not (T.null frag)
@@ -760,8 +760,8 @@ splitInfixPkg stripSJ pkg = (frontT, midT, backT)
 
 calcMatch :: JSS.JSString  -> JSS.JSString -> (Map.Map Text (), Map.Map Text (Text,Text,Text))
 calcMatch sJss pkg
-  | stripSJ == pkg = (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
-  | otherwise      = filterPkgSearch stripSJ pkg
+  | stripSJ == pkg             = (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
+  | otherwise                  = filterPkgSearch sJss pkg
   where
     stripSJ = stripSearch sJss
 

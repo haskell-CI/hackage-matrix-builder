@@ -49,6 +49,7 @@ import qualified Data.Version                 as Ver
 import           Servant.API                  (FromHttpApiData (..),
                                                ToHttpApiData (..))
 import           Text.ParserCombinators.ReadP (readP_to_S)
+import qualified Text.Read                    as R
 
 type UserName   = Text
 type PkgRev     = Word
@@ -64,16 +65,22 @@ instance Show PkgN where
       | otherwise  = (("PkgN "<>show x) <>)
 
 -- NB: this assumes the Hackage ascii-only policy
-pkgNFromText :: Text -> Maybe PkgN
+pkgNFromText :: Text -> (Maybe PkgN, Maybe Int)
 pkgNFromText t0
-  | isValid t0 = Just (PkgN t0)
-  | otherwise  = Nothing
+  | Just (p0,ts0) <- parsingUrlText t0
+  , isValid p0 = (Just (PkgN p0), R.readMaybe (T.unpack ts0) :: Maybe Int)
+  | otherwise  = (Nothing, Nothing)
   where
     isValid t
       | T.null t = False
       | not (T.all (\c -> C.isAsciiLower c || C.isAsciiUpper c || C.isDigit c || c == '-') t) = False
       | otherwise = and [ T.any C.isAlpha x | x <- T.split (=='-') t ]
 
+parsingUrlText :: Text -> Maybe (Text, Text)
+parsingUrlText t0
+  | Just suffix <- T.stripSuffix (T.pack "@") t0
+  , Just prefix <- T.stripPrefix (T.pack "@") t0 = Just (suffix,prefix)
+  | otherwise                                    = Just (t0,T.empty)
 ----------------------------------------------------------------------------
 
 newtype CompilerID = CompilerID {- ghc/ghcjs/ghcvm -} Ver
