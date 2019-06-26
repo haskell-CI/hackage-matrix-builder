@@ -157,6 +157,6 @@ data Matches = Matches
   deriving (Eq,Ord)
 
 matchesEmpty :: Matches
-matchesEmpty = Matches { matchesInput = T.empty :: T.Text, matchesExact = Map.empty, matchesInfix = Map.empty} 
+matchesEmpty = Matches { matchesInput = T.empty, matchesExact = Map.empty, matchesInfix = Map.empty} 
 
   

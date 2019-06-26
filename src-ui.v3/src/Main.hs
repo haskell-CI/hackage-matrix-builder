@@ -34,6 +34,7 @@ import           Data.Monoid               (Endo (Endo), appEndo)
 import           Data.Proxy
 import qualified Data.Set                  as Set
 import qualified Data.Text                 as T
+import           Data.Text                 (Text)
 import           Data.Time                 (UTCTime)
 import           Data.Time                 (getCurrentTime)
 import           Data.Time.Clock.POSIX     (POSIXTime, posixSecondsToUTCTime,
@@ -691,7 +692,7 @@ mkButton s alt' = do
 mkWorkerStat :: (Vector WorkerRow) -> (PkgN -> PkgIdxTs -> Int)
 mkWorkerStat ws = \x1 x2 -> Map.findWithDefault 0 (x1,x2) (Map.fromListWith (+) [ ((pn,is),1) | WorkerRow { wrPkgname = Just pn, wrIdxState = Just is } <- V.toList ws ])
 
-tshow :: Show a => a -> T.Text
+tshow :: Show a => a -> Text
 tshow = T.pack . show
 
 data LR = L | R | LR
@@ -737,7 +738,7 @@ pkgTagList m = Map.fromListWith (List.++) $ do
 joinE :: forall t m a. (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
 joinE = fmap switch . hold never
 
-clickElement_ :: forall t m. (DomBuilder t m, PostBuild t m) => T.Text -> T.Text -> m (Event t ())
+clickElement_ :: forall t m. (DomBuilder t m, PostBuild t m) => Text -> Text -> m (Event t ())
 clickElement_ elm t = do
   let cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
         & elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Click (\_ -> preventDefault)
@@ -750,38 +751,36 @@ stripSearch sJ
   | Just sJ' <- JSS.stripSuffix "$" sJ  = sJ'
   | otherwise                           = sJ
 
-splitInfixPkg :: JSS.JSString -> JSS.JSString -> (T.Text, T.Text, T.Text)
+splitInfixPkg :: JSS.JSString -> JSS.JSString -> (Text, Text, Text)
 splitInfixPkg stripSJ pkg = (frontT, midT, backT)
   where
     textS               = JSS.textFromJSString stripSJ
     (frontT, reminderT) = T.breakOn textS (JSS.textFromJSString pkg)
     (midT, backT)       = T.breakOnEnd textS reminderT
 
-calcMatch :: JSS.JSString  -> JSS.JSString -> (Map.Map T.Text (), Map.Map T.Text (T.Text,T.Text,T.Text))
-calcMatch sJss pkg =
-  let stripSJ = stripSearch sJss
-  in 
-    case stripSJ == pkg of
-      True  -> (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
-      False -> filterPkgSearch stripSJ pkg
+calcMatch :: JSS.JSString  -> JSS.JSString -> (Map.Map Text (), Map.Map Text (Text,Text,Text))
+calcMatch sJss pkg
+  | stripSJ == pkg = (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
+  | otherwise      = filterPkgSearch stripSJ pkg
+  where
+    stripSJ = stripSearch sJss
 
-filterPkgSearch :: JSS.JSString -> JSS.JSString -> (Map.Map T.Text (), Map.Map T.Text (T.Text,T.Text,T.Text))
+filterPkgSearch :: JSS.JSString -> JSS.JSString -> (Map.Map Text (), Map.Map Text (Text,Text,Text))
 filterPkgSearch sJss pkg
   | Just sJ' <- JSS.stripPrefix "^" sJss = if JSS.isPrefixOf sJ' pkg 
                                            then (Map.empty, Map.singleton (JSS.textFromJSString pkg) (splitInfixPkg sJ' pkg))
-                                           else (Map.empty, Map.empty)
+                                           else mempty
   | Just sJ' <- JSS.stripSuffix "$" sJss = if JSS.isSuffixOf sJ' pkg 
                                            then (Map.empty, Map.singleton (JSS.textFromJSString pkg) (splitInfixPkg sJ' pkg))
-                                           else (Map.empty, Map.empty)
+                                           else mempty
   | otherwise                            = if JSS.isInfixOf sJss pkg
                                            then (Map.empty, Map.singleton (JSS.textFromJSString pkg) (splitInfixPkg sJss pkg))
-                                           else (Map.empty, Map.empty)
+                                           else mempty
 
 calcMatches :: [JSS.JSString] -> JSS.JSString -> Matches
-calcMatches pkgs sJss = 
-  if JSS.length sJss < 3 
-  then matchesEmpty
-  else Matches { matchesInput = textS, matchesExact = exactMap, matchesInfix = othersMap}
+calcMatches pkgs sJss
+  | JSS.length sJss < 3  = matchesEmpty
+  | otherwise            = Matches { matchesInput = textS, matchesExact = exactMap, matchesInfix = othersMap}
   where
     textS                = JSS.textFromJSString sJss
     (exactMap,othersMap) = F.foldMap (calcMatch sJss) pkgs
@@ -804,7 +803,7 @@ searchBoxWidget dynPkgs0 = mdo
 
 searchResultWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
                    => Dynamic t Matches 
-                   -> m (Event t T.Text)
+                   -> m (Event t Text)
 searchResultWidget mDyn =
   el "ul" $ do
     exactE <- listViewWithKey (matchesExact <$> mDyn) $ \eId _ -> do
