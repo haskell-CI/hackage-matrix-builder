@@ -1,2 +1,8 @@
+*~
+
+# cabal
+.ghc.environment.*
 /dist-newstyle/
 /dist/
+/cabal.project.local
+
