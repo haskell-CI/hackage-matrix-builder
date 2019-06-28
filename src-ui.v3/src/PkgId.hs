@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings   #-}
 
 -- |
 -- Copyright: © 2018 Herbert Valerio Riedel
@@ -28,7 +29,7 @@ module PkgId
     , compilerIdFromText
     , compilerIdToText
 
-    , PkgIdxTs(..), pkgIdxTsToText -- , unPkgIdxTs
+    , PkgIdxTs(..), pkgIdxTsToText, idxTsToText -- , unPkgIdxTs
     , PkgRev
 
     , UserName
@@ -65,11 +66,12 @@ instance Show PkgN where
       | otherwise  = (("PkgN "<>show x) <>)
 
 -- NB: this assumes the Hackage ascii-only policy
-pkgNFromText :: Text -> (Maybe PkgN, Maybe Int)
+pkgNFromText :: Text -> (Maybe PkgN, Maybe PkgIdxTs)
 pkgNFromText t0
   | Just (p0,ts0) <- parsingUrlText t0
-  , isValid p0 = (Just (PkgN p0), R.readMaybe (T.unpack ts0) :: Maybe Int)
-  | otherwise  = (Nothing, Nothing)
+  , Just intTs <- R.readMaybe (T.unpack ts0) :: Maybe Int
+  , isValid p0 = (Just (PkgN p0), Just (PkgIdxTs intTs))--R.readMaybe (T.unpack ts0) :: Maybe PkgIdxTs)
+  | otherwise  = (Just (PkgN t0), Nothing)
   where
     isValid t
       | T.null t = False
@@ -77,10 +79,12 @@ pkgNFromText t0
       | otherwise = and [ T.any C.isAlpha x | x <- T.split (=='-') t ]
 
 parsingUrlText :: Text -> Maybe (Text, Text)
-parsingUrlText t0
-  | Just suffix <- T.stripSuffix (T.pack "@") t0
-  , Just prefix <- T.stripPrefix (T.pack "@") t0 = Just (suffix,prefix)
-  | otherwise                                    = Just (t0,T.empty)
+parsingUrlText t0 = case T.any (=='@') t0 of
+  True  -> Just (T.takeWhile (/='@') t0, T.takeWhileEnd (/='@') t0)
+  False -> Just (t0, T.empty)
+  -- | Just prefix <- T.stripSuffix "@" t0
+  -- , Just suffix <- T.stripPrefix "@" t0 = Just (prefix,suffix)
+  -- | otherwise                           = Just (t0,T.empty)
 ----------------------------------------------------------------------------
 
 newtype CompilerID = CompilerID {- ghc/ghcjs/ghcvm -} Ver
@@ -118,10 +122,13 @@ instance FromHttpApiData CompilerID where
 ----------------------------------------------------------------------------
 
 newtype PkgIdxTs = PkgIdxTs Int
-    deriving (Show,Ord,Eq,FromJSON,ToJSON,FromHttpApiData,ToHttpApiData)
+    deriving (Show,Ord,Eq,FromJSON,ToJSON,FromHttpApiData,ToHttpApiData,Read)
 
 pkgIdxTsToText :: PkgIdxTs -> Text
 pkgIdxTsToText (PkgIdxTs t) = T.pack $ formatTime defaultTimeLocale "%Y-%m-%dT%TZ" (posixSecondsToUTCTime (fromIntegral t :: POSIXTime))
+
+idxTsToText :: PkgIdxTs -> Text
+idxTsToText (PkgIdxTs t) = (T.pack . show) t
 
 ----------------------------------------------------------------------------
 

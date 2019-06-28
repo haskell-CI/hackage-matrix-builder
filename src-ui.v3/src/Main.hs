@@ -33,6 +33,7 @@ import qualified Data.Maybe                as M
 import           Data.Monoid               (Endo (Endo), appEndo)
 import           Data.Proxy
 import qualified Data.Set                  as Set
+import           Data.Set                  (Set)
 import qualified Data.Text                 as T
 import           Data.Text                 (Text)
 import           Data.Time                 (UTCTime)
@@ -45,6 +46,8 @@ import           Data.Vector               (Vector)
 import qualified Data.Vector               as V
 import qualified Data.Version              as Ver
 import           GHC.Generics              (Rep)
+import qualified GHCJS.DOM.Types           as DOM
+import           Language.Javascript.JSaddle (jsNull)
 import           Network.URI
 --import           Reflex.Dom
 import           Reflex.Dom.Core
@@ -320,12 +323,14 @@ bodyElement4 = mdo
         packagesPageWidget dynPackages0 dynTags dynPkgTags
 
     RoutePackage (pn, idxSt) -> pure $ do
+
         el "h2" $ text (pkgNToText pn)
         el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
           do text "(view on Hackage)"
 
         evPB <- getPostBuild
-
+        let 
+          dynIdxStLast' = fmap (\x -> M.fromMaybe x idxSt) dynIdxStLast
         -- single-shot requests
         evReports <- getPackageReports (constDyn $ Right pn) evPB
         dynReports <- holdDyn mempty evReports
@@ -333,7 +338,7 @@ bodyElement4 = mdo
         evInfo <- getInfo evPB
         dynInfo <- holdDyn (ControllerInfo mempty) evInfo
 
-        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
+        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast' $> (), evPB])
         dynHist <- holdDyn mempty evHist
 
         evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
@@ -351,11 +356,12 @@ bodyElement4 = mdo
           text " for latest index-state "
           dynText (pkgIdxTsToText <$> dynIdxStLast)
 
-          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
+          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast') (constDyn $ Right (QEntryUpd (-1))) evQButton
 
 
         let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
-            x0 = (\s -> if Set.null s then PkgIdxTs 0 else Set.findMax s) <$> dynReports
+            x0 = (\s -> if Set.null s then PkgIdxTs 0 else findInitialDropDown idxSt s) <$> dynReports
+            
 
         let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
 
@@ -396,12 +402,30 @@ bodyElement4 = mdo
             pure $ tagPromptlyDyn tVal addResult
           pure ()
         
-        let evReports' = updated (_dropdown_value ddReports)
-            dynIdxSt   = ddReports ^. dropdown_value
-
+        let evReports'   = updated (_dropdown_value ddReports)
+            dynIdxSt     = ddReports ^. dropdown_value
+            evIdxChange  = updated dynIdxSt --ddReports ^. dropdown_change
+        _ <- mdo
+          historyState <- manageHistory $ HistoryCommand_PushState <$> setState
+          let 
+            f  (currentSet, currentHistoryState, oldRoute) idxChange =
+              let newRoute = switchPkgRoute currentSet oldRoute idxChange
+              in 
+                HistoryStateUpdate
+                { _historyStateUpdate_state = DOM.SerializedScriptValue jsNull
+                , _historyStateUpdate_title = ""
+                , _historyStateUpdate_uri   = newRoute
+                }
+            setState = attachWith f ((\a b c -> (a,b,c)) <$> current dynReports 
+                                                         <*> current historyState 
+                                                         <*> current dynLoc
+                                    ) evIdxChange
+          pure historyState
+        display dynIdxSt
+        --display $ holdDyn (PkgIdxTs 0) evIdxChange
         evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
         dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
-
+        
         el "hr" blank
 
         evCellClick <- reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo
@@ -457,7 +481,7 @@ bodyElement4 = mdo
 data FragRoute = RouteHome
                | RouteQueue
                | RoutePackages
-               | RoutePackage (PkgN, Maybe Int)
+               | RoutePackage (PkgN, Maybe PkgIdxTs)
                | RouteUser UserName
                | RouteUnknown T.Text
                deriving (Eq)
@@ -533,7 +557,6 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
                         case Map.lookup pn dpt of
                           Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (tagNToText tag0))) $ text (tagNToText tag0)
                           Nothing   -> pure ([])
-
     pure ()
   where
     evalPkgFilter '*' = V.takeWhile (\(PkgN t) -> T.head t < 'A')
@@ -714,6 +737,28 @@ applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
 applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
 applyLR _ _ _                 = error "applyLR"
 
+findInitialDropDown :: Maybe PkgIdxTs -> Set PkgIdxTs -> PkgIdxTs
+findInitialDropDown (Just idx) pkgSet = if Set.member idx pkgSet 
+                                        then Set.foldr (\a b -> if a == b then a else b) idx pkgSet
+                                        else Set.findMax pkgSet
+findInitialDropDown Nothing pkgSet    = Set.findMax pkgSet
+
+switchPkgRoute :: Set PkgIdxTs -> URI ->  PkgIdxTs -> Maybe URI 
+switchPkgRoute setPkgIdx oldRoute (PkgIdxTs 0) = Nothing
+switchPkgRoute setPkgIdx oldRoute idxChange =
+  let routeS  = (T.pack . uriFragment) oldRoute
+      rootURI = "#/package/"
+  in case T.stripPrefix rootURI routeS of
+    Just sfx | (Just pkgN, Just pkgIdx) <- pkgNFromText sfx
+             , True <- idxChange /= pkgIdx
+             , True <- not (Set.null setPkgIdx)
+             , Just setMax <- Set.lookupMax setPkgIdx
+               -> if setMax == idxChange
+                  then Nothing
+                  else parseURI . T.unpack $ rootURI <> (pkgNToText pkgN) <> (T.pack "@") <> (idxTsToText idxChange)
+             | otherwise -> Nothing
+    Nothing  -> Nothing
+
 toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
 toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st
 
@@ -760,8 +805,8 @@ splitInfixPkg stripSJ pkg = (frontT, midT, backT)
 
 calcMatch :: JSS.JSString  -> JSS.JSString -> (Map.Map Text (), Map.Map Text (Text,Text,Text))
 calcMatch sJss pkg
-  | stripSJ == pkg             = (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
-  | otherwise                  = filterPkgSearch sJss pkg
+  | stripSJ == pkg = (Map.singleton (JSS.textFromJSString pkg) (), Map.empty)
+  | otherwise      = filterPkgSearch sJss pkg
   where
     stripSJ = stripSearch sJss
 
@@ -793,7 +838,7 @@ searchBoxWidget dynPkgs0 = mdo
     divClass "text" $ text "Package Search"
     sVal0 <- inputElement $ def & inputElementConfig_elementConfig . elementConfig_initialAttributes .~ fold ["class" =: "input-search","placeholder" =: "search..."]
                                 & inputElementConfig_setValue .~ clickPkgE
-    debounce 0.1 $ leftmost [clickPkgE, (_inputElement_input sVal0)]
+    debounce 0.3 $ leftmost [clickPkgE, (_inputElement_input sVal0)]
   let
     dynPackagesJss = V.toList . fmap (JSS.textToJSString . pkgNToText) <$> dynPkgs0
     matchesE = calcMatches <$> current dynPackagesJss <@> (JSS.textToJSString <$> searchInputE)

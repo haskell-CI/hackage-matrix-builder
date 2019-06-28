@@ -28,7 +28,8 @@ executable matrix-ui
     , aeson                     ^>= 1.4.3
     , base                      ^>= 4.9.1.0 || ^>= 4.11.1.0
     , containers                ^>= 0.5.7.1
-    --, jsaddle                   ^>= 0.9.0.0
+    , jsaddle                   ^>= 0.9.0.0
+    , ghcjs-dom                 ^>= 0.9.1.0
     , ghcjs-base                ^>= 0.2.0.0
     , lens                      ^>= 4.17.1
     , text                      ^>= 1.2.2.2
