@@ -38,6 +38,10 @@ executable matrix-ui
     , vector                    ^>= 0.12.0.1
     , uuid-types                ^>= 1.0.3
     , servant                   ^>= 0.16
+    , primitive                 ^>= 0.6.4.0
+    , monad-control             ^>= 1.0.2.3
+    , mtl                       ^>= 2.2.2
+    , ref-tf                    ^>= 0.4
 
     -- unreleased Git snapshots of deps; see cabal.project for provenance
     -- , ghcjs-dom-jsffi

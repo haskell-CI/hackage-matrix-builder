@@ -31,6 +31,8 @@ import qualified Data.List                 as List
 import qualified Data.Map.Strict           as Map
 import qualified Data.Maybe                as M
 import           Data.Monoid               (Endo (Endo), appEndo)
+import qualified Data.List.NonEmpty        as NE
+import           Data.List.NonEmpty        (NonEmpty)
 import           Data.Proxy
 import qualified Data.Set                  as Set
 import           Data.Set                  (Set)
@@ -64,6 +66,7 @@ import           Servant.Reflex
 
 import           API
 import           PkgId
+import           Router
 
 
 main :: IO ()
@@ -103,13 +106,18 @@ utc2unix :: UTCTime -> Int
 utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
-bodyElement4 = mdo
-  dynLoc <- browserHistoryWith getLocationUri
-  let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
-
+bodyElement4 = do
+  --dynLoc <- browserHistoryWith getLocationUri
+  --let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
+  _ <- runRouteViewT app
+  pure ()
   -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
 --    ticker1cnt <- count ticker1
 
+app :: forall t r m. (SetRoute t (NonEmpty FragRoute) m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
+    => Dynamic t FragRoute
+    -> m ()
+app dynFrag = do
   -- top-level PB event
   evPB0 <- getPostBuild
 
@@ -132,11 +140,11 @@ bodyElement4 = mdo
   -- pseudo navbar
   el "nav" $ do
     text "[ "
-    elAttr "a" ("href" =: "#/") $ text "HOME"
+    routeLink False "#/" (text "HOME")
     text " | "
-    elAttr "a" ("href" =: "#/queue") $ text "Build Queue"
+    routeLink False "#/queue" (text "Build Queue")
     text " | "
-    elAttr "a" ("href" =: "#/packages") $ text "Packages"
+    routeLink False "#/packages" (text "Packages")
     text " ]"
     text "    (current index-state: "
     dynText (pkgIdxTsToText <$> dynIdxStLast)
@@ -360,7 +368,8 @@ bodyElement4 = mdo
 
 
         let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
-            x0 = (\s -> if Set.null s then PkgIdxTs 0 else findInitialDropDown idxSt s) <$> dynReports
+            x0 = (\s -> if Set.null s then PkgIdxTs 0
+                                      else (findInitialDropDown idxSt s)) <$> dynReports
             
 
         let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
@@ -371,7 +380,7 @@ bodyElement4 = mdo
         ddReports <- el "p" $ do
           evQButton <- button "Queue a build"
           text " for the index-state "
-          tmp <- dropdown (PkgIdxTs 0) xs ddCfg
+          tmp <- routePkgIdxTs pn (PkgIdxTs 0) (current dynReports) xs ddCfg
           text " shown below"
 
           _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
@@ -402,26 +411,10 @@ bodyElement4 = mdo
             pure $ tagPromptlyDyn tVal addResult
           pure ()
         
-        let evReports'   = updated (_dropdown_value ddReports)
-            dynIdxSt     = ddReports ^. dropdown_value
-            evIdxChange  = updated dynIdxSt --ddReports ^. dropdown_change
-        _ <- mdo
-          historyState <- manageHistory $ HistoryCommand_PushState <$> setState
-          let 
-            f  (currentSet, currentHistoryState, oldRoute) idxChange =
-              let newRoute = switchPkgRoute currentSet oldRoute idxChange
-              in 
-                HistoryStateUpdate
-                { _historyStateUpdate_state = DOM.SerializedScriptValue jsNull
-                , _historyStateUpdate_title = ""
-                , _historyStateUpdate_uri   = newRoute
-                }
-            setState = attachWith f ((\a b c -> (a,b,c)) <$> current dynReports 
-                                                         <*> current historyState 
-                                                         <*> current dynLoc
-                                    ) evIdxChange
-          pure historyState
-        display dynIdxSt
+        let dynIdxSt     = ddReports ^. dropdown_value
+            evReports'   = updated (_dropdown_value ddReports)
+            --evIdxChange  = updated dynIdxSt --ddReports ^. dropdown_change
+        
         --display $ holdDyn (PkgIdxTs 0) evIdxChange
         evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
         dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
@@ -477,35 +470,6 @@ bodyElement4 = mdo
         pure $ domEvent Click ev1
       delResult <- deleteTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
       pure $ (TagN tId) <$ delResult
-
-data FragRoute = RouteHome
-               | RouteQueue
-               | RoutePackages
-               | RoutePackage (PkgN, Maybe PkgIdxTs)
-               | RouteUser UserName
-               | RouteUnknown T.Text
-               deriving (Eq)
-
-decodeFrag :: T.Text -> FragRoute
-decodeFrag frag = case frag of
-    ""           -> RouteHome
-    "#"          -> RouteHome
-    "#/"         -> RouteHome
-    "#/queue"    -> RouteQueue
-    "#/packages" -> RoutePackages
-
-    _ | Just sfx <- T.stripPrefix "#/package/" frag
-      , not (T.null frag)
-      , (Just pn, idx) <- pkgNFromText sfx
-        -> RoutePackage (pn , idx)
-
-      | Just sfx <- T.stripPrefix "#/user/" frag
-      , not (T.null frag)
-      , T.all (\c -> C.isAsciiLower c || C.isAsciiUpper c || C.isDigit c || c == '_') sfx
-        -> RouteUser sfx
-
-      | otherwise -> RouteUnknown frag
-
 
 -- | Renders alpha-tabbed package index
 packagesPageWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
