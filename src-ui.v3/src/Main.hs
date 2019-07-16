@@ -114,7 +114,7 @@ bodyElement4 = do
   -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
 --    ticker1cnt <- count ticker1
 
-app :: forall t r m. (SetRoute t (NonEmpty FragRoute) m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
+app :: forall t m. (SetRoute t FragRoute m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
     => Dynamic t FragRoute
     -> m ()
 app dynFrag = do
@@ -706,22 +706,6 @@ findInitialDropDown (Just idx) pkgSet = if Set.member idx pkgSet
                                         then Set.foldr (\a b -> if a == b then a else b) idx pkgSet
                                         else Set.findMax pkgSet
 findInitialDropDown Nothing pkgSet    = Set.findMax pkgSet
-
-switchPkgRoute :: Set PkgIdxTs -> URI ->  PkgIdxTs -> Maybe URI 
-switchPkgRoute setPkgIdx oldRoute (PkgIdxTs 0) = Nothing
-switchPkgRoute setPkgIdx oldRoute idxChange =
-  let routeS  = (T.pack . uriFragment) oldRoute
-      rootURI = "#/package/"
-  in case T.stripPrefix rootURI routeS of
-    Just sfx | (Just pkgN, Just pkgIdx) <- pkgNFromText sfx
-             , True <- idxChange /= pkgIdx
-             , True <- not (Set.null setPkgIdx)
-             , Just setMax <- Set.lookupMax setPkgIdx
-               -> if setMax == idxChange
-                  then Nothing
-                  else parseURI . T.unpack $ rootURI <> (pkgNToText pkgN) <> (T.pack "@") <> (idxTsToText idxChange)
-             | otherwise -> Nothing
-    Nothing  -> Nothing
 
 toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
 toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st

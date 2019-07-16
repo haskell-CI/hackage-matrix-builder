@@ -33,7 +33,6 @@ module PkgId
     , PkgRev
 
     , UserName
-    , FragRoute(..), decodeFrag
     ) where
 
 import           Control.Monad                (fail)
@@ -176,35 +175,7 @@ matchesEmpty = Matches { matchesInput = T.empty, matchesExact = Map.empty, match
 
 ---------------------------------
 
-data FragRoute = RouteHome
-               | RouteQueue
-               | RoutePackages
-               | RoutePackage (PkgN, Maybe PkgIdxTs)
-               | RouteUser UserName
-               | RouteUnknown T.Text
-               deriving (Eq, Ord)
 
-decodeFrag :: T.Text -> FragRoute
-decodeFrag frag = case frag of
-    ""           -> RouteHome
-    "#"          -> RouteHome
-    "#/"         -> RouteHome
-    "#/queue"    -> RouteQueue
-    "#/packages" -> RoutePackages
-
-    _ | Just sfx <- T.stripPrefix "#/package/" frag
-      , not (T.null frag)
-      , (Just pn, idx) <- pkgNFromText sfx
-        -> RoutePackage (pn , idx)
-
-      | Just sfx <- T.stripPrefix "#/user/" frag
-      , not (T.null frag)
-      , T.all (\c -> C.isAsciiLower c || C.isAsciiUpper c || C.isDigit c || c == '_') sfx
-        -> RouteUser sfx
-
-      | otherwise -> RouteUnknown frag
-
---encodeFrag :: FragRoute -> Maybe 
 
 
   
