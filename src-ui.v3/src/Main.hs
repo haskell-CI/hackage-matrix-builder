@@ -380,7 +380,8 @@ app dynFrag = do
         ddReports <- el "p" $ do
           evQButton <- button "Queue a build"
           text " for the index-state "
-          tmp <- routePkgIdxTs pn (PkgIdxTs 0) (current dynReports) xs ddCfg
+          uniqReport <- holdUniqDyn dynReports
+          tmp <- routePkgIdxTs pn (PkgIdxTs 0) uniqReport xs ddCfg
           text " shown below"
 
           _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton

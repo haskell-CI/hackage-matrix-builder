@@ -175,19 +175,20 @@ routeLink False r w = do
 routePkgIdxTs :: forall t m. (PostBuild t m, MonadHold t m, MonadFix m, DomBuilder t m, SetRoute t FragRoute m) 
               => PkgN
               -> PkgIdxTs
-              -> Behavior t (Set PkgIdxTs)
+              -> Dynamic t (Set PkgIdxTs)
               -> Dynamic t (Map.Map PkgIdxTs Text) 
               -> DropdownConfig t PkgIdxTs
               -> m (Dropdown t PkgIdxTs)
 routePkgIdxTs pn k0 setIdx opt ddConf = do
   dd <- dropdown k0 opt ddConf
-  let evDD = attach setIdx (updated $ dd ^. dropdown_value)
-  setRoute $ (switchPkgRoute . (\tup -> createRoutePackage pn tup)) <$> evDD
+  let evDD = updated $ ffor2 setIdx (dd ^. dropdown_value) (\sId dVal -> createRoutePackage pn sId dVal)
+      --defIdx = RoutePackage (pn, Nothing)
+  setRoute $ switchPkgRoute <$> evDD
   pure dd
 
-createRoutePackage :: PkgN -> (Set PkgIdxTs, PkgIdxTs) -> Maybe FragRoute
-createRoutePackage pn (_, PkgIdxTs 0) = Just $ RoutePackage (pn, Nothing)
-createRoutePackage pn (setIdx, pkgIdx) 
+createRoutePackage :: PkgN -> Set PkgIdxTs -> PkgIdxTs -> Maybe FragRoute
+createRoutePackage pn _ (PkgIdxTs 0) = Nothing
+createRoutePackage pn setIdx pkgIdx
   | Just maxIdx <- Set.lookupMax setIdx
   , True     <- maxIdx /= pkgIdx
   = Just $ RoutePackage (pn, Just pkgIdx)
