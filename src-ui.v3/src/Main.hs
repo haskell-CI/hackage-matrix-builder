@@ -31,8 +31,11 @@ import qualified Data.List                 as List
 import qualified Data.Map.Strict           as Map
 import qualified Data.Maybe                as M
 import           Data.Monoid               (Endo (Endo), appEndo)
+import qualified Data.List.NonEmpty        as NE
+import           Data.List.NonEmpty        (NonEmpty)
 import           Data.Proxy
 import qualified Data.Set                  as Set
+import           Data.Set                  (Set)
 import qualified Data.Text                 as T
 import           Data.Text                 (Text)
 import           Data.Time                 (UTCTime)
@@ -45,6 +48,8 @@ import           Data.Vector               (Vector)
 import qualified Data.Vector               as V
 import qualified Data.Version              as Ver
 import           GHC.Generics              (Rep)
+import qualified GHCJS.DOM.Types           as DOM
+import           Language.Javascript.JSaddle (jsNull)
 import           Network.URI
 --import           Reflex.Dom
 import           Reflex.Dom.Core
@@ -61,6 +66,7 @@ import           Servant.Reflex
 
 import           API
 import           PkgId
+import           Router
 
 
 main :: IO ()
@@ -100,13 +106,18 @@ utc2unix :: UTCTime -> Int
 utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
-bodyElement4 = mdo
-  dynLoc <- browserHistoryWith getLocationUri
-  let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
-
+bodyElement4 = do
+  --dynLoc <- browserHistoryWith getLocationUri
+  --let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
+  _ <- runRouteViewT app
+  pure ()
   -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
 --    ticker1cnt <- count ticker1
 
+app :: forall t m. (SetRoute t FragRoute m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
+    => Dynamic t FragRoute
+    -> m ()
+app dynFrag = do
   -- top-level PB event
   evPB0 <- getPostBuild
 
@@ -129,11 +140,11 @@ bodyElement4 = mdo
   -- pseudo navbar
   el "nav" $ do
     text "[ "
-    elAttr "a" ("href" =: "#/") $ text "HOME"
+    routeLink False "#/" (text "HOME")
     text " | "
-    elAttr "a" ("href" =: "#/queue") $ text "Build Queue"
+    routeLink False "#/queue" (text "Build Queue")
     text " | "
-    elAttr "a" ("href" =: "#/packages") $ text "Packages"
+    routeLink False "#/packages" (text "Packages")
     text " ]"
     text "    (current index-state: "
     dynText (pkgIdxTsToText <$> dynIdxStLast)
@@ -319,13 +330,15 @@ bodyElement4 = mdo
         let dynPkgTags = pkgTagList <$> dynTagPkgs
         packagesPageWidget dynPackages0 dynTags dynPkgTags
 
-    RoutePackage pn -> pure $ do
+    RoutePackage (pn, idxSt) -> pure $ do
+
         el "h2" $ text (pkgNToText pn)
         el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
           do text "(view on Hackage)"
 
         evPB <- getPostBuild
-
+        let 
+          dynIdxStLast' = fmap (\x -> M.fromMaybe x idxSt) dynIdxStLast
         -- single-shot requests
         evReports <- getPackageReports (constDyn $ Right pn) evPB
         dynReports <- holdDyn mempty evReports
@@ -333,7 +346,7 @@ bodyElement4 = mdo
         evInfo <- getInfo evPB
         dynInfo <- holdDyn (ControllerInfo mempty) evInfo
 
-        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
+        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast' $> (), evPB])
         dynHist <- holdDyn mempty evHist
 
         evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
@@ -351,11 +364,13 @@ bodyElement4 = mdo
           text " for latest index-state "
           dynText (pkgIdxTsToText <$> dynIdxStLast)
 
-          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
+          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast') (constDyn $ Right (QEntryUpd (-1))) evQButton
 
 
         let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
-            x0 = (\s -> if Set.null s then PkgIdxTs 0 else Set.findMax s) <$> dynReports
+            x0 = (\s -> if Set.null s then PkgIdxTs 0
+                                      else (findInitialDropDown idxSt s)) <$> dynReports
+            
 
         let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
 
@@ -365,7 +380,8 @@ bodyElement4 = mdo
         ddReports <- el "p" $ do
           evQButton <- button "Queue a build"
           text " for the index-state "
-          tmp <- dropdown (PkgIdxTs 0) xs ddCfg
+          uniqReport <- holdUniqDyn dynReports
+          tmp <- routePkgIdxTs pn (PkgIdxTs 0) uniqReport xs ddCfg
           text " shown below"
 
           _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
@@ -396,12 +412,14 @@ bodyElement4 = mdo
             pure $ tagPromptlyDyn tVal addResult
           pure ()
         
-        let evReports' = updated (_dropdown_value ddReports)
-            dynIdxSt   = ddReports ^. dropdown_value
-
+        let dynIdxSt     = ddReports ^. dropdown_value
+            evReports'   = updated (_dropdown_value ddReports)
+            --evIdxChange  = updated dynIdxSt --ddReports ^. dropdown_change
+        
+        --display $ holdDyn (PkgIdxTs 0) evIdxChange
         evRepSum <- getPackageReportSummary (constDyn $ Right pn) (Right <$> dynIdxSt) (leftmost [evReports' $> (), ticker4 $> ()])
         dynRepSum <- holdUniqDyn =<< holdDyn (PkgIdxTsReport pn (PkgIdxTs 0) [] mempty) evRepSum
-
+        
         el "hr" blank
 
         evCellClick <- reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo
@@ -454,35 +472,6 @@ bodyElement4 = mdo
       delResult <- deleteTags (constDyn $ Right (TagN tId)) (constDyn $ Right pn) rmTag
       pure $ (TagN tId) <$ delResult
 
-data FragRoute = RouteHome
-               | RouteQueue
-               | RoutePackages
-               | RoutePackage PkgN
-               | RouteUser UserName
-               | RouteUnknown T.Text
-               deriving (Eq)
-
-decodeFrag :: T.Text -> FragRoute
-decodeFrag frag = case frag of
-    ""           -> RouteHome
-    "#"          -> RouteHome
-    "#/"         -> RouteHome
-    "#/queue"    -> RouteQueue
-    "#/packages" -> RoutePackages
-
-    _ | Just sfx <- T.stripPrefix "#/package/" frag
-      , not (T.null frag)
-      , Just pn <- pkgNFromText sfx
-        -> RoutePackage pn
-
-      | Just sfx <- T.stripPrefix "#/user/" frag
-      , not (T.null frag)
-      , T.all (\c -> C.isAsciiLower c || C.isAsciiUpper c || C.isDigit c || c == '_') sfx
-        -> RouteUser sfx
-
-      | otherwise -> RouteUnknown frag
-
-
 -- | Renders alpha-tabbed package index
 packagesPageWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
                    => Dynamic t (Vector PkgN) 
@@ -533,7 +522,6 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
                         case Map.lookup pn dpt of
                           Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (tagNToText tag0))) $ text (tagNToText tag0)
                           Nothing   -> pure ([])
-
     pure ()
   where
     evalPkgFilter '*' = V.takeWhile (\(PkgN t) -> T.head t < 'A')
@@ -713,6 +701,12 @@ applyLR (LR:xs) (l:ls) (_:rs) = l : applyLR xs ls rs
 applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
 applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
 applyLR _ _ _                 = error "applyLR"
+
+findInitialDropDown :: Maybe PkgIdxTs -> Set PkgIdxTs -> PkgIdxTs
+findInitialDropDown (Just idx) pkgSet = if Set.member idx pkgSet 
+                                        then Set.foldr (\a b -> if a == b then a else b) idx pkgSet
+                                        else Set.findMax pkgSet
+findInitialDropDown Nothing pkgSet    = Set.findMax pkgSet
 
 toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
 toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st

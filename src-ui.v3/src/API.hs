@@ -71,7 +71,7 @@ module API
 import           PkgId
 
 import           Control.Monad    (fail)
-import           Data.Aeson       (FromJSON, ToJSON, decode)
+import           Data.Aeson       (FromJSON, decode)
 import qualified Data.Aeson       as J
 import qualified Data.Aeson.Types as J
 import qualified Data.Char        as C
