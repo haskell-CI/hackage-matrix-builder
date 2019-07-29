@@ -17,6 +17,7 @@ executable matrix-ui
   main-is: Main.hs
   other-modules: API
                , PkgId
+               , Router
 
   mixins: base hiding (Prelude)
 

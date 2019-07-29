@@ -49,6 +49,8 @@ import qualified Data.Vector               as V
 import qualified Data.Version              as Ver
 import           GHC.Generics              (Rep)
 import qualified GHCJS.DOM.Types           as DOM
+import qualified GHCJS.DOM.Window as Window
+import qualified GHCJS.DOM as DOM
 import           Language.Javascript.JSaddle (jsNull)
 import           Network.URI
 --import           Reflex.Dom
@@ -107,15 +109,13 @@ utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
 bodyElement4 = do
-  --dynLoc <- browserHistoryWith getLocationUri
-  --let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
   _ <- runRouteViewT app
+
+  --(result, changeStateE) <- runSetRouteT $ app RouteHome 
   pure ()
-  -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
---    ticker1cnt <- count ticker1
 
 app :: forall t m. (SetRoute t FragRoute m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
-    => Dynamic t FragRoute
+    => FragRoute -- Dynamic t FragRoute
     -> m ()
 app dynFrag = do
   -- top-level PB event
@@ -156,8 +156,8 @@ app dynFrag = do
   _ <- searchBoxWidget dynPackages0
   el "hr" blank
 
-  _ <- dyn $ dynFrag >>= \case
-    RouteHome -> pure $ do
+  _ <- case dynFrag of --dyn $ dynFrag >>= \case
+    RouteHome -> do
       elAttr "div" (("id" =: "page-home") <> ("class" =: "page")) $ do
         divClass "leftcol" $ do
           elAttr "h2" ("class" =: "main-header") $ text "Welcome"
@@ -205,7 +205,7 @@ app dynFrag = do
                 text "Cookbook for common build failures"
       pure ()
 
-    RouteQueue -> pure $ do
+    RouteQueue -> do
       evPB <- getPostBuild
 
       let dynUnixTime = utc2unix <$> dynUTCTime
@@ -320,7 +320,7 @@ app dynFrag = do
             pure ()
         pure ()
 
-    RoutePackages -> pure $ do
+    RoutePackages -> do
         el "h1" $ text "Packages"
         evPB <- getPostBuild
         evTags<- getTags (constDyn $ QParamSome False) evPB
@@ -330,7 +330,7 @@ app dynFrag = do
         let dynPkgTags = pkgTagList <$> dynTagPkgs
         packagesPageWidget dynPackages0 dynTags dynPkgTags
 
-    RoutePackage (pn, idxSt) -> pure $ do
+    RoutePackage (pn, idxSt) -> do
 
         el "h2" $ text (pkgNToText pn)
         el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
@@ -380,8 +380,7 @@ app dynFrag = do
         ddReports <- el "p" $ do
           evQButton <- button "Queue a build"
           text " for the index-state "
-          uniqReport <- holdUniqDyn dynReports
-          tmp <- routePkgIdxTs pn (PkgIdxTs 0) uniqReport xs ddCfg
+          tmp <- routePkgIdxTs pn (PkgIdxTs 0) dynReports xs ddCfg
           text " shown below"
 
           _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
@@ -434,7 +433,7 @@ app dynFrag = do
 
         pure ()
 
-    RouteUser u -> pure $ do
+    RouteUser u -> do
         el "h1" (text u)
 
         evPB <- getPostBuild
@@ -447,7 +446,7 @@ app dynFrag = do
 
         pure ()
 
-    RouteUnknown frag -> pure $ do
+    RouteUnknown frag -> do
         el "p" $ text ("No handler found for " <> T.pack (show frag))
         pure ()
 
