@@ -50,7 +50,6 @@ import qualified Data.Version                 as Ver
 import           Servant.API                  (FromHttpApiData (..),
                                                ToHttpApiData (..))
 import           Text.ParserCombinators.ReadP (readP_to_S)
-import qualified Text.Read                    as R
 
 type UserName   = Text
 type PkgRev     = Word
@@ -66,22 +65,21 @@ instance Show PkgN where
       | otherwise  = (("PkgN "<>show x) <>)
 
 -- NB: this assumes the Hackage ascii-only policy
-pkgNFromText :: Text -> (Maybe PkgN, Maybe PkgIdxTs)
+pkgNFromText :: Text -> Maybe PkgN--(Maybe PkgN, Maybe PkgIdxTs)
 pkgNFromText t0
-  | Just (p0,ts0) <- parsingUrlText t0
-  , Just intTs <- R.readMaybe (T.unpack ts0) :: Maybe Int
-  , isValid p0 = (Just (PkgN p0), Just (PkgIdxTs intTs))--R.readMaybe (T.unpack ts0) :: Maybe PkgIdxTs)
-  | otherwise  = (Just (PkgN t0), Nothing)
+  | isValid t0 = Just (PkgN t0) --True <- T.any (=='@') t0 --Just (p0,ts0) <- parsingUrlText t0
+  --, isValid t0 = Just (PkgN t0) --, Just (PkgIdxTs intTs))--R.readMaybe (T.unpack ts0) :: Maybe PkgIdxTs)
+  | otherwise  = Nothing
   where
     isValid t
       | T.null t = False
-      | not (T.all (\c -> C.isAsciiLower c || C.isAsciiUpper c || C.isDigit c || c == '-') t) = False
+      | not (T.any (=='@') t0 || (T.all (\c -> C.isAsciiLower c || C.isAsciiUpper c || C.isDigit c || c == '-') t)) = False
       | otherwise = and [ T.any C.isAlpha x | x <- T.split (=='-') t ]
 
-parsingUrlText :: Text -> Maybe (Text, Text)
+{-parsingUrlText :: Text -> Maybe (Text, Text)
 parsingUrlText t0 = case T.any (=='@') t0 of
   True  -> Just (T.takeWhile (/='@') t0, T.takeWhileEnd (/='@') t0)
-  False -> Just (t0, T.empty)
+  False -> Just (t0, T.empty)-}
   -- | Just prefix <- T.stripSuffix "@" t0
   -- , Just suffix <- T.stripPrefix "@" t0 = Just (prefix,suffix)
   -- | otherwise                           = Just (t0,T.empty)
@@ -122,7 +120,7 @@ instance FromHttpApiData CompilerID where
 ----------------------------------------------------------------------------
 
 newtype PkgIdxTs = PkgIdxTs Int
-    deriving (Show,Ord,Eq,FromJSON,ToJSON,FromHttpApiData,ToHttpApiData,Read)
+    deriving (Show,Ord,Eq,FromJSON,ToJSON,FromHttpApiData,ToHttpApiData)
 
 pkgIdxTsToText :: PkgIdxTs -> Text
 pkgIdxTsToText (PkgIdxTs t) = T.pack $ formatTime defaultTimeLocale "%Y-%m-%dT%TZ" (posixSecondsToUTCTime (fromIntegral t :: POSIXTime))
