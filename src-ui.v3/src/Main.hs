@@ -110,7 +110,7 @@ utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
 bodyElement4 = do
-  _ <- runRouteViewT' app
+  _ <- runRouteViewT app
 
   --(result, changeStateE) <- runSetRouteT $ app RouteHome 
   pure ()
