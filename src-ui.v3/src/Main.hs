@@ -49,6 +49,8 @@ import qualified Data.Vector               as V
 import qualified Data.Version              as Ver
 import           GHC.Generics              (Rep)
 import qualified GHCJS.DOM.Types           as DOM
+import qualified GHCJS.DOM.Window as Window
+import qualified GHCJS.DOM as DOM
 import           Language.Javascript.JSaddle (jsNull)
 import           Network.URI
 --import           Reflex.Dom
@@ -63,6 +65,7 @@ import           Reflex.Time
 import           Reflex.Class
 import           Servant.API
 import           Servant.Reflex
+import qualified Text.Read                    as R
 
 import           API
 import           PkgId
@@ -107,15 +110,13 @@ utc2unix x = ceiling (realToFrac (utcTimeToPOSIXSeconds x) :: Double)
 
 bodyElement4 :: forall t m . (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) => m ()
 bodyElement4 = do
-  --dynLoc <- browserHistoryWith getLocationUri
-  --let dynFrag = decodeFrag . T.pack . uriFragment <$> dynLoc
   _ <- runRouteViewT app
+
+  --(result, changeStateE) <- runSetRouteT $ app RouteHome 
   pure ()
-  -- ticker1 <- tickLossy 1 =<< liftIO getCurrentTime
---    ticker1cnt <- count ticker1
 
 app :: forall t m. (SetRoute t FragRoute m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
-    => Dynamic t FragRoute
+    => FragRoute -- Dynamic t FragRoute
     -> m ()
 app dynFrag = do
   -- top-level PB event
@@ -156,8 +157,8 @@ app dynFrag = do
   _ <- searchBoxWidget dynPackages0
   el "hr" blank
 
-  _ <- dyn $ dynFrag >>= \case
-    RouteHome -> pure $ do
+  _ <- case dynFrag of --dyn $ dynFrag >>= \case
+    RouteHome -> do
       elAttr "div" (("id" =: "page-home") <> ("class" =: "page")) $ do
         divClass "leftcol" $ do
           elAttr "h2" ("class" =: "main-header") $ text "Welcome"
@@ -205,7 +206,7 @@ app dynFrag = do
                 text "Cookbook for common build failures"
       pure ()
 
-    RouteQueue -> pure $ do
+    RouteQueue -> do
       evPB <- getPostBuild
 
       let dynUnixTime = utc2unix <$> dynUTCTime
@@ -320,7 +321,7 @@ app dynFrag = do
             pure ()
         pure ()
 
-    RoutePackages -> pure $ do
+    RoutePackages -> do
         el "h1" $ text "Packages"
         evPB <- getPostBuild
         evTags<- getTags (constDyn $ QParamSome False) evPB
@@ -330,15 +331,16 @@ app dynFrag = do
         let dynPkgTags = pkgTagList <$> dynTagPkgs
         packagesPageWidget dynPackages0 dynTags dynPkgTags
 
-    RoutePackage (pn, idxSt) -> pure $ do
-
+    RoutePackage (PkgN pkgUri) -> do
+        let pn = PkgN $ T.takeWhile (/='@') pkgUri
+            (intIdx  :: Maybe Int) = R.readMaybe (T.unpack (T.takeWhileEnd (/='@') pkgUri))
+            idxSt = PkgIdxTs $ fromMaybe 0 intIdx
         el "h2" $ text (pkgNToText pn)
         el "p" $ el "em" $ elAttr "a" ("href" =: ("https://hackage.haskell.org/package/" <> pkgNToText pn)) $
           do text "(view on Hackage)"
 
         evPB <- getPostBuild
         let 
-          dynIdxStLast' = fmap (\x -> M.fromMaybe x idxSt) dynIdxStLast
         -- single-shot requests
         evReports <- getPackageReports (constDyn $ Right pn) evPB
         dynReports <- holdDyn mempty evReports
@@ -346,7 +348,7 @@ app dynFrag = do
         evInfo <- getInfo evPB
         dynInfo <- holdDyn (ControllerInfo mempty) evInfo
 
-        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast' $> (), evPB])
+        evHist <- getPackageHistory (constDyn $ Right pn) (leftmost [updated dynIdxStLast $> (), evPB])
         dynHist <- holdDyn mempty evHist
 
         evPkgTags <- getPackageTags (constDyn $ Right pn) evPB
@@ -364,29 +366,25 @@ app dynFrag = do
           text " for latest index-state "
           dynText (pkgIdxTsToText <$> dynIdxStLast)
 
-          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast') (constDyn $ Right (QEntryUpd (-1))) evQButton
-
-
-        let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
-            x0 = (\s -> if Set.null s then PkgIdxTs 0
-                                      else (findInitialDropDown idxSt s)) <$> dynReports
-            
-
-        let ddCfg = DropdownConfig (updated x0) (constDyn mempty)
+          putQueue (constDyn $ Right pn) (Right <$> dynIdxStLast) (constDyn $ Right (QEntryUpd (-1))) evQButton
 
         let inputAttr = ("class" =: "tag-name") <> ("placeholder" =: "insert tag")
             iCfg = TextInputConfig "tag-name" "" never (constDyn inputAttr)
+        let xs = Map.fromList . fmap (\x -> (x, pkgIdxTsToText x)) . Set.toList <$> dynReports
 
-        ddReports <- el "p" $ do
+        ddReports <- el "p" $ mdo
+          let maxId = findInitialDropDown idxSt <$> dynReports
+              ddCfg = (def :: DropdownConfig t PkgIdxTs)
+                    & dropdownConfig_setValue .~ (updated maxId)
+          initId <- sample $ current maxId
           evQButton <- button "Queue a build"
           text " for the index-state "
-          uniqReport <- holdUniqDyn dynReports
-          tmp <- routePkgIdxTs pn (PkgIdxTs 0) uniqReport xs ddCfg
+          dd <- dropdown initId xs ddCfg
+          routePkgIdxTs pn dynReports (dd ^. dropdown_value)
           text " shown below"
+          _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value dd) (constDyn $ Right (QEntryUpd (-1))) evQButton
 
-          _ <- putQueue (constDyn $ Right pn) (Right <$> _dropdown_value tmp) (constDyn $ Right (QEntryUpd (-1))) evQButton
-
-          pure tmp
+          pure dd
         
         elClass "p" "tagging" $ mdo
           let evMapTags = Map.fromList . (fmap (\t -> (t,t))) . (fmap tagNToText) . V.toList <$> evPkgTags
@@ -434,7 +432,7 @@ app dynFrag = do
 
         pure ()
 
-    RouteUser u -> pure $ do
+    RouteUser u -> do
         el "h1" (text u)
 
         evPB <- getPostBuild
@@ -447,7 +445,7 @@ app dynFrag = do
 
         pure ()
 
-    RouteUnknown frag -> pure $ do
+    RouteUnknown frag -> do
         el "p" $ text ("No handler found for " <> T.pack (show frag))
         pure ()
 
@@ -473,7 +471,7 @@ app dynFrag = do
       pure $ (TagN tId) <$ delResult
 
 -- | Renders alpha-tabbed package index
-packagesPageWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
+packagesPageWidget :: forall t m. (SetRoute t FragRoute m, MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
                    => Dynamic t (Vector PkgN) 
                    -> Dynamic t (Vector TagN) 
                    -> Dynamic t (Map.Map PkgN [TagN])
@@ -517,7 +515,7 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
                   pure $ do
 
                     el "ol" $ forM_ v' $ \(pn) -> do
-                      el "li" $ elAttr "a" ("href" =: ("#/package/" <> (pkgNToText pn))) $ do
+                      el "li" $ routeLink False ("#/package/" <> (pkgNToText pn)) $ do
                         text ((pkgNToText pn) <> " : ")
                         case Map.lookup pn dpt of
                           Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (tagNToText tag0))) $ text (tagNToText tag0)
@@ -532,7 +530,7 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
       V.filter (tagContained st dpt) pkg
 
 
-reportTableWidget :: forall t m . (MonadHold t m, PostBuild t m, DomBuilder t m, Reflex t)
+reportTableWidget :: forall t m . (SetRoute t FragRoute m, MonadHold t m, PostBuild t m, DomBuilder t m, Reflex t)
                   => Dynamic t PkgIdxTsReport
                   -> Dynamic t (Vector QEntryRow)
                   -> Dynamic t (Vector WorkerRow)
@@ -604,7 +602,7 @@ reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo = joinE =<< go
 
                 elAttr "th" ("style" =: "text-align:left;") (text (verToText pv))
                 el "td" $ text (pkgIdxTsToText t)
-                el "td" $ elAttr "a" ("href" =: ("#/user/" <> u)) (text u)
+                el "td" $ routeLink False ("#/user/" <> u) (text u)
 
                 pure (leftmost evsRow1)
             pure (leftmost evsRows) -- main "return" value
@@ -702,11 +700,14 @@ applyLR (L:xs)  (l:ls)    rs  = l : applyLR xs ls rs
 applyLR (R:xs)     ls  (r:rs) = r : applyLR xs ls rs
 applyLR _ _ _                 = error "applyLR"
 
-findInitialDropDown :: Maybe PkgIdxTs -> Set PkgIdxTs -> PkgIdxTs
-findInitialDropDown (Just idx) pkgSet = if Set.member idx pkgSet 
-                                        then Set.foldr (\a b -> if a == b then a else b) idx pkgSet
-                                        else Set.findMax pkgSet
-findInitialDropDown Nothing pkgSet    = Set.findMax pkgSet
+findInitialDropDown :: PkgIdxTs -> Set PkgIdxTs -> PkgIdxTs
+findInitialDropDown p s
+  | True <- Set.null s
+  = PkgIdxTs 0
+  | otherwise = if Set.member p s then p else Set.findMax s
+  {-if Set.null s 
+  then PkgIdxTs 0
+  else Set.findMax s-}
 
 toggleTagSet :: TagN -> Set.Set TagN -> Set.Set TagN
 toggleTagSet tn st = if Set.member tn st then Set.delete tn st else Set.insert tn st
@@ -779,7 +780,7 @@ calcMatches pkgs sJss
     textS                = JSS.textFromJSString sJss
     (exactMap,othersMap) = F.foldMap (calcMatch sJss) pkgs
 
-searchBoxWidget :: forall t m. (SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace)
+searchBoxWidget :: forall t m. (SetRoute t FragRoute m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace)
                 => Dynamic t (Vector PkgN) 
                 -> m ()  
 searchBoxWidget dynPkgs0 = mdo
@@ -795,16 +796,17 @@ searchBoxWidget dynPkgs0 = mdo
   clickPkgE <- searchResultWidget matchesDyn
   pure ()
 
-searchResultWidget :: forall t m. (MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
+searchResultWidget :: forall t m. (SetRoute t FragRoute m, MonadFix m, MonadHold t m, PostBuild t m, DomBuilder t m) 
                    => Dynamic t Matches 
                    -> m (Event t Text)
 searchResultWidget mDyn =
   el "ul" $ do
     exactE <- listViewWithKey (matchesExact <$> mDyn) $ \eId _ -> do
-                (e, _) <- element "li" def $ elAttr "a" ("href" =: ("#/package/" <> eId)) $ el "strong" $ text eId
+                (e, _) <- element "li" def $ 
+                  routeLink False ("#/package/" <> eId) $ el "strong" $ text eId
                 pure $ domEvent Click e
     otherE <- listViewWithKey (matchesInfix <$> mDyn) $ \pId txt -> do
-                (e, _) <- element "li" def $ elAttr "a" ("href" =: ("#/package/" <> pId)) $ do
+                (e, _) <- element "li" def $ routeLink False ("#/package/" <> pId) $ do
                             dynText . fmap (^. _1) $ txt
                             el "strong" $ dynText . fmap (^. _2) $ txt
                             dynText . fmap (^. _3) $ txt

@@ -33,7 +33,7 @@ module Router
   , routeLink
   , routePkgIdxTs
   , runRouteViewT
-  , FragRoute(..), decodeFrag
+  , FragRoute(..), decodeFrag, encodeFrag
   ) where
 
 import           Prelude hiding ((.), id)
@@ -45,7 +45,6 @@ import           Control.Monad.Reader
 import           Control.Monad.Ref
 import qualified Data.Char                 as C
 import           Data.Coerce
-import qualified Data.Map.Strict           as Map
 import           Data.Monoid
 import           Data.Proxy
 import qualified Data.Set                  as Set
@@ -60,9 +59,11 @@ import           Reflex.PerformEvent.Class
 import           Reflex.EventWriter.Class
 import           Reflex.EventWriter.Base
 import           Reflex.Dom.Builder.Class
-import           Language.Javascript.JSaddle
+import           Language.Javascript.JSaddle (MonadJSM, jsNull)
 import           Reflex.Dom.Core
-import qualified GHCJS.DOM.Types as DOM
+import qualified GHCJS.DOM as DOM
+import           GHCJS.DOM.Types (SerializedScriptValue (..))
+import qualified GHCJS.DOM.Window as Window
 import           Network.URI
 import           Data.Maybe (Maybe(..), fromMaybe)
 
@@ -71,7 +72,7 @@ import           PkgId
 data FragRoute = RouteHome
                | RouteQueue
                | RoutePackages
-               | RoutePackage (PkgN, Maybe PkgIdxTs)
+               | RoutePackage PkgN
                | RouteUser UserName
                | RouteUnknown T.Text
                deriving (Eq, Ord)
@@ -172,56 +173,80 @@ routeLink False r w = do
   setRoute $ (switchPkgRoute (Just $ decodeFrag r)) <$ domEvent Click e 
   return a
 
-routePkgIdxTs :: forall t m. (PostBuild t m, MonadHold t m, MonadFix m, DomBuilder t m, SetRoute t FragRoute m) 
+routePkgIdxTs :: forall t m. (PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), PostBuild t m, MonadHold t m, MonadFix m, DomBuilder t m, SetRoute t FragRoute m) 
               => PkgN
-              -> PkgIdxTs
               -> Dynamic t (Set PkgIdxTs)
-              -> Dynamic t (Map.Map PkgIdxTs Text) 
-              -> DropdownConfig t PkgIdxTs
-              -> m (Dropdown t PkgIdxTs)
-routePkgIdxTs pn k0 setIdx opt ddConf = do
-  dd <- dropdown k0 opt ddConf
-  let evDD = updated $ ffor2 setIdx (dd ^. dropdown_value) (\sId dVal -> createRoutePackage pn sId dVal)
-      --defIdx = RoutePackage (pn, Nothing)
+              -> Dynamic t PkgIdxTs
+              -> m ()
+routePkgIdxTs pn setIdx ddIdx = do
+  let evDD = updated $ ffor2 setIdx ddIdx (\sId dVal -> createRoutePackage pn sId dVal)
+  window <- DOM.currentWindowUnchecked
+  location <- Window.getLocation window
+  uri <- getLocationUri location
+  let
+    res = (\x -> HistoryStateUpdate
+            { _historyStateUpdate_state = SerializedScriptValue jsNull
+            , _historyStateUpdate_title = ""
+            , _historyStateUpdate_uri   = fromRoutePackage x uri
+            }) <$> evDD
+  _ <- manageHistory $ HistoryCommand_PushState <$> res
+  
   setRoute $ switchPkgRoute <$> evDD
-  pure dd
+  pure ()
+
+fromRoutePackage :: Maybe FragRoute -> URI -> Maybe URI
+fromRoutePackage frag oldUri
+  | Just fragRoute <- frag
+  , (RoutePackage txt) <- fragRoute
+  = Just $ oldUri { uriFragment = T.unpack $  (pkgNToText txt)}
+  | otherwise = Nothing
 
 createRoutePackage :: PkgN -> Set PkgIdxTs -> PkgIdxTs -> Maybe FragRoute
-createRoutePackage pn _ (PkgIdxTs 0) = Nothing
-createRoutePackage pn setIdx pkgIdx
+createRoutePackage _ _ (PkgIdxTs 0) = Nothing
+createRoutePackage (PkgN pn) setIdx pkgIdx
   | Just maxIdx <- Set.lookupMax setIdx
   , True     <- maxIdx /= pkgIdx
-  = Just $ RoutePackage (pn, Just pkgIdx)
-  | otherwise = Just $ RoutePackage (pn, Nothing)
+  = Just $ RoutePackage (PkgN $ "#/package/" <> pn <> "@" <> (idxTsToText pkgIdx))
+  | otherwise = Just $ RoutePackage (PkgN $ "#/package/" <> pn)
 
-runRouteViewT  :: forall t m a. (TriggerEvent t m, PerformEvent t m, MonadHold t m, MonadJSM m, MonadJSM (Performable m), MonadFix m)
-               => (Dynamic t FragRoute -> SetRouteT t FragRoute m a)
-               -> m a
+runRouteViewT  :: forall t m. (MonadHold t m, MonadSample t m, Adjustable t m, TriggerEvent t m, PerformEvent t m, MonadJSM m, MonadJSM (Performable m), MonadFix m)
+               => (FragRoute -> SetRouteT t FragRoute m ())
+               -> m ()
 runRouteViewT app = mdo
   historyState <- manageHistory $ HistoryCommand_PushState <$> setState
-  --dynLoc <- browserHistoryWith getLocationUri
-  (result, changeStateE) <- runSetRouteT $ app route -- changeStateE :: Event t (Endo (Fragroute -> FragRoute)
+
   let 
     dynLoc = _historyItem_uri <$> historyState
 
     route :: Dynamic t FragRoute
     route = decodeFrag . T.pack . uriFragment <$> dynLoc
 
-    f  (currentHistoryState, oldR) chStateE = -- chState :: Endo (FragRoute -> FragRoute)
-      let newRoute = encodeFrag $ appEndo chStateE oldR
-          --oldRoute = case encodeFrag oldR of
-          --             (Just a) -> a
-          --             Nothing  -> T.empty
-      in do
-        oldRoute <- encodeFrag oldR
-        newUri   <- applyEncoding oldRoute newRoute (_historyItem_uri currentHistoryState)
-        pure $ HistoryStateUpdate
-               { _historyStateUpdate_state = DOM.SerializedScriptValue jsNull
-               , _historyStateUpdate_title = ""
-               , _historyStateUpdate_uri   = Just newUri
-               }
-    setState = fmapMaybe id $ attachWith f ( (,) <$> current historyState <*> current route) changeStateE
+    setState = fmapMaybe id $ attachWith switchRoutingState ( (,) <$> current historyState <*> current route) changeStateE
+  (result, changeStateE) <- runSetRouteT $ strictDynWidget_ app route
   pure result
+
+switchFrag :: FragRoute -> FragRoute -> Maybe FragRoute
+switchFrag newFrag oldFrag
+  | True <- newFrag == oldFrag
+  = Nothing
+  | (RoutePackage _) <- newFrag
+  , (RoutePackage _) <- oldFrag
+  = Nothing
+  | otherwise = Just newFrag
+
+switchRoutingState :: (HistoryItem, FragRoute) -> Endo FragRoute -> Maybe HistoryStateUpdate
+switchRoutingState (currentHS, oldR) chStateE =
+  let newRoute = appEndo chStateE oldR
+  in do
+      newState <- encodeFrag newRoute
+      oldRoute <- encodeFrag oldR
+      _ <- switchFrag newRoute oldR
+      newUri <- applyEncoding oldRoute newState (_historyItem_uri currentHS)
+      pure $ HistoryStateUpdate
+            { _historyStateUpdate_state = SerializedScriptValue jsNull
+            , _historyStateUpdate_title = ""
+            , _historyStateUpdate_uri   = Just newUri
+            }
 
 switchPkgRoute :: Maybe FragRoute -> FragRoute -> FragRoute
 switchPkgRoute newFrag oldFrag = fromMaybe oldFrag newFrag
@@ -230,16 +255,12 @@ encodeFrag :: FragRoute -> Maybe Text
 encodeFrag RouteHome = Just "#/"
 encodeFrag RouteQueue = Just "#/queue"
 encodeFrag RoutePackages = Just "#/packages"
-encodeFrag (RoutePackage (pkg, maybeIndex))
-  | Just indexTs <- maybeIndex
-    = Just $ "#/package/" <> (pkgNToText pkg) <> "@" <> (idxTsToText indexTs)
-  | otherwise = Just $ "#/package/" <> (pkgNToText pkg)
+encodeFrag (RoutePackage (PkgN pkg)) = Just $ "#/package/" <> pkg
 encodeFrag (RouteUser usr) = Just $ "#/user/" <> usr
 encodeFrag (RouteUnknown _) = Nothing
 
-applyEncoding :: Text -> Maybe Text -> URI -> Maybe URI
-applyEncoding _ Nothing _ = Nothing
-applyEncoding oldR (Just newR) u 
+applyEncoding :: Text -> Text -> URI -> Maybe URI
+applyEncoding oldR newR u 
   | oldR /= newR = Just $ u { uriFragment = T.unpack newR }
   | otherwise    = Nothing
 
@@ -253,8 +274,8 @@ decodeFrag frag = case frag of
 
     _ | Just sfx <- T.stripPrefix "#/package/" frag
       , not (T.null frag)
-      , (Just pn, idx) <- pkgNFromText sfx
-        -> RoutePackage (pn , idx)
+      , Just pn <- pkgNFromText sfx
+        -> RoutePackage pn
 
       | Just sfx <- T.stripPrefix "#/user/" frag
       , not (T.null frag)
@@ -262,3 +283,12 @@ decodeFrag frag = case frag of
         -> RouteUser sfx
 
       | otherwise -> RouteUnknown frag
+
+strictDynWidget_ :: forall t m. ( MonadSample t m, MonadHold t m, Adjustable t m) 
+                 => (FragRoute -> m ()) 
+                 -> Dynamic t FragRoute
+                 -> m ()
+strictDynWidget_ f r = do
+  r0 <- sample $ current r
+  (_, _) <- runWithReplace (f r0) $ f <$> updated r
+  pure ()
