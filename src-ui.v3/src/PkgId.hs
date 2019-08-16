@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 -- |
 -- Copyright: © 2018 Herbert Valerio Riedel
@@ -24,7 +25,7 @@ module PkgId
 
     -- , UnitID(..), unUnitID
     -- , unitIDFromUnitId
-
+    , CellTable(..), HasCellTable
     , CompilerID, compilerVer
     , compilerIdFromText
     , compilerIdToText
@@ -36,6 +37,7 @@ module PkgId
     ) where
 
 import           Control.Monad                (fail)
+import           Control.Lens
 import           Data.Aeson                   (FromJSON (..), FromJSONKey (..),
                                                ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson                   as J
@@ -172,7 +174,10 @@ matchesEmpty :: Matches
 matchesEmpty = Matches { matchesInput = T.empty, matchesExact = Map.empty, matchesInfix = Map.empty}
 
 ---------------------------------
+data CellTable = CellTable { _unCellTable :: (Ver, CompilerID) }
+  deriving (Eq, Ord)
 
+makeClassy ''CellTable
 
 
 
