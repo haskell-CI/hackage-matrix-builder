@@ -25,7 +25,7 @@ module PkgId
 
     -- , UnitID(..), unUnitID
     -- , unitIDFromUnitId
-    , CellTable(..), HasCellTable
+    , CellTable(..) --, HasCellTable
     , CompilerID, compilerVer
     , compilerIdFromText
     , compilerIdToText
@@ -37,7 +37,6 @@ module PkgId
     ) where
 
 import           Control.Monad                (fail)
-import           Control.Lens
 import           Data.Aeson                   (FromJSON (..), FromJSONKey (..),
                                                ToJSON (..), ToJSONKey (..))
 import qualified Data.Aeson                   as J
@@ -177,7 +176,11 @@ matchesEmpty = Matches { matchesInput = T.empty, matchesExact = Map.empty, match
 data CellTable = CellTable { _unCellTable :: (Ver, CompilerID) }
   deriving (Eq, Ord)
 
-makeClassy ''CellTable
+instance Semigroup CellTable where
+  _ <> (CellTable a2) = CellTable a2
+
+
+--makeClassy ''CellTable
 
 
 
