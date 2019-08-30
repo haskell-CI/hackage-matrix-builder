@@ -645,13 +645,12 @@ renderRow pn' hcvs pitrIdxstate wip inQueue ppV pcV t u cs = do
 
 reportDetailWidget :: (SupportsServantReflex t m, MonadFix m, PostBuild t m, DomBuilder t m, Reflex t, MonadHold t m, Adjustable t m) => Dynamic t (Maybe (PkgN,Ver,CompilerID,PkgIdxTs)) -> m ()
 reportDetailWidget dynCellId = do
-
     evDetails <- getPackageReportDetail (maybe (Left "") (Right . (^. _1)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _4)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _2)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _3)) <$> dynCellId)
                                                 (updated dynCellId $> ())
-
+                                                 
     dynRepTy <- holdDyn CRTna (crdType <$> evDetails)
     dynSErr  <- holdDyn "" ((fromMaybe "" . crdSolverErr) <$> evDetails)
     dynSols <- holdDyn [] ((fromMaybe [] . crdUnits) <$> evDetails)
@@ -669,23 +668,20 @@ reportDetailWidget dynCellId = do
       el "h3" (dynText $ (\xs -> tshow (length xs) <> " solution(s) found") <$> dynSols)
 
       _ <- simpleList dynSols $ \dynYs -> elAttr "div" ("style" =: "border-style: solid") $ do
-        simpleList (Map.toList <$> dynYs) $ \dynY -> elAttr "div" ("style" =: "border-style: dotted") $ do
-          evUpd <- getPostBuild
-
+        listWithKey  dynYs $ \uuid dynY -> elAttr "div" ("style" =: "border-style: dotted") $ do
+          evPB0 <- getPostBuild
+          evInfo <- getUnitInfo (Right <$> constDyn uuid) evPB0
           el "h4" $ do
-            el "tt" $ display (fst <$> dynY)
+            el "tt" $ display (constDyn uuid)
             text " "
             el "em" $ do
               text "["
-              dynText (maybe "?" (T.drop 2 . tshow) . snd <$> dynY)
+              dynText (maybe "?" (T.drop 2 . tshow) <$> dynY)
               text "]"
-
-          evInfo <- getUnitInfo (Right . fst <$> dynY) evUpd
 
           dynLogmsg <- holdDyn "-" ((fromMaybe "" . uiiLogmsg) <$> evInfo)
 
-          elDynAttr "pre" (st2attr . snd <$> dynY) (dynText dynLogmsg)
-
+          elDynAttr "pre" (st2attr <$> dynY) (dynText dynLogmsg)
       pure ()
 
   where
