@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y gnupg
 RUN echo 'deb http://ppa.launchpad.net/hvr/ghc/ubuntu xenial main' > /etc/apt/sources.list.d/ghc.list && \
     echo 'deb http://ppa.launchpad.net/hvr/matrix.hackage/ubuntu xenial main' > /etc/apt/sources.list.d/hackageci.list
 RUN apt-key adv --keyserver keyserver.ubuntu.com  --recv-keys FF3AEACEF6F88286
-RUN echo 1 && apt-get update && apt-get dist-upgrade -y && apt-get autoremove -y --purge && apt-get clean
+RUN echo 2 && apt-get update && apt-get dist-upgrade -y && apt-get autoremove -y --purge && apt-get clean
 # locale stuff
 RUN apt-get -y install locales && sed -i -e 's/# en_US.UTF-8 UTF-8/en_US.UTF-8 UTF-8/' /etc/locale.gen && locale-gen && apt-get clean
 ENV LANG=en_US.UTF-8 LANGUAGE=en_US:en LC_ALL=en_US.UTF-8
@@ -166,6 +166,7 @@ RUN apt-get install -y \
         ghc-8.2.2  \
         ghc-8.4.4  \
         ghc-8.6.5  \
+        ghc-8.8.1  \
     && apt-get clean
 
 # add-ons -- to be moved to the front at some point
