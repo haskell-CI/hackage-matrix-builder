@@ -51,9 +51,9 @@ import           Data.Vector.Unboxed.Deriving         (derivingUnbox)
 import           Distribution.Compiler                (CompilerFlavor (..),
                                                        CompilerId (..))
 import           Distribution.Package
-import           Distribution.Text                    (disp, display, parse,
-                                                       simpleParse)
-import qualified Distribution.Text                    as C
+import           Distribution.Text                    (display, simpleParse)
+import qualified Distribution.Pretty                  as C
+import qualified Distribution.Parsec                  as C
 import           Distribution.Version
 
 import           Database.PostgreSQL.Simple.FromField
@@ -65,7 +65,9 @@ import           Servant.API
 
 ----------------------------------------------------------------------------
 
-newtype PkgN = PkgN PackageName deriving (Eq,Ord,NFData,C.Text)
+newtype PkgN = PkgN PackageName deriving (Eq,Ord,NFData,C.Pretty)
+
+instance C.Parsec PkgN where parsec = PkgN <$> C.parsec
 
 instance Show PkgN where
     showsPrec p x
@@ -122,7 +124,9 @@ instance ToSchema PkgN where
 
 ----------------------------------------------------------------------------
 
-newtype Ver = Ver Version deriving (Eq,Ord,NFData,C.Text)
+newtype Ver = Ver Version deriving (Eq,Ord,NFData,C.Pretty)
+
+instance C.Parsec Ver where parsec = Ver <$> C.parsec
 
 instance Show Ver where
     showsPrec p x
@@ -187,6 +191,14 @@ mkVer = Ver . mkVersion . NE.toList
 data PkgId = PkgId !PkgN !Ver
            deriving (Ord,Eq,Show,Generic)
 
+instance C.Parsec PkgId where
+    parsec = do
+      p <- C.parsec
+      maybe (fail "parse: invalid PkgId") pure (piToPkgId p)
+
+instance C.Pretty PkgId where
+  pretty = C.pretty . piFromPkgId
+
 instance NFData PkgId
 
 instance FromField PkgId where
@@ -206,12 +218,6 @@ pkgIdFromPackageIdentifier = piToPkgId
 
 piFromPkgId :: PkgId -> PackageIdentifier
 piFromPkgId (PkgId (PkgN pn) (Ver v)) = PackageIdentifier pn v
-
-instance C.Text PkgId where
-    disp = disp . piFromPkgId
-    parse = do
-        p <- parse
-        maybe (fail "parse: invalid PkgId") pure (piToPkgId p)
 
 instance FromJSON PkgId where
     parseJSON = withText "PkgId" $ maybe (fail "invalid PkgId") pure . simpleParse . T.unpack
@@ -247,11 +253,13 @@ compilerIDFromCompilerId :: CompilerId -> Maybe CompilerID
 compilerIDFromCompilerId (CompilerId GHC v) = CompilerID <$> verFromVersion v
 compilerIDFromCompilerId _                  = Nothing
 
-instance C.Text CompilerID where
-    disp = disp . PkgId (PkgN (mkPackageName "ghc")) . compilerVer
-    parse = do
-        p <- parse
-        maybe (fail "parse: invalid CompilerId") pure (compilerIDFromCompilerId p)
+instance C.Pretty CompilerID where
+    pretty = C.pretty . PkgId (PkgN (mkPackageName "ghc")) . compilerVer
+
+instance C.Parsec CompilerID where
+    parsec = do
+      p <- C.parsec
+      maybe (fail "parse: invalid CompilerId") pure (compilerIDFromCompilerId p)
 
 instance FromJSON CompilerID where
     parseJSON = withText "CompilerID" $ maybe (fail "invalid CompilerId") pure . simpleParse . T.unpack

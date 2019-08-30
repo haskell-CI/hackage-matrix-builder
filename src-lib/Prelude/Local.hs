@@ -123,6 +123,7 @@ import qualified Data.UUID.Types          as UUID
 import           Data.Vector              (Vector)
 import           Data.Word
 import qualified Distribution.Text        as C
+import qualified Distribution.Pretty      as C
 import           Prelude                  hiding (print, putStr, putStrLn,
                                            uncons)
 import           System.Directory
@@ -207,5 +208,5 @@ tshow :: Show s => s -> T.Text
 tshow = T.pack . show
 
 
-tdisplay :: C.Text s => s -> T.Text
+tdisplay :: C.Pretty s => s -> T.Text
 tdisplay = T.pack . C.display

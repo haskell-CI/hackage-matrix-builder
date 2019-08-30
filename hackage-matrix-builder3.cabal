@@ -29,7 +29,7 @@ common defaults
   mixins:              base hiding (Prelude)
 
   build-depends:
-    , Cabal                ^>= 2.4.0.1
+    , Cabal                ^>= 3.0.0.0
     , aeson                ^>= 1.4.3.0
     , async                ^>= 2.2.1
     , base                 ^>= 4.9 || ^>= 4.10 || ^>= 4.11 || ^>= 4.12
