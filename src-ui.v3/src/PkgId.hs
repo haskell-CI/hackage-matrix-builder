@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE TemplateHaskell     #-}
 
 -- |
 -- Copyright: © 2018 Herbert Valerio Riedel
@@ -24,7 +25,7 @@ module PkgId
 
     -- , UnitID(..), unUnitID
     -- , unitIDFromUnitId
-
+    , CellTable(..) --, HasCellTable
     , CompilerID, compilerVer
     , compilerIdFromText
     , compilerIdToText
@@ -172,7 +173,14 @@ matchesEmpty :: Matches
 matchesEmpty = Matches { matchesInput = T.empty, matchesExact = Map.empty, matchesInfix = Map.empty}
 
 ---------------------------------
+data CellTable = CellTable { _unCellTable :: (Ver, CompilerID) }
+  deriving (Eq, Ord)
 
+instance Semigroup CellTable where
+  _ <> (CellTable a2) = CellTable a2
+
+
+--makeClassy ''CellTable
 
 
 

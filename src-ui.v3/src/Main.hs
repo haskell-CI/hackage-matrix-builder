@@ -19,6 +19,7 @@
 --
 module Main (main) where
 
+import           Control.Monad             (sequence_)
 import           Data.Aeson                (FromJSON)
 import qualified Data.Aeson                as J
 import qualified Data.Aeson.Types          as J
@@ -420,9 +421,14 @@ app dynFrag = do
         
         el "hr" blank
 
-        evCellClick <- reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo
-
-        dynCellClick <- holdDyn Nothing (Just <$> evCellClick)
+        evCC <- dyn $ reportTableWidget <$> dynRepSum
+                                        <*> dynQRows 
+                                        <*> dynWorkers
+                                        <*> dynHist 
+                                        <*> dynInfo
+        evCellClick <- switchHold never evCC
+                        
+        dynCellClick <- holdDyn Nothing (Just . _unCellTable <$> evCellClick) -- . _unCellTable 
 
         let dynCell' = mergeCellId pn <$> dynCellClick <*> dynIdxSt
 
@@ -530,92 +536,121 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
       V.filter (tagContained st dpt) pkg
 
 
-reportTableWidget :: forall t m . (SetRoute t FragRoute m, MonadHold t m, PostBuild t m, DomBuilder t m, Reflex t)
-                  => Dynamic t PkgIdxTsReport
-                  -> Dynamic t (Vector QEntryRow)
-                  -> Dynamic t (Vector WorkerRow)
-                  -> Dynamic t (Vector PkgHistoryEntry)
-                  -> Dynamic t ControllerInfo
-                  -> m (Event t (Ver,CompilerID))
-reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo = joinE =<< go
-  where
-    go = dyn $ do
-      PkgIdxTsReport{..} <- dynRepSum
-      qrowsAll <- dynQRows
-      wrowsAll <- dynWorkers
-      hrowsAll <- dynHist
-      ControllerInfo{..} <- dynInfo
-      let activeHcs = [ k | (k,CompilerInfo { ciActive = True }) <- Map.toDescList ciCompilers ]
+reportTableWidget :: forall t m. ( SetRoute t FragRoute m, MonadHold t m, PostBuild t m, DomBuilder t m, Reflex t)
+                  => PkgIdxTsReport
+                  -> (Vector QEntryRow)
+                  -> (Vector WorkerRow)
+                  -> (Vector PkgHistoryEntry)
+                  -> ControllerInfo
+                  -> m (Event t CellTable)
+reportTableWidget dynRepSum dynQRows dynWorkers dynHist dynInfo = do
+  let PkgIdxTsReport{..} = dynRepSum
+      qrowsAll = dynQRows
+      wrowsAll = dynWorkers
+      hrowsAll = dynHist
+      ControllerInfo{..} = dynInfo
+  
+  let activeHcs = [ k | (k,CompilerInfo { ciActive = True }) <- Map.toDescList ciCompilers ]
 
 
-      let hcvsLR = computeLR pitrHcversions activeHcs
-          hcvs   = applyLR hcvsLR pitrHcversions activeHcs
+  let (Just defVer) = verFromText "0"
+      hcvsLR = computeLR pitrHcversions activeHcs
+      hcvs   = applyLR hcvsLR pitrHcversions activeHcs
 
-      let vmap = Map.mergeWithKey (\_ (t,u) e -> Just (t,u,applyLR hcvsLR e emptyActive)) (fmap (\(t,u) -> (t,u,emptyHcvs))) (const mempty)
+  let emptyHcvs   = hcvs      $> emptyCellReportSummary
+      emptyActive = activeHcs $> emptyCellReportSummary
+
+      vmap = Map.mergeWithKey (\_ (t,u) e -> Just (t,u,applyLR hcvsLR e emptyActive)) (fmap (\(t,u) -> (t,u,emptyHcvs))) (const mempty)
                                   vmap0 pitrPkgversions
 
-          emptyHcvs   = hcvs      $> emptyCellReportSummary
-          emptyActive = activeHcs $> emptyCellReportSummary
+      vmap0 = Map.fromList [ (v,(t,u)) | PkgHistoryEntry t v 0 u <- V.toList hrowsAll ]
 
-          vmap0 = Map.fromList [ (v,(t,u)) | PkgHistoryEntry t v 0 u <- V.toList hrowsAll ]
+  let inQueue = not (null [ () | QEntryRow{..} <- V.toList qrowsAll, qrIdxstate == pitrIdxstate ])
 
-      let inQueue = not (null [ () | QEntryRow{..} <- V.toList qrowsAll, qrIdxstate == pitrIdxstate ])
-
-      let wip = [ (pv,hcv) | WorkerRow{..} <- V.toList wrowsAll
+  let wip = [ (pv,hcv) | WorkerRow{..} <- V.toList wrowsAll
                            , wrIdxState == Just pitrIdxstate
                            , Just pv <- [wrPkgversion]
                            , Just hcv <- [wrHcversion]
                            ]
 
-      let pn' = pkgNToText pitrPkgname
+  let pn' = pkgNToText pitrPkgname
 
       -- TODO: push Dynamics into cells; the table dimensions are semi-static
-      pure $ do
-        el "table" $ do
-          el "thead" $ do
-            el "tr" $ do
-              el "th" blank
-              forM_ hcvs $ \cid -> el "th" (text (compilerIdToText cid))
-              el "th" blank
-              el "th" (text "released")
-              el "th" (text "uploader")
+  el "table" $ do
+    el "thead" $ do
+      el "tr" $ do
+        el "th" blank
+        forM_ hcvs $ \cid -> el "th" (text (compilerIdToText cid))
+        el "th" blank
+        el "th" (text "released")
+        el "th" (text "uploader")
 
-          el "tbody" $ do
-            evsRows <- forM (Map.toDescList vmap) $ \(pv,(t,u,cs)) -> do
-              let tooSoon = t > pitrIdxstate
-                  tooSoonAttr = if tooSoon then ("style" =: "opacity:0.5;") else mempty
-              elAttr "tr" tooSoonAttr $ do
-                elAttr "th" ("style" =: "text-align:left;") $
-                  elAttr "a" ("href" =: (mconcat [ "https://hackage.haskell.org/package/", pn',"-",verToText pv,"/",pn',".cabal/edit" ])) $
-                    text (verToText pv)
-                evsRow1 <- forM (zip cs hcvs) $ \(x,hcv) -> do
-                  let (cellAttr,cellText) = case crsT x of
-                        Nothing
-                          | tooSoon             -> ("class" =: "stat-unknown", el "b" (text ""))
-                          | (pv,hcv) `elem` wip -> ("class" =: "stat-wip",     el "b" (text "WIP"))
-                          | inQueue             -> ("class" =: "stat-queued",  text "queued")
-                        _                       -> ("class" =: (snd $ fmtCRS x), (text $ fst $ fmtCRS x))
+    el "tbody" $ do 
+      evrows <- sequence . List.reverse . snd $ List.mapAccumL (accumTableRow pn' hcvs pitrIdxstate wip inQueue) (defVer, ((PkgIdxTs 0), "", [])) (Map.toAscList vmap)
+      pure (leftmost evrows)
 
-                  (l,_) <- elAttr' "td" (("style" =: if tooSoon then "cursor: not-allowed;" else "cursor: cell;") <> cellAttr) cellText
+accumTableRow :: forall t m. (SetRoute t FragRoute m, DomBuilder t m, Reflex t)
+               => Text
+               -> [CompilerID]
+               -> PkgIdxTs
+               -> [(Ver,CompilerID)]
+               -> Bool
+               -> (Ver, (PkgIdxTs, UserName, [CellReportSummary])) 
+               -> (Ver, (PkgIdxTs, UserName, [CellReportSummary])) 
+               -> ((Ver, (PkgIdxTs, UserName, [CellReportSummary])), m (Event t CellTable))
+accumTableRow pn' hcvs pkgIdxTs wip inQ prevVer currVer = 
+  let pkgVer              = const currVer prevVer
+      (pcVer, (t, u, cs)) = pkgVer
+      (ppVer, _)          = prevVer
+  in (pkgVer, (renderRow pn' hcvs pkgIdxTs wip inQ ppVer pcVer t u cs))
 
-                  pure $ ((pv,hcv) <$ (if tooSoon then never else domEvent Click l) :: Event t (Ver,CompilerID))
+renderRow :: forall t m. (SetRoute t FragRoute m, DomBuilder t m, Reflex t)
+          => Text
+          -> [CompilerID]
+          -> PkgIdxTs
+          -> [(Ver,CompilerID)]
+          -> Bool
+          -> (Ver)
+          -> (Ver)
+          -> PkgIdxTs
+          -> UserName
+          -> [CellReportSummary]
+          -> m (Event t CellTable)
+renderRow pn' hcvs pitrIdxstate wip inQueue ppV pcV t u cs = do
+  let tooSoon = t > pitrIdxstate
+      tooSoonAttr = if tooSoon then ("style" =: "opacity:0.5;") else mempty
+  elAttr "tr" tooSoonAttr $ do
+    elAttr "th" ("style" =: "text-align:left;") $ do
+      let id2Ver = if verToText ppV == "0" then "" else "&id2=" <> verToText ppV
+      elAttr "a" ("href" =: (mconcat [ "http://hdiff.luite.com/cgit/", pn', "/diff?id=",verToText pcV, id2Ver ])) $
+        text "Δ"
+      elAttr "a" ("href" =: (mconcat [ "https://hackage.haskell.org/package/", pn',"-",verToText pcV,"/",pn',".cabal/edit" ])) $
+        text (verToText pcV)
+    evsRow1 <- forM (zip cs hcvs) $ \(x,hcv) -> do
+      let (cellAttr,cellText) = case crsT x of
+            Nothing
+              | tooSoon             -> ("class" =: "stat-unknown", el "b" (text ""))
+              | (pcV,hcv) `elem` wip -> ("class" =: "stat-wip",     el "b" (text "WIP"))
+              | inQueue             -> ("class" =: "stat-queued",  text "queued")
+            _                       -> ("class" =: (snd $ fmtCRS x), (text $ fst $ fmtCRS x))
 
-                elAttr "th" ("style" =: "text-align:left;") (text (verToText pv))
-                el "td" $ text (pkgIdxTsToText t)
-                el "td" $ routeLink False ("#/user/" <> u) (text u)
+      (l,_) <- elAttr' "td" (("style" =: if tooSoon then "cursor: not-allowed;" else "cursor: cell;") <> cellAttr) cellText
 
-                pure (leftmost evsRow1)
-            pure (leftmost evsRows) -- main "return" value
+      pure $ ((CellTable (pcV,hcv)) <$ (if tooSoon then never else domEvent Click l) :: Event t CellTable)
+
+    elAttr "th" ("style" =: "text-align:left;") (text (verToText pcV))
+    el "td" $ text (pkgIdxTsToText t)
+    el "td" $ routeLink False ("#/user/" <> u) (text u)
+    pure (leftmost evsRow1)
 
 reportDetailWidget :: (SupportsServantReflex t m, MonadFix m, PostBuild t m, DomBuilder t m, Reflex t, MonadHold t m, Adjustable t m) => Dynamic t (Maybe (PkgN,Ver,CompilerID,PkgIdxTs)) -> m ()
 reportDetailWidget dynCellId = do
-
     evDetails <- getPackageReportDetail (maybe (Left "") (Right . (^. _1)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _4)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _2)) <$> dynCellId)
                                                 (maybe (Left "") (Right . (^. _3)) <$> dynCellId)
                                                 (updated dynCellId $> ())
-
+                                                 
     dynRepTy <- holdDyn CRTna (crdType <$> evDetails)
     dynSErr  <- holdDyn "" ((fromMaybe "" . crdSolverErr) <$> evDetails)
     dynSols <- holdDyn [] ((fromMaybe [] . crdUnits) <$> evDetails)
@@ -633,23 +668,20 @@ reportDetailWidget dynCellId = do
       el "h3" (dynText $ (\xs -> tshow (length xs) <> " solution(s) found") <$> dynSols)
 
       _ <- simpleList dynSols $ \dynYs -> elAttr "div" ("style" =: "border-style: solid") $ do
-        simpleList (Map.toList <$> dynYs) $ \dynY -> elAttr "div" ("style" =: "border-style: dotted") $ do
-          evUpd <- getPostBuild
-
+        listWithKey  dynYs $ \uuid dynY -> elAttr "div" ("style" =: "border-style: dotted") $ do
+          evPB0 <- getPostBuild
+          evInfo <- getUnitInfo (Right <$> constDyn uuid) evPB0
           el "h4" $ do
-            el "tt" $ display (fst <$> dynY)
+            el "tt" $ display (constDyn uuid)
             text " "
             el "em" $ do
               text "["
-              dynText (maybe "?" (T.drop 2 . tshow) . snd <$> dynY)
+              dynText (maybe "?" (T.drop 2 . tshow) <$> dynY)
               text "]"
-
-          evInfo <- getUnitInfo (Right . fst <$> dynY) evUpd
 
           dynLogmsg <- holdDyn "-" ((fromMaybe "" . uiiLogmsg) <$> evInfo)
 
-          elDynAttr "pre" (st2attr . snd <$> dynY) (dynText dynLogmsg)
-
+          elDynAttr "pre" (st2attr <$> dynY) (dynText dynLogmsg)
       pure ()
 
   where
@@ -729,9 +761,6 @@ pkgTagList m = Map.fromListWith (List.++) $ do
   (k, vs) <- Map.toList m
   v <- (V.toList vs)
   pure $ (v, [k])
-
-joinE :: forall t m a. (Reflex t, MonadHold t m) => Event t (Event t a) -> m (Event t a)
-joinE = fmap switch . hold never
 
 clickElement_ :: forall t m. (DomBuilder t m, PostBuild t m) => Text -> Text -> m (Event t ())
 clickElement_ elm t = do
