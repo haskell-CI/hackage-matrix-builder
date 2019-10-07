@@ -119,7 +119,7 @@ bodyElement4 = do
 app :: forall t m. (SetRoute t FragRoute m, SupportsServantReflex t m, MonadFix m, MonadIO m, MonadHold t m, PostBuild t m, DomBuilder t m, Adjustable t m, DomBuilderSpace m ~ GhcjsDomSpace) 
     => FragRoute -- Dynamic t FragRoute
     -> m ()
-app dynFrag = do
+app fragRoute = do
   -- top-level PB event
   evPB0 <- getPostBuild
 
@@ -142,11 +142,11 @@ app dynFrag = do
   -- pseudo navbar
   el "nav" $ do
     text "[ "
-    routeLink False "#/" (text "HOME")
+    routeLink False RouteHome (text "HOME")
     text " | "
-    routeLink False "#/queue" (text "Build Queue")
+    routeLink False RouteQueue (text "Build Queue")
     text " | "
-    routeLink False "#/packages" (text "Packages")
+    routeLink False RoutePackages (text "Packages")
     text " ]"
     text "    (current index-state: "
     dynText (pkgIdxTsToText <$> dynIdxStLast)
@@ -158,7 +158,7 @@ app dynFrag = do
   _ <- searchBoxWidget dynPackages0
   el "hr" blank
 
-  _ <- case dynFrag of --dyn $ dynFrag >>= \case
+  _ <- case fragRoute of
     RouteHome -> do
       elAttr "div" (("id" =: "page-home") <> ("class" =: "page")) $ do
         divClass "leftcol" $ do
@@ -244,7 +244,6 @@ app dynFrag = do
 
       el "h1" $ text "Queue"
       el "div" $ do
-        -- aButton <- el "div" $ button "Refresh Queue"
         evQRows <- getQueue (leftmost [ticker4 $> (), evPB])
         dynQRows <- holdUniqDyn =<< holdDyn mempty evQRows
 
@@ -521,7 +520,7 @@ packagesPageWidget dynPackages dynTags dynPkgTags = do
                   pure $ do
 
                     el "ol" $ forM_ v' $ \(pn) -> do
-                      el "li" $ routeLink False ("#/package/" <> (pkgNToText pn)) $ do
+                      el "li" $ routeLink False (RoutePackage pn) $ do
                         text ((pkgNToText pn) <> " : ")
                         case Map.lookup pn dpt of
                           Just tags -> forM tags $ \(tag0) -> elAttr "a" (("class" =: "tag-item") <> ("data-tag-name" =: (tagNToText tag0))) $ text (tagNToText tag0)
@@ -640,7 +639,7 @@ renderRow pn' hcvs pitrIdxstate wip inQueue ppV pcV t u cs = do
 
     elAttr "th" ("style" =: "text-align:left;") (text (verToText pcV))
     el "td" $ text (pkgIdxTsToText t)
-    el "td" $ routeLink False ("#/user/" <> u) (text u)
+    el "td" $ routeLink False (RouteUser u) (text u)
     pure (leftmost evsRow1)
 
 reportDetailWidget :: (SupportsServantReflex t m, MonadFix m, PostBuild t m, DomBuilder t m, Reflex t, MonadHold t m, Adjustable t m) => Dynamic t (Maybe (PkgN,Ver,CompilerID,PkgIdxTs)) -> m ()
@@ -832,10 +831,10 @@ searchResultWidget mDyn =
   el "ul" $ do
     exactE <- listViewWithKey (matchesExact <$> mDyn) $ \eId _ -> do
                 (e, _) <- element "li" def $ 
-                  routeLink False ("#/package/" <> eId) $ el "strong" $ text eId
+                  routeLink False (RoutePackage (PkgN eId)) $ el "strong" $ text eId
                 pure $ domEvent Click e
     otherE <- listViewWithKey (matchesInfix <$> mDyn) $ \pId txt -> do
-                (e, _) <- element "li" def $ routeLink False ("#/package/" <> pId) $ do
+                (e, _) <- element "li" def $ routeLink False (RoutePackage (PkgN pId)) $ do
                             dynText . fmap (^. _1) $ txt
                             el "strong" $ dynText . fmap (^. _2) $ txt
                             dynText . fmap (^. _3) $ txt

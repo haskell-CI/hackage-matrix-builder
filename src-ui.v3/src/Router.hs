@@ -61,6 +61,7 @@ import           Reflex.EventWriter.Base
 import           Reflex.Dom.Builder.Class
 import           Language.Javascript.JSaddle (MonadJSM, jsNull)
 import           Reflex.Dom.Core
+import           Reflex.Dom.Location
 import qualified GHCJS.DOM as DOM
 import           GHCJS.DOM.Types (SerializedScriptValue (..))
 import qualified GHCJS.DOM.Window as Window
@@ -156,21 +157,15 @@ instance (Monad m, MonadQuery t vs m) => MonadQuery t vs (SetRouteT t r m) where
 
 routeLink :: forall t m a. ( DomBuilder t m, SetRoute t FragRoute m) 
           => Bool -- PreventDefault?
-          -> Text -- Target route
+          -> FragRoute -- Target route
           -> m a -- Child widget
           -> m a
-routeLink True r w = do
+routeLink isPrevent route w = do
   let cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
-        & elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Click (\_ -> preventDefault)
-        & elementConfig_initialAttributes .~ "href" =: r
+        & elementConfig_initialAttributes .~ "href" =: (fromMaybe "#/" (encodeFrag route))
+        & elementConfig_eventSpec %~ addEventSpecFlags (Proxy :: Proxy (DomBuilderSpace m)) Click (\_ -> mempty {_eventFlags_preventDefault = isPrevent })
   (e, a) <- element "a" cfg w
-  setRoute $ (switchPkgRoute (Just $ decodeFrag r)) <$ domEvent Click e
-  return a
-routeLink False r w = do
-  let cfg = (def :: ElementConfig EventResult t (DomBuilderSpace m))
-        & elementConfig_initialAttributes .~ "href" =: r
-  (e, a) <- element "a" cfg w
-  setRoute $ (switchPkgRoute (Just $ decodeFrag r)) <$ domEvent Click e 
+  setRoute $ (switchPkgRoute (Just route)) <$ domEvent Click e
   return a
 
 routePkgIdxTs :: forall t m. (PerformEvent t m, TriggerEvent t m, MonadJSM m, MonadJSM (Performable m), PostBuild t m, MonadHold t m, MonadFix m, DomBuilder t m, SetRoute t FragRoute m) 
@@ -191,7 +186,7 @@ routePkgIdxTs pn setIdx ddIdx = do
             }) <$> evDD
   _ <- manageHistory $ HistoryCommand_PushState <$> res
   
-  setRoute $ switchPkgRoute <$> evDD
+  --setRoute $ switchPkgRoute <$> evDD
   pure ()
 
 fromRoutePackage :: Maybe FragRoute -> URI -> Maybe URI
@@ -213,34 +208,40 @@ runRouteViewT  :: forall t m. (MonadHold t m, MonadSample t m, Adjustable t m, T
                => (FragRoute -> SetRouteT t FragRoute m ())
                -> m ()
 runRouteViewT app = mdo
+  window <- DOM.currentWindowUnchecked
+  location <- Window.getLocation window
+  currUri <- getLocationUri location
   historyState <- manageHistory $ HistoryCommand_PushState <$> setState
-
   let 
     dynLoc = _historyItem_uri <$> historyState
 
     route :: Dynamic t FragRoute
     route = decodeFrag . T.pack . uriFragment <$> dynLoc
 
-    setState = fmapMaybe id $ attachWith switchRoutingState ( (,) <$> current historyState <*> current route) changeStateE
+    setState = fmapMaybe id $ attachWith (switchRoutingState currUri) ( (,) <$> current historyState <*> current route) changeStateE
   (result, changeStateE) <- runSetRouteT $ strictDynWidget_ app route
   pure result
 
-switchFrag :: FragRoute -> FragRoute -> Maybe FragRoute
-switchFrag newFrag oldFrag
+
+switchFrag :: FragRoute -> FragRoute -> FragRoute -> Maybe FragRoute
+switchFrag cUri newFrag oldFrag
   | True <- newFrag == oldFrag
   = Nothing
   | (RoutePackage _) <- newFrag
   , (RoutePackage _) <- oldFrag
+  , (RoutePackage _) <- cUri
   = Nothing
   | otherwise = Just newFrag
 
-switchRoutingState :: (HistoryItem, FragRoute) -> Endo FragRoute -> Maybe HistoryStateUpdate
-switchRoutingState (currentHS, oldR) chStateE =
+switchRoutingState :: URI -> (HistoryItem, FragRoute) -> Endo FragRoute -> Maybe HistoryStateUpdate
+switchRoutingState currUri (currentHS, oldR) chStateE =
   let newRoute = appEndo chStateE oldR
+      cUri = decodeFrag $ (T.pack . uriFragment) currUri
   in do
       newState <- encodeFrag newRoute
       oldRoute <- encodeFrag oldR
-      _ <- switchFrag newRoute oldR
+      _ <- if cUri == newRoute || cUri == oldR then Nothing else Nothing
+      _ <- switchFrag cUri newRoute oldR
       newUri <- applyEncoding oldRoute newState (_historyItem_uri currentHS)
       pure $ HistoryStateUpdate
             { _historyStateUpdate_state = SerializedScriptValue jsNull
