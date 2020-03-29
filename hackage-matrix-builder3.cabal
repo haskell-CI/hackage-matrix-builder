@@ -1,4 +1,4 @@
-cabal-version:       2.4
+cabal-version:       3.0
 name:                hackage-matrix-builder3
 version:             0.3
 
@@ -29,10 +29,10 @@ common defaults
   mixins:              base hiding (Prelude)
 
   build-depends:
-    , Cabal                ^>= 3.0.0.0
+    , Cabal                ^>= 3.2.0.0
     , aeson                ^>= 1.4.3.0
     , async                ^>= 2.2.1
-    , base                 ^>= 4.9 || ^>= 4.10 || ^>= 4.11 || ^>= 4.12
+    , base                 ^>= { 4.9, 4.10, 4.11, 4.12 }
     , bytestring           ^>= 0.10.2
     , containers           ^>= 0.5.7.1 || ^>= 0.6.0.1
     , cryptohash-sha256    ^>= 0.11.100.1

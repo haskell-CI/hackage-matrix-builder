@@ -9,9 +9,9 @@ if [ ! -x worker/bin/cabal ]; then
 fi
 
 # worker
-cabal v2-build exe:matrix-worker
-cp -v "$(cabal new-exec which -- matrix-worker)" ./worker/bin/
-strip -v worker/bin/matrix-worker
+#cabal v2-build exe:matrix-worker
+#cp -v "$(cabal new-exec which -- matrix-worker)" ./worker/bin/
+#strip -v worker/bin/matrix-worker
 
 # 
 docker build -t matrix-worker-base ./worker-base
