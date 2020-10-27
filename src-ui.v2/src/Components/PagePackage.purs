@@ -335,7 +335,7 @@ component = H.lifecycleComponent
         arrKeys = Arr.concat (SM.keys <$> sRU)
         logs = case summ.crsT of
           "pf" -> sRS
-          "se" -> "There is exist at least one build log. Please click the button above"
+          "se" -> "There is at least one build log. Please click the button above"
           _    -> ""
         sObj = SM.singleton "name" (Arg.encodeJson pkgname)
         jObj = F.toForeign (SM.insert "index" (Arg.encodeJson idxstate) sObj)
