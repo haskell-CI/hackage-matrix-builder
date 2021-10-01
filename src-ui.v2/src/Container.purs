@@ -116,7 +116,7 @@ ui =
                 [ HP.classes (H.ClassName <$> ["item","left","logo-container","clearfix"]) ]
                 [ HH.img
                     [ HP.class_ (H.ClassName "logo")
-                    , HP.src "//www.haskell.org/static/img/logo.png"
+                    , HP.src "//hackage.haskell.org/static/icons/ic_haskell_grayscale_32.svg"
                     , HP.alt "Haskell Logo"
                     ]
                 , HH.h1
